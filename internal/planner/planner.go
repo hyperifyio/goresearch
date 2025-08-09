@@ -1,0 +1,174 @@
+package planner
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	openai "github.com/sashabaranov/go-openai"
+
+	"github.com/hyperifyio/goresearch/internal/brief"
+	"github.com/hyperifyio/goresearch/internal/cache"
+	"github.com/rs/zerolog/log"
+)
+
+// Plan represents the structured result from the planner step.
+type Plan struct {
+	Queries []string `json:"queries"`
+	Outline []string `json:"outline"`
+}
+
+// Planner produces web search queries and a section outline from a Brief.
+type Planner interface {
+	Plan(ctx context.Context, b brief.Brief) (Plan, error)
+}
+
+// LLMPlanner calls an OpenAI-compatible endpoint and enforces a JSON-only contract.
+type LLMPlanner struct {
+	Client       *openai.Client
+	Model        string
+	LanguageHint string
+	Cache        *cache.LLMCache
+	Verbose      bool
+}
+
+const systemMessage = "You are a planning assistant. Respond with strict JSON only, no narration. The JSON schema is {\"queries\": string[6..10], \"outline\": string[5..8]}. Queries must be diverse and concise. Outline contains section headings only."
+
+// Plan implements Planner using the chat completions API. If the model returns
+// non-JSON or the payload cannot be parsed, an error is returned so callers can
+// choose to fall back.
+func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
+	if p.Client == nil || p.Model == "" {
+		return Plan{}, errors.New("planner not configured")
+	}
+
+	user := buildUserPrompt(b, p.LanguageHint)
+	// Cache lookup
+	if p.Cache != nil {
+		key := cache.KeyFrom(p.Model, systemMessage+"\n\n"+user)
+		if raw, ok, _ := p.Cache.Get(ctx, key); ok {
+			var plan Plan
+			if err := json.Unmarshal(raw, &plan); err == nil {
+				return plan, nil
+			}
+		}
+	}
+	if p.Verbose {
+		log.Debug().Str("model", p.Model).Str("system", systemMessage).Str("user", user).Msg("planner prompt")
+	}
+	resp, err := p.Client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: p.Model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemMessage},
+			{Role: openai.ChatMessageRoleUser, Content: user},
+		},
+		Temperature: 0.1,
+		N:           1,
+	})
+	if err != nil {
+		return Plan{}, fmt.Errorf("planner call: %w", err)
+	}
+	if len(resp.Choices) == 0 {
+		return Plan{}, errors.New("no choices")
+	}
+	var plan Plan
+	raw := strings.TrimSpace(resp.Choices[0].Message.Content)
+	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
+		return Plan{}, fmt.Errorf("parse planner json: %w", err)
+	}
+	plan.Queries = sanitizeQueries(plan.Queries)
+	plan.Outline = sanitizeOutline(plan.Outline)
+	if len(plan.Queries) < 3 || len(plan.Outline) < 3 {
+		return Plan{}, errors.New("insufficient planner output")
+	}
+	if p.Cache != nil {
+		if b, err := json.Marshal(plan); err == nil {
+			_ = p.Cache.Save(ctx, cache.KeyFrom(p.Model, systemMessage+"\n\n"+user), b)
+		}
+	}
+	return plan, nil
+}
+
+// FallbackPlanner produces deterministic queries and a generic outline when the
+// LLM planner is unavailable or returns invalid output.
+type FallbackPlanner struct {
+	LanguageHint string
+}
+
+func (p *FallbackPlanner) Plan(_ context.Context, b brief.Brief) (Plan, error) {
+	topic := strings.TrimSpace(b.Topic)
+	if topic == "" {
+		topic = "research topic"
+	}
+	// Deterministic set of 8 queries
+	words := []string{"specification", "documentation", "reference", "tutorial", "best practices", "faq", "examples", "comparison"}
+	queries := make([]string, 0, len(words))
+	for _, w := range words {
+		q := topic + " " + w
+		if p.LanguageHint != "" {
+			q = q + " (" + p.LanguageHint + ")"
+		}
+		queries = append(queries, q)
+	}
+	outline := []string{"Executive summary", "Background", "Core concepts", "Implementation guidance", "Examples", "Risks and limitations", "References"}
+	return Plan{Queries: queries, Outline: outline}, nil
+}
+
+func buildUserPrompt(b brief.Brief, lang string) string {
+	var sb strings.Builder
+	sb.WriteString("Brief topic: ")
+	sb.WriteString(b.Topic)
+	if b.AudienceHint != "" {
+		sb.WriteString("\nAudience: ")
+		sb.WriteString(b.AudienceHint)
+	}
+	if b.ToneHint != "" {
+		sb.WriteString("\nTone: ")
+		sb.WriteString(b.ToneHint)
+	}
+	if b.TargetLengthWords > 0 {
+		sb.WriteString("\nTarget length: ")
+		sb.WriteString(fmt.Sprintf("%d words", b.TargetLengthWords))
+	}
+	if lang != "" {
+		sb.WriteString("\nLanguage: ")
+		sb.WriteString(lang)
+	}
+	return sb.String()
+}
+
+func sanitizeQueries(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := map[string]struct{}{}
+	for _, q := range in {
+		s := strings.TrimSpace(q)
+		if s == "" {
+			continue
+		}
+		s = strings.TrimSuffix(s, ".")
+		s = strings.TrimSuffix(s, "?")
+		s = strings.TrimSpace(s)
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+func sanitizeOutline(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, h := range in {
+		s := strings.TrimSpace(h)
+		s = strings.Trim(s, "# ")
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
