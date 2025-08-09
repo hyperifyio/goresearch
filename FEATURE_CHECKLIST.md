@@ -84,9 +84,9 @@
 
 * [x] Per-source failure isolation — Network and parse errors are isolated per URL so that one failing site does not abort the whole run.
 
-* [ ] Planner failure recovery — If the planner cannot produce parseable output, deterministic fallback queries are generated to keep the pipeline progressing.
+* [x] Planner failure recovery — If the planner cannot produce parseable output, deterministic fallback queries are generated to keep the pipeline progressing. (tests: planner fallback + app facade)
 
-* [ ] Synthesis retry policy — Transient LLM errors during synthesis trigger a single short backoff retry before failing the run.
+* [x] Synthesis retry policy — Transient LLM errors during synthesis trigger a single short backoff retry before failing the run. (implemented with test-injectable sleep and flaky client test)
 
 * [ ] Exit code policy — The program exits nonzero only when no usable sources are found or the LLM returns no substantive body text; otherwise it completes with warnings as needed.
 

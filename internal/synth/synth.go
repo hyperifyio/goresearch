@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
+    "time"
     "strings"
 
     openai "github.com/sashabaranov/go-openai"
@@ -72,9 +73,25 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
         Temperature: 0.1,
         N:           1,
     }
+    // Transient-error retry: one short backoff attempt before failing.
     resp, err := s.Client.CreateChatCompletion(ctx, req)
     if err != nil {
-        return "", fmt.Errorf("synthesis call: %w", err)
+        // single retry after short sleep
+        // use a tiny, fixed backoff to keep deterministic behavior in tests
+        // and avoid long waits in CLI runs
+        // Note: context deadline will still bound this.
+        // go: no timer imports at top yet
+        // implement inline minimal backoff using a channel-based timer
+        if sleeper := sleepFunc; sleeper != nil {
+            sleeper(100)
+        } else {
+            // default small sleep of 100ms
+            defaultSleep(100)
+        }
+        resp, err = s.Client.CreateChatCompletion(ctx, req)
+        if err != nil {
+            return "", fmt.Errorf("synthesis call (after retry): %w", err)
+        }
     }
     if len(resp.Choices) == 0 {
         return "", errors.New("no choices from model")
@@ -141,6 +158,14 @@ func buildUserMessage(in Input) string {
     }
     sb.WriteString("\nOutput only the Markdown. Do not include any prose outside the document.")
     return sb.String()
+}
+
+// sleepFunc allows tests to inject a deterministic sleep hook measured in milliseconds.
+// When nil, defaultSleep is used.
+var sleepFunc func(ms int)
+
+func defaultSleep(ms int) {
+    time.Sleep(time.Duration(ms) * time.Millisecond)
 }
 
 

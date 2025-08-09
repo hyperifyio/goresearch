@@ -23,6 +23,22 @@ func (c *capturingClient) CreateChatCompletion(ctx context.Context, req openai.C
     }, nil
 }
 
+type flakyClient struct{
+    calls int
+}
+
+func (f *flakyClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+    f.calls++
+    if f.calls == 1 {
+        return openai.ChatCompletionResponse{}, fmt.Errorf("transient error")
+    }
+    return openai.ChatCompletionResponse{
+        Choices: []openai.ChatCompletionChoice{{
+            Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "# ok"},
+        }},
+    }, nil
+}
+
 func TestSynthesizer_IncludesLanguageInstruction(t *testing.T) {
     cc := &capturingClient{}
     s := &Synthesizer{Client: cc}
@@ -48,6 +64,27 @@ func TestSynthesizer_IncludesLanguageInstruction(t *testing.T) {
     // user message is second
     if got := cc.lastReq.Messages[1].Content; !containsAll(got, []string{"Write in language:", "es"}) {
         t.Fatalf("expected user message to include language instruction; got:\n%s", got)
+    }
+}
+
+func TestSynthesizer_RetriesOnceOnTransientError(t *testing.T) {
+    // Inject no-op sleep to avoid slowing tests
+    prev := sleepFunc
+    sleepFunc = func(ms int) {}
+    defer func(){ sleepFunc = prev }()
+
+    fc := &flakyClient{}
+    s := &Synthesizer{Client: fc}
+    in := Input{Brief: brief.Brief{Topic: "x"}, Model: "m"}
+    out, err := s.Synthesize(context.Background(), in)
+    if err != nil {
+        t.Fatalf("unexpected error after retry: %v", err)
+    }
+    if out == "" {
+        t.Fatalf("expected non-empty output")
+    }
+    if fc.calls != 2 {
+        t.Fatalf("expected exactly 2 calls (1 fail + 1 success), got %d", fc.calls)
     }
 }
 

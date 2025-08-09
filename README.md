@@ -151,7 +151,17 @@ Run all tests:
 go test ./...
 ```
 
-The suite includes unit tests for normalization, extraction, selection, budgeting, and citation validation; integration tests use stubbed LLM responses to verify control flow deterministically.
+What’s covered today:
+- Planner fallback when the model output is invalid or unavailable
+- Synthesis transient-error retry policy (single short backoff)
+- Normalization, extraction, selection, budgeting, and citation validation
+- Verification pass including deterministic fallback
+
+Deterministic integration tests use stubbed LLM clients to avoid network variance. To preview queries and selection without calling an LLM, use dry run:
+
+```bash
+goresearch -input request.md -output report.md -dry-run -searx.url "$SEARX_URL"
+```
 
 ## Roadmap
 Planned work and open items are tracked in `FEATURE_CHECKLIST.md`. Contributions that implement and check off items are especially welcome.
