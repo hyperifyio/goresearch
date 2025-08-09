@@ -190,3 +190,43 @@
 * [ ] Config flags — CLI/env switches to enable tools, set loop caps/time budgets, and toggle Harmony/legacy function-calling modes.
 
 * [ ] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.
+
+* [ ] Docker Compose local stack — Provide docker-compose.yml with services: research-tool, searxng (default search), llm-openai (local OpenAI-compatible LLM server), and stub-llm (for tests). Use a dedicated bridge network, named volumes for http\_cache, llm\_cache, and reports, and Compose profiles: dev (tool+searxng+llm), test (tool+stub-llm), and offline (tool only, cache-only mode).
+
+* [ ] Research tool container — Add a minimal Dockerfile for the CLI with a non-root user, pinned base image, labels (org.opencontainers), build args for version/commit, and an entrypoint that reads config from env/flags. Mount ./reports and ./cache as writable volumes. Include healthcheck that runs a quick “--dry-run” and exits 0 on success.
+
+* [ ] OpenAI-compatible LLM server container — Include a generic llm service (image pinned by digest) exposing an OpenAI-compatible /v1 API. Allow model path/ID and quantization via env, mount a models volume, and add a readiness healthcheck on /v1/models. Make the tool depend\_on this service becoming healthy.
+
+* [ ] SearxNG container — Add a searxng service (image pinned by digest) with mounted settings.yml, custom User-Agent, reduced concurrency, and safe rate limits. Expose internal URL to the tool only via the Compose network (no public port by default). Healthcheck /status page.
+
+* [ ] Model weights volume & bootstrap — Define a models named volume and an optional one-shot init container to fetch or copy local weights into the volume, with checksum verification and clear failure on mismatch.
+
+* [ ] Environment & secrets handling — Support a .env file and a committed .env.example documenting required variables (LLM\_BASE\_URL, LLM\_MODEL, SEARXNG\_URL, CACHE\_DIR, LANGUAGE, SOURCE\_CAPS). Ensure secrets are not baked into images; pass keys only via env or mounted files.
+
+* [ ] Health-gated startup — Use depends\_on with condition: service\_healthy so the tool starts only after llm-openai and searxng are ready. Provide a make wait target that polls health for local troubleshooting.
+
+* [ ] Resource limits — Set conservative cpu/memory limits and reservations per service; document how to override (e.g., COMPOSE\_PROFILES=dev LLM\_MEMORY\_GB=8). Ensure the tool fails gracefully when limits are hit.
+
+* [ ] Non-root volumes & permissions — Create volumes with matching UID\:GID for the app user in containers; provide a helper script/compose override to chown existing host directories to avoid permission errors.
+
+* [ ] Logs & artifacts mapping — Map structured JSON logs to ./logs and final Markdown reports to ./reports. Ensure timestamps are in UTC and file names are stable (topic hash or timestamp).
+
+* [ ] Reproducible images — Pin all service images by digest, add SBOM export at build (BuildKit attestations), and label images with vcs-ref and build-date for traceability.
+
+* [ ] Make targets for DX — Add make up, make down, make logs, make rebuild, make test (uses test profile + stub-llm), and make clean (prunes volumes for caches). Document one-liners in README.
+
+* [ ] CI compose smoke test — GitHub Actions workflow that builds the tool image, brings up the test profile (tool+stub-llm), runs a canned brief, asserts a report file exists, and uploads it as an artifact.
+
+* [ ] Offline/airgapped profile — Provide an offline Compose profile that disables searxng and runs the tool in cache-only mode (both HTTP and LLM caches), failing fast if a cache miss occurs.
+
+* [ ] Local TLS (optional) — Optional caddy/nginx reverse-proxy service for local HTTPS termination to llm and searxng with self-signed certs; disabled by default and isolated to the Compose network.
+
+* [ ] Network isolation — Use a private Compose network; do not publish ports by default. The tool reaches only llm-openai and searxng by service name. Document an override file to expose ports when needed.
+
+* [ ] Integration test runner container — Add a disposable test-runner service that executes deterministic integration tests against stub-llm and recorded HTTP fixtures, producing JUnit/HTML results under ./reports/tests.
+
+* [ ] Multi-arch builds — Configure buildx targets for linux/amd64 and linux/arm64, with QEMU emulation in CI, and publish local artifacts for both arches for developers on Intel/Apple Silicon.
+
+* [ ] Cache at-rest option — If cache encryption is enabled in the app, wire it to a dedicated cache volume and expose a COMPOSE profile/env toggle to activate encryption or restricted permissions at runtime.
+
+* [ ] Documentation snippet — Update README with a “Run locally with Docker” section covering prerequisites, one-line dev start, profiles, environment variables, health checks, and common troubleshooting steps.
