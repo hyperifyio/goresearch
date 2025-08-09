@@ -1,9 +1,10 @@
 package selecter
 
 import (
-	"testing"
+    "strings"
+    "testing"
 
-	"github.com/hyperifyio/goresearch/internal/search"
+    "github.com/hyperifyio/goresearch/internal/search"
 )
 
 func TestSelect_PerDomainCap(t *testing.T) {
@@ -101,5 +102,18 @@ func TestSelect_PreferLanguageMatchWithoutFiltering(t *testing.T) {
     }
     if out[0].Title != "Intro a Kubernetes" {
         t.Fatalf("expected Spanish result to be ranked first when PreferredLanguage=es; got %q", out[0].Title)
+    }
+}
+
+func TestSelect_SkipsSearchResultPages(t *testing.T) {
+    in := []search.Result{
+        {Title: "Google result page", URL: "https://www.google.com/search?q=golang", Snippet: "results"},
+        {Title: "Bing result page", URL: "https://www.bing.com/search?q=golang", Snippet: "results"},
+        {Title: "DuckDuckGo", URL: "https://duckduckgo.com/?q=golang", Snippet: "results"},
+        {Title: "Content page", URL: "https://go.dev/doc/effective_go", Snippet: "Go doc"},
+    }
+    out := Select(in, Options{MaxTotal: 10, PerDomain: 5})
+    if len(out) != 1 || !strings.Contains(out[0].URL, "go.dev") {
+        t.Fatalf("expected only content page to remain; got %v", out)
     }
 }

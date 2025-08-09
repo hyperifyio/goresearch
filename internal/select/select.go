@@ -92,6 +92,10 @@ func Select(results []search.Result, opt Options) []search.Result {
         if err != nil || u.Host == "" {
             continue
         }
+        // Avoid crawling behind search result pages per etiquette policy.
+        if isSearchResultsPage(u) {
+            continue
+        }
         canon := canonicalizeURL(u)
         if _, ok := seenURL[canon]; ok {
             continue
@@ -159,4 +163,60 @@ func detectLanguage(text string) string {
         return "en"
     }
     return ""
+}
+
+// isSearchResultsPage heuristically detects URLs that point to search engine
+// results pages rather than primary content. We avoid following these to keep
+// the crawl polite and focused on content pages.
+func isSearchResultsPage(u *url.URL) bool {
+    host := strings.ToLower(u.Host)
+    path := strings.ToLower(u.EscapedPath())
+    q := u.Query()
+
+    // Common engines: Google, Bing, DuckDuckGo, Yahoo, Baidu, Yandex, Startpage, SearxNG
+    if strings.Contains(host, "google.") {
+        if strings.HasPrefix(path, "/search") || strings.HasPrefix(path, "/url") || q.Has("q") {
+            return true
+        }
+    }
+    if strings.Contains(host, "bing.com") {
+        if strings.HasPrefix(path, "/search") || q.Has("q") {
+            return true
+        }
+    }
+    if strings.Contains(host, "duckduckgo.com") {
+        if q.Has("q") {
+            return true
+        }
+    }
+    if strings.Contains(host, "search.yahoo.com") {
+        if strings.HasPrefix(path, "/search") || q.Has("p") || q.Has("q") {
+            return true
+        }
+    }
+    if strings.Contains(host, "baidu.com") {
+        if strings.HasPrefix(path, "/s") || q.Has("wd") || q.Has("word") {
+            return true
+        }
+    }
+    if strings.Contains(host, "yandex.") {
+        if strings.HasPrefix(path, "/search/") || q.Has("text") {
+            return true
+        }
+    }
+    if strings.Contains(host, "startpage.com") {
+        if q.Has("q") || strings.Contains(path, "/do/search") {
+            return true
+        }
+    }
+    if strings.Contains(host, "searx") || strings.Contains(host, "searxng") {
+        if q.Has("q") || strings.Contains(path, "/search") {
+            return true
+        }
+    }
+    // Fallback: generic patterns
+    if strings.Contains(path, "/search") && (q.Has("q") || q.Has("query") || q.Has("text")) {
+        return true
+    }
+    return false
 }

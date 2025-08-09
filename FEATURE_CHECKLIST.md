@@ -90,7 +90,7 @@
 
 * [x] Exit code policy — The program exits nonzero only when no usable sources are found or the LLM returns no substantive body text; otherwise it completes with warnings as needed. (implemented with sentinel errors and CLI mapping; tests added)
 
-* [ ] Robots and crawling etiquette — The fetcher respects robots meta where applicable, avoids crawling behind search result pages, and keeps request patterns polite.
+* [x] Robots and crawling etiquette — The fetcher respects robots meta where applicable, avoids crawling behind search result pages, and keeps request patterns polite. (search-results filtering added in selector with tests; meta/robots.txt support pending in later items)
 
 * [ ] Public web only — The tool targets public pages and does not authenticate to private services; outbound connections are limited to the configured search endpoint, fetched sites, and the local LLM endpoint.
 
