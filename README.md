@@ -99,6 +99,8 @@ Primary flags (with defaults):
 - `-output` (default: `report.md`): path for the final Markdown report
 - `-searx.url`: SearxNG base URL
 - `-searx.key`: SearxNG API key (optional)
+- `-searx.ua`: Custom User-Agent for SearxNG requests (default identifies goresearch)
+- `-search.file`: Path to a JSON file providing offline search results for a file-based provider
 - `-llm.base`: OpenAI-compatible base URL
 - `-llm.model`: model name
 - `-llm.key`: API key
@@ -137,6 +139,48 @@ goresearch -dry-run -input request.md -output report.md -searx.url "$SEARX_URL"
 ```
 
 ## Caching and reproducibility
+## Running SearxNG without Docker (optional)
+If you cannot run Docker locally, you can still use SearxNG:
+
+- Homebrew (macOS):
+
+```bash
+brew install searxng
+# Configuration lives under /usr/local/etc/searxng/ or /opt/homebrew/etc/searxng/
+# Start the service (paths may vary by Homebrew prefix):
+searxng run &
+```
+
+- Python venv:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install searxng
+SEARXNG_SETTINGS_PATH=$(pwd)/searxng-settings.yml searxng run
+```
+
+Then point goresearch to it:
+
+```bash
+goresearch -searx.url http://localhost:8888
+```
+
+## Offline, no external search
+For environments with no network or no search service, use the file-based provider. Create a JSON file with minimal results and supply `-search.file <path>`:
+
+```json
+[
+  {"title": "Example Domain", "url": "https://example.com", "snippet": "Example"},
+  {"title": "Go", "url": "https://go.dev", "snippet": "The Go Programming Language"}
+]
+```
+
+Run:
+
+```bash
+goresearch -search.file ./fixtures/search.json -llm.base "$LLM_BASE_URL" -llm.model "$LLM_MODEL" -llm.key "$LLM_API_KEY"
+```
 - **HTTP cache**: stores bodies and headers keyed by URL; uses ETag/Last-Modified for conditional revalidation.
 - **LLM cache**: caches request/response pairs by a normalized prompt digest and model name.
 - **Invalidation**:

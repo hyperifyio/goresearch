@@ -24,6 +24,8 @@ func main() {
 		outputPath      string
 		searxURL        string
 		searxKey        string
+		searxUA         string
+		fileSearchPath  string
 		llmBaseURL      string
 		llmModel        string
 		llmKey          string
@@ -45,6 +47,8 @@ func main() {
 	flag.StringVar(&outputPath, "output", "report.md", "Path to write the final Markdown report")
 	flag.StringVar(&searxURL, "searx.url", os.Getenv("SEARX_URL"), "SearxNG base URL")
 	flag.StringVar(&searxKey, "searx.key", os.Getenv("SEARX_KEY"), "SearxNG API key (optional)")
+	flag.StringVar(&searxUA, "searx.ua", "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", "Custom User-Agent for SearxNG requests")
+	flag.StringVar(&fileSearchPath, "search.file", os.Getenv("SEARCH_FILE"), "Path to JSON file for offline file-based search provider")
 	flag.StringVar(&llmBaseURL, "llm.base", os.Getenv("LLM_BASE_URL"), "OpenAI-compatible base URL")
 	flag.StringVar(&llmModel, "llm.model", os.Getenv("LLM_MODEL"), "Model name")
 	flag.StringVar(&llmKey, "llm.key", os.Getenv("LLM_API_KEY"), "API key for OpenAI-compatible server")

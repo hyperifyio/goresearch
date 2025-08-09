@@ -94,10 +94,12 @@ func (a *App) Run(ctx context.Context) error {
 		// Plan queries and select URLs without calling the synthesizer
 		plan := a.planQueries(ctx, b)
 		// Fake search with zero provider if not configured
-		var provider search.Provider
-		if a.cfg.SearxURL != "" {
-			provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient()}
-		}
+    var provider search.Provider
+    if a.cfg.FileSearchPath != "" {
+        provider = &search.FileProvider{Path: a.cfg.FileSearchPath}
+    } else if a.cfg.SearxURL != "" {
+        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)"}
+    }
 		var selected []search.Result
 		if provider != nil {
 			groups := make([][]search.Result, 0, len(plan.Queries))

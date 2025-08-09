@@ -10,6 +10,8 @@ type Config struct {
 	// Search
 	SearxURL string
 	SearxKey string
+    SearxUA  string
+    FileSearchPath string
 
 	// LLM
 	LLMBaseURL string

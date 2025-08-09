@@ -15,6 +15,7 @@ type SearxNG struct {
 	BaseURL    string
 	APIKey     string // optional
 	HTTPClient *http.Client
+    UserAgent  string // optional custom UA
 }
 
 func (s *SearxNG) Name() string { return "searxng" }
@@ -46,10 +47,13 @@ func (s *SearxNG) Search(ctx context.Context, query string, limit int) ([]Result
 	}
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+    if s.UserAgent != "" {
+        req.Header.Set("User-Agent", s.UserAgent)
+    }
 	hc := s.HTTPClient
 	if hc == nil {
 		hc = &http.Client{Timeout: 10 * time.Second}
