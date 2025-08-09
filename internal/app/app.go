@@ -20,6 +20,7 @@ import (
     sel "github.com/hyperifyio/goresearch/internal/select"
     "github.com/hyperifyio/goresearch/internal/synth"
     "github.com/hyperifyio/goresearch/internal/validate"
+    "github.com/hyperifyio/goresearch/internal/verify"
 )
 
 type App struct {
@@ -206,6 +207,25 @@ func (a *App) Run(ctx context.Context) error {
         log.Warn().Err(err).Msg("report validation issues")
         md += "\n\n> WARNING: Validation noted issues: " + err.Error() + "\n"
     }
+
+    // 7) Verification pass: extract claims and append an evidence map appendix.
+    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir}}
+    vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
+    evidence := "\n\n## Evidence check\n\n"
+    if verr != nil {
+        log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
+        evidence += "> Verification failed; main report preserved.\n"
+    } else {
+        evidence += vres.Summary + "\n\n"
+        for i, c := range vres.Claims {
+            if i >= 20 { // safety cap for output size
+                break
+            }
+            // Format: - Claim — cites [1,2]; confidence: high; supported: true
+            evidence += fmt.Sprintf("- %s — cites %v; confidence: %s; supported: %t\n", c.Text, c.Citations, c.Confidence, c.Supported)
+        }
+    }
+    md += evidence
 
     if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
         return fmt.Errorf("write output: %w", err)

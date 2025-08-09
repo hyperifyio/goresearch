@@ -52,7 +52,7 @@
 
 * [x] Reference list completeness — The final references section includes both page titles and full URLs for each numbered source so readers can resolve citations directly. (validated in code with tests)
 
-* [ ] Fact-check verification pass — A second short LLM pass extracts key claims from the document, maps each to minimal supporting source indices, assigns confidence levels, and marks any claims that are weakly supported or unsupported.
+* [x] Fact-check verification pass — A second short LLM pass extracts key claims from the document, maps each to minimal supporting source indices, assigns confidence levels, and marks any claims that are weakly supported or unsupported. (implemented with LLM + deterministic fallback, evidence appendix appended)
 
 * [ ] Evidence map appendix — The verification result is appended as a compact evidence map that narratively summarizes support strength and lists claims with their cited indices and confidence without ornate formatting.
 
