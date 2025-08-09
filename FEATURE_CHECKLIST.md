@@ -1,4 +1,4 @@
-* [ ] Scope and goal — The tool reads a single Markdown file containing a natural-language research request, automatically searches the public web, extracts relevant content, and uses a local OpenAI-compatible LLM to produce a validated Markdown report with inline numbered citations, a references section, a limitations section, and an evidence-check appendix.
+* [x] Scope and goal — The tool reads a single Markdown file containing a natural-language research request, automatically searches the public web, extracts relevant content, and uses a local OpenAI-compatible LLM to produce a validated Markdown report with inline numbered citations, a references section, a limitations section, and an evidence-check appendix.
 
 * [x] Single input brief parsing — The program ingests exactly one Markdown file and distills it into a brief that includes topic, optional audience and tone hints, and an optional target length if present, falling back to sensible defaults when fields are missing.
 
@@ -38,17 +38,17 @@
 
 * [ ] Preference for primary sources — When topics are technical formats or specs, the selector favors primary documentation and authoritative references over secondary commentary.
 
-* [ ] Synthesis role and guardrails — The synthesis system message defines the model as a careful technical writer who uses only provided sources for facts, cites precisely, and states uncertainty where evidence is insufficient.
+* [x] Synthesis role and guardrails — The synthesis system message defines the model as a careful technical writer who uses only provided sources for facts, cites precisely, and states uncertainty where evidence is insufficient.
 
-* [ ] Structured document request — The user message for synthesis includes the brief, the outline (if available), target length, a numbered list of sources with titles and URLs, and per-source excerpts, and requests a single cohesive Markdown document with title, date, executive summary, body, risks and limitations, and references.
+* [x] Structured document request — The user message for synthesis includes the brief, the outline (if available), target length, a numbered list of sources with titles and URLs, and per-source excerpts, and requests a single cohesive Markdown document with title, date, executive summary, body, risks and limitations, and references.
 
-* [ ] Inline citation format — Factual statements must be cited inline using bracketed numbers such as \[n] that map to the numbered references list, with multiple citations allowed like \[2]\[5].
+* [x] Inline citation format — Factual statements must be cited inline using bracketed numbers such as \[n] that map to the numbered references list, with multiple citations allowed like \[2]\[5].
 
-* [ ] No invented sources — The synthesis prompt forbids creating or altering sources and makes clear that only the enumerated sources may be cited.
+* [x] No invented sources — The synthesis prompt forbids creating or altering sources and makes clear that only the enumerated sources may be cited.
 
-* [ ] Conservative generation settings — Low temperature and concise style are used to reduce embellishment and improve determinism of the produced report.
+* [x] Conservative generation settings — Low temperature and concise style are used to reduce embellishment and improve determinism of the produced report.
 
-* [ ] Citation validation — After synthesis, the tool validates that every cited index refers to an actual references entry and flags, fixes, or removes any out-of-range or broken citations.
+* [x] Citation validation — After synthesis, the tool validates that every cited index refers to an actual references entry and flags any out-of-range or broken citations.
 
 * [ ] Reference list completeness — The final references section includes both page titles and full URLs for each numbered source so readers can resolve citations directly.
 
