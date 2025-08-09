@@ -36,7 +36,7 @@
 
 * [x] Proportional truncation — When total extracts exceed budget, each document’s excerpt is trimmed proportionally rather than dropping entire sources, unless redundancy is detected. (implemented with tests)
 
-* [ ] Preference for primary sources — When topics are technical formats or specs, the selector favors primary documentation and authoritative references over secondary commentary.
+* [x] Preference for primary sources — When topics are technical formats or specs, the selector favors primary documentation and authoritative references over secondary commentary.
 
 * [x] Synthesis role and guardrails — The synthesis system message defines the model as a careful technical writer who uses only provided sources for facts, cites precisely, and states uncertainty where evidence is insufficient.
 

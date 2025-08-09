@@ -48,3 +48,42 @@ func TestSelect_LowSignalFilteringBySnippetLength(t *testing.T) {
         t.Fatalf("expected only the strong result to remain; got %v", out)
     }
 }
+
+func TestSelect_PreferPrimarySources(t *testing.T) {
+    in := []search.Result{
+        {Title: "Dev blog long guide", URL: "https://devblog.example.com/html-guide", Snippet: "this is a very very long snippet that would normally dominate purely by length"},
+        {Title: "HTML Living Standard — WHATWG", URL: "https://whatwg.org/specs/html/", Snippet: "short"},
+        {Title: "MDN Web Docs — HTML", URL: "https://developer.mozilla.org/en-US/docs/Web/HTML", Snippet: "short"},
+    }
+
+    // Without PreferPrimary, the longest snippet should sort first
+    out := Select(in, Options{MaxTotal: 3, PerDomain: 5, PreferPrimary: false})
+    if len(out) == 0 {
+        t.Fatalf("expected some results")
+    }
+    if out[0].Title != "Dev blog long guide" {
+        t.Fatalf("expected longest-snippet blog to be first when PreferPrimary is false; got %q", out[0].Title)
+    }
+
+    // With PreferPrimary, authoritative sources should be ranked ahead of the blog
+    out2 := Select(in, Options{MaxTotal: 3, PerDomain: 5, PreferPrimary: true})
+    if len(out2) == 0 {
+        t.Fatalf("expected some results")
+    }
+    topHost := func(u string) string {
+        if len(u) < 9 || u[:8] != "https://" {
+            return ""
+        }
+        // crude host extraction for the test; production code parses URL properly
+        rest := u[8:]
+        for i := 0; i < len(rest); i++ {
+            if rest[i] == '/' {
+                return rest[:i]
+            }
+        }
+        return rest
+    }(out2[0].URL)
+    if topHost != "whatwg.org" && topHost != "developer.mozilla.org" {
+        t.Fatalf("expected a primary source to be ranked first when PreferPrimary is true; got host %q and title %q", topHost, out2[0].Title)
+    }
+}
