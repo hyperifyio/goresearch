@@ -1,4 +1,179 @@
-# goreseach
+# goresearch
+
+Generate validated, citation-rich research reports from a single Markdown brief. goresearch plans queries, searches the web (via SearxNG), fetches and extracts readable text, and asks a local OpenAI-compatible LLM to synthesize a clean Markdown report with numbered citations, references, and an evidence-check appendix. It runs entirely on standard chat-completions APIs—no proprietary search features.
+
+### Table of contents
+- [Features](#features)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Caching and reproducibility](#caching-and-reproducibility)
+- [Tests](#tests)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Support](#support)
+- [License](#license)
+- [Project status](#project-status)
+
+## Features
+- **End-to-end pipeline**: brief parsing → planning → search → fetch/extract → selection/dedup → budgeting → synthesis → validation → verification → rendering.
+- **Grounded synthesis**: strictly uses supplied extracts; numbered inline citations map to a final References section.
+- **Evidence check**: second pass extracts claims, maps supporting sources, and flags weakly supported statements.
+- **Deterministic and scriptable**: low-temperature prompts, structured logs, and explicit flags/envs.
+- **Pluggable search**: defaults to self-hosted SearxNG; adapters can be swapped without changing the rest.
+- **Polite fetching**: user agent, timeouts, redirect caps, content-type checks, and optional HTTP cache with conditional requests.
+- **Token budgeting**: proportional truncation prevents dropping sources while fitting model context.
+- **Reproducibility**: embedded manifest and sidecar JSON record URLs and content digests used in synthesis.
+- **Dry run**: plan queries and select URLs without calling the model.
+
+## Installation
+
+Prerequisites:
+- Go 1.23+ (module toolchain `go1.24.6`)
+- An OpenAI-compatible server (local OSS runtime recommended), with model name and API key
+- Optional: a SearxNG instance URL (and API key if required)
+
+Install the CLI directly:
+
+```bash
+go install github.com/hyperifyio/goresearch/cmd/goresearch@latest
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/hyperifyio/goresearch
+cd goresearch
+go build -o bin/goresearch ./cmd/goresearch
+```
+
+## Quick start
+1) Create a minimal `request.md` with topic and optional hints:
+
+```markdown
+# Cursor MDC format — concise overview for plugin authors
+Audience: Senior engineers
+Tone: Practical, matter-of-fact
+Target length: 1200 words
+
+Key questions: spec, examples, best practices.
+```
+
+2) Run goresearch with your local LLM and search configured:
+
+```bash
+goresearch \
+  -input request.md \
+  -output report.md \
+  -llm.base "$LLM_BASE_URL" \
+  -llm.model "$LLM_MODEL" \
+  -llm.key "$LLM_API_KEY" \
+  -searx.url "$SEARX_URL" \
+  -searx.key "$SEARX_KEY"
+```
+
+3) Open `report.md`. You should see a title and date, an executive summary, body sections with bracketed citations like `[3]`, a References list with URLs, an Evidence check appendix, and a reproducibility footer.
+
+Tip: explore without calling the LLM first:
+
+```bash
+goresearch -input request.md -output report.md -dry-run -searx.url "$SEARX_URL"
+```
+
+## Configuration
+
+You can configure via flags or environment variables.
+
+Environment variables:
+- `LLM_BASE_URL`: base URL for the OpenAI-compatible server
+- `LLM_MODEL`: model name
+- `LLM_API_KEY`: API key for the server
+- `SEARX_URL`: SearxNG base URL (e.g., `https://searx.example.com`)
+- `SEARX_KEY` (optional): SearxNG API key
+- `TOPIC_HASH` (optional): included for traceability in cache scoping
+
+Primary flags (with defaults):
+- `-input` (default: `request.md`): path to input Markdown research request
+- `-output` (default: `report.md`): path for the final Markdown report
+- `-searx.url`: SearxNG base URL
+- `-searx.key`: SearxNG API key (optional)
+- `-llm.base`: OpenAI-compatible base URL
+- `-llm.model`: model name
+- `-llm.key`: API key
+- `-max.sources` (default: 12): total sources cap
+- `-max.perDomain` (default: 3): per-domain cap
+- `-max.perSourceChars` (default: 12000): per-source character limit for excerpts
+- `-min.snippetChars` (default: 0): minimum snippet chars to keep a search result
+- `-lang` (default: empty): language hint, e.g. `en` or `fi`
+- `-dry-run` (default: false): plan/select without calling the LLM
+- `-v` (default: false): verbose logging
+- `-cache.dir` (default: `.goresearch-cache`): cache directory
+- `-cache.maxAge` (default: 0): purge cache entries older than this duration (e.g. `24h`, `7d`); 0 disables
+- `-cache.clear` (default: false): clear entire cache before run
+- `-cache.topicHash`: optional topic hash to scope cache (accepted for traceability)
+
+## Usage
+
+Basic:
+
+```bash
+goresearch -input request.md -output report.md -llm.base "$LLM_BASE_URL" -llm.model "$LLM_MODEL" -llm.key "$LLM_API_KEY" -searx.url "$SEARX_URL"
+```
+
+Verbose with language hint and tighter domain cap:
+
+```bash
+goresearch -v -lang en -max.perDomain 2 -input request.md -output report.md \
+  -llm.base "$LLM_BASE_URL" -llm.model "$LLM_MODEL" -llm.key "$LLM_API_KEY" \
+  -searx.url "$SEARX_URL" -searx.key "$SEARX_KEY"
+```
+
+Dry run to preview queries and selected URLs without LLM calls:
+
+```bash
+goresearch -dry-run -input request.md -output report.md -searx.url "$SEARX_URL"
+```
+
+## Caching and reproducibility
+- **HTTP cache**: stores bodies and headers keyed by URL; uses ETag/Last-Modified for conditional revalidation.
+- **LLM cache**: caches request/response pairs by a normalized prompt digest and model name.
+- **Invalidation**:
+  - `-cache.maxAge 24h` to purge entries older than 24 hours (HTTP and LLM caches)
+  - `-cache.clear` to clear the cache dir before a run (bypasses reads for that run)
+- **Manifest**: `report.md` includes a Manifest section and a `report.md.manifest.json` sidecar listing URLs and SHA-256 digests of the excerpts used.
+
+## Tests
+
+Run all tests:
+
+```bash
+go test ./...
+```
+
+The suite includes unit tests for normalization, extraction, selection, budgeting, and citation validation; integration tests use stubbed LLM responses to verify control flow deterministically.
+
+## Roadmap
+Planned work and open items are tracked in `FEATURE_CHECKLIST.md`. Contributions that implement and check off items are especially welcome.
+
+## Contributing
+Issues and pull requests are welcome. Please:
+- Keep changes focused and covered by tests (unit and/or integration as appropriate).
+- Explain intent in plain language and link to the relevant checklist item or issue.
+- Follow Go naming and formatting conventions.
+
+If you plan a larger change or new adapter, open an issue first to discuss approach.
+
+## Support
+Report bugs and ask questions on the GitHub issue tracker: https://github.com/hyperifyio/goresearch/issues
+
+## License
+No license file is present yet. Until a license is added, usage is governed by standard copyright; please open an issue if you need explicit terms.
+
+## Project status
+Actively developed; APIs and flags are stable enough for day-to-day use, but expect iterative improvements.
+
+## Architecture and design
 
 Scope and goal. The tool reads a single Markdown file that describes a research 
 request in natural language, for example “Detailed documentation about Cursor 

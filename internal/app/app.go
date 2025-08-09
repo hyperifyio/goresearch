@@ -232,25 +232,25 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	md = appendEvidenceAppendix(md, vres, verr)
 
-    // 8) Append reproducibility footer capturing model/base URL, source count, and cache status
-    md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
+	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
+	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
-    // 9) Append embedded manifest and write a sidecar JSON manifest
-    manEntries := buildManifestEntriesFromSynth(excerpts)
-    manMeta := manifestMeta{
-        Model:       a.cfg.LLMModel,
-        LLMBaseURL:  a.cfg.LLMBaseURL,
-        SourceCount: len(excerpts),
-        HTTPCache:   a.httpCache != nil,
-        LLMCache:    true,
-        GeneratedAt: time.Now().UTC(),
-    }
-    md = appendEmbeddedManifest(md, manMeta, manEntries)
-    if data, err := marshalManifestJSON(manMeta, manEntries); err == nil {
-        _ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
-    }
+	// 9) Append embedded manifest and write a sidecar JSON manifest
+	manEntries := buildManifestEntriesFromSynth(excerpts)
+	manMeta := manifestMeta{
+		Model:       a.cfg.LLMModel,
+		LLMBaseURL:  a.cfg.LLMBaseURL,
+		SourceCount: len(excerpts),
+		HTTPCache:   a.httpCache != nil,
+		LLMCache:    true,
+		GeneratedAt: time.Now().UTC(),
+	}
+	md = appendEmbeddedManifest(md, manMeta, manEntries)
+	if data, err := marshalManifestJSON(manMeta, manEntries); err == nil {
+		_ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
+	}
 
-    if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
+	if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
 	log.Info().Str("out", a.cfg.OutputPath).Msg("wrote output")

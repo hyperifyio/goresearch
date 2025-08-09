@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-    "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/log"
 
 	"github.com/hyperifyio/goresearch/internal/app"
 )
@@ -19,24 +19,24 @@ func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
 
 	var (
-		inputPath      string
-		outputPath     string
-		searxURL       string
-		searxKey       string
-		llmBaseURL     string
-		llmModel       string
-		llmKey         string
-		maxSources     int
-		perDomain      int
-		perSourceChars int
-        minSnippetChars int
-		language       string
-		dryRun         bool
-		verbose        bool
-        cacheDir       string
-        cacheMaxAge    time.Duration
-        cacheClear     bool
-        topicHash      string
+		inputPath       string
+		outputPath      string
+		searxURL        string
+		searxKey        string
+		llmBaseURL      string
+		llmModel        string
+		llmKey          string
+		maxSources      int
+		perDomain       int
+		perSourceChars  int
+		minSnippetChars int
+		language        string
+		dryRun          bool
+		verbose         bool
+		cacheDir        string
+		cacheMaxAge     time.Duration
+		cacheClear      bool
+		topicHash       string
 	)
 
 	flag.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -48,16 +48,16 @@ func main() {
 	flag.StringVar(&llmKey, "llm.key", os.Getenv("LLM_API_KEY"), "API key for OpenAI-compatible server")
 	flag.IntVar(&maxSources, "max.sources", 12, "Maximum number of sources")
 	flag.IntVar(&perDomain, "max.perDomain", 3, "Maximum sources per domain")
-    flag.IntVar(&perSourceChars, "max.perSourceChars", 12000, "Maximum characters per source extract")
-    flag.IntVar(&minSnippetChars, "min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
+	flag.IntVar(&perSourceChars, "max.perSourceChars", 12000, "Maximum characters per source extract")
+	flag.IntVar(&minSnippetChars, "min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
 	flag.StringVar(&language, "lang", "", "Optional language hint, e.g. 'en' or 'fi'")
 	flag.BoolVar(&dryRun, "dry-run", false, "Plan and select without calling the model")
 	flag.BoolVar(&verbose, "v", false, "Verbose logging")
 	flag.StringVar(&cacheDir, "cache.dir", ".goresearch-cache", "Cache directory path")
-    flag.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
-    flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
-    flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
-    flag.Parse()
+	flag.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
+	flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
+	flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
+	flag.Parse()
 
 	if verbose {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -66,24 +66,24 @@ func main() {
 	}
 
 	cfg := app.Config{
-		InputPath:      inputPath,
-		OutputPath:     outputPath,
-		SearxURL:       searxURL,
-		SearxKey:       searxKey,
-		LLMBaseURL:     llmBaseURL,
-		LLMModel:       llmModel,
-		LLMAPIKey:      llmKey,
-		MaxSources:     maxSources,
-		PerDomainCap:   perDomain,
-		PerSourceChars: perSourceChars,
-        MinSnippetChars: minSnippetChars,
-		LanguageHint:   language,
-		DryRun:         dryRun,
-		CacheDir:       cacheDir,
-        Verbose:        verbose,
-        CacheMaxAge:    cacheMaxAge,
-        CacheClear:     cacheClear,
-        TopicHash:      topicHash,
+		InputPath:       inputPath,
+		OutputPath:      outputPath,
+		SearxURL:        searxURL,
+		SearxKey:        searxKey,
+		LLMBaseURL:      llmBaseURL,
+		LLMModel:        llmModel,
+		LLMAPIKey:       llmKey,
+		MaxSources:      maxSources,
+		PerDomainCap:    perDomain,
+		PerSourceChars:  perSourceChars,
+		MinSnippetChars: minSnippetChars,
+		LanguageHint:    language,
+		DryRun:          dryRun,
+		CacheDir:        cacheDir,
+		Verbose:         verbose,
+		CacheMaxAge:     cacheMaxAge,
+		CacheClear:      cacheClear,
+		TopicHash:       topicHash,
 	}
 
 	if err := run(cfg); err != nil {

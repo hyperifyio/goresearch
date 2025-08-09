@@ -24,9 +24,9 @@ type Client struct {
 	PerRequestTimeout time.Duration
 	// Optional on-disk cache for HTTP GET bodies and headers.
 	Cache *cache.HTTPCache
-    // If true, bypass cache entirely and fetch fresh (no conditional headers),
-    // but still save the latest response to cache.
-    BypassCache bool
+	// If true, bypass cache entirely and fetch fresh (no conditional headers),
+	// but still save the latest response to cache.
+	BypassCache bool
 
 	// RedirectMaxHops caps redirect following to avoid loops. Zero means default (5).
 	RedirectMaxHops int
@@ -53,7 +53,7 @@ func (c *Client) getHTTPClient() *http.Client {
 func (c *Client) Get(ctx context.Context, url string) ([]byte, string, error) {
 	// If cache exists, attempt conditional request
 	var etag, lastMod string
-    if c.Cache != nil && !c.BypassCache {
+	if c.Cache != nil && !c.BypassCache {
 		if meta, err := c.Cache.LoadMeta(ctx, url); err == nil && meta != nil {
 			etag = meta.ETag
 			lastMod = meta.LastModified
