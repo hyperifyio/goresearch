@@ -138,3 +138,81 @@ func TestManager_RevalidateWithLastModified(t *testing.T) {
         t.Fatalf("unexpected parsed rules after 304 revalidation")
     }
 }
+
+// The following tests verify evaluation semantics for robots.txt rules
+// as required by FEATURE_CHECKLIST.md (UA precedence, longest-path match,
+// Allow vs Disallow precedence, '*' wildcards, and '$' end anchors).
+
+func TestEvaluate_UAPrecedence_AndPathDecisions(t *testing.T) {
+    t.Parallel()
+    txt := `User-agent: goresearch
+Disallow: /private
+
+User-agent: *
+Allow: /
+`
+    rules := parseRobots(txt)
+
+    // Exact UA group should be preferred over wildcard
+    if allowed := rules.IsAllowed("goresearch", "/private/page"); allowed {
+        t.Fatalf("expected disallow for goresearch on /private/page")
+    }
+    if allowed := rules.IsAllowed("otheragent", "/private/page"); !allowed {
+        t.Fatalf("expected allow for otheragent on /private/page via wildcard allow")
+    }
+
+    // Longest-path match with Allow overriding shorter Disallow
+    txt2 := `User-agent: goresearch
+Disallow: /private
+Allow: /private/public
+`
+    rules2 := parseRobots(txt2)
+    if allowed := rules2.IsAllowed("goresearch", "/private/public/info"); !allowed {
+        t.Fatalf("expected allow due to longer Allow rule")
+    }
+    if allowed := rules2.IsAllowed("goresearch", "/private/else"); allowed {
+        t.Fatalf("expected disallow for shorter path under disallow")
+    }
+}
+
+func TestEvaluate_Wildcards_And_Anchors(t *testing.T) {
+    t.Parallel()
+    txt := `User-agent: goresearch
+Disallow: /*.zip$
+Allow: /downloads/*.zip$
+`
+    rules := parseRobots(txt)
+
+    if allowed := rules.IsAllowed("goresearch", "/foo/file.zip"); allowed {
+        t.Fatalf("expected disallow for generic *.zip")
+    }
+    if allowed := rules.IsAllowed("goresearch", "/downloads/file.zip"); !allowed {
+        t.Fatalf("expected allow for downloads/*.zip due to longer allow")
+    }
+
+    // Query-param pattern example
+    txt2 := `User-agent: *
+Disallow: /*?session=
+`
+    rules2 := parseRobots(txt2)
+    if allowed := rules2.IsAllowed("any", "/index.html?session=1"); allowed {
+        t.Fatalf("expected disallow when pattern with wildcard matches query")
+    }
+}
+
+func TestEvaluate_CrawlDelayForMatchedGroup(t *testing.T) {
+    t.Parallel()
+    txt := `User-agent: goresearch
+Crawl-delay: 2
+
+User-agent: *
+Crawl-delay: 7
+`
+    rules := parseRobots(txt)
+    if d := rules.CrawlDelayFor("goresearch"); d == nil || *d != 2*time.Second {
+        t.Fatalf("expected 2s crawl delay for goresearch, got %v", d)
+    }
+    if d := rules.CrawlDelayFor("other"); d == nil || *d != 7*time.Second {
+        t.Fatalf("expected 7s crawl delay for wildcard, got %v", d)
+    }
+}

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+    "regexp"
 	"strings"
 	"sync"
 	"time"
@@ -187,6 +188,130 @@ func parseRobots(text string) Rules {
 	}
 	flush()
 	return Rules{Groups: groups}
+}
+
+// IsAllowed evaluates whether the provided path (which may include a query string)
+// is allowed to be fetched for the given user agent, according to the parsed rules.
+//
+// Decision policy:
+// - Select the most specific matching User-agent group (longest agent token match),
+//   preferring exact names over wildcard "*"; ties resolved by first occurrence.
+// - Within the selected group, consider all matching Allow/Disallow directives.
+//   The directive with the highest specificity wins, where specificity is measured
+//   by the length of the pattern with '*' removed and trailing '$' ignored.
+//   If specificities tie, Allow beats Disallow.
+// - If no directive matches, default allow.
+func (r Rules) IsAllowed(userAgent string, pathWithOptionalQuery string) bool {
+    grpIdx := r.selectGroupIndex(userAgent)
+    if grpIdx < 0 || grpIdx >= len(r.Groups) {
+        return true
+    }
+    grp := r.Groups[grpIdx]
+
+    bestScore := -1
+    bestAllow := true
+
+    evaluate := func(patterns []string, isAllow bool) {
+        for _, p := range patterns {
+            if p == "" { // empty pattern matches nothing per spec (treat as no restriction)
+                continue
+            }
+            if ok := patternMatches(p, pathWithOptionalQuery); ok {
+                score := patternSpecificity(p)
+                if score > bestScore || (score == bestScore && isAllow && !bestAllow) {
+                    bestScore = score
+                    bestAllow = isAllow
+                }
+            }
+        }
+    }
+
+    evaluate(grp.Disallow, false)
+    evaluate(grp.Allow, true)
+
+    if bestScore == -1 {
+        return true
+    }
+    return bestAllow
+}
+
+// CrawlDelayFor returns the crawl delay configured for the most specific matching
+// user agent group. If none is set, returns nil.
+func (r Rules) CrawlDelayFor(userAgent string) *time.Duration {
+    grpIdx := r.selectGroupIndex(userAgent)
+    if grpIdx < 0 || grpIdx >= len(r.Groups) {
+        return nil
+    }
+    return r.Groups[grpIdx].CrawlDelay
+}
+
+// selectGroupIndex chooses the best-matching group for the given user agent.
+// Preference order: longest non-wildcard agent token substring match; wildcard
+// '*' is considered but loses to any non-wildcard match. Ties choose the first
+// encountered group.
+func (r Rules) selectGroupIndex(userAgent string) int {
+    ua := strings.ToLower(strings.TrimSpace(userAgent))
+    bestIdx := -1
+    bestScore := -1
+    for i, g := range r.Groups {
+        for _, a := range g.Agents {
+            token := strings.ToLower(strings.TrimSpace(a))
+            if token == "" {
+                continue
+            }
+            var score int
+            if token == "*" {
+                score = 0
+            } else if strings.Contains(ua, token) {
+                score = len(token)
+            } else {
+                continue
+            }
+            if score > bestScore {
+                bestScore = score
+                bestIdx = i
+            }
+        }
+    }
+    return bestIdx
+}
+
+// patternMatches returns true if the robots pattern matches the provided path.
+// Supported features: '*' wildcard matching any sequence, and '$' to anchor the
+// end of the URL. Matching is anchored at the beginning of the path.
+func patternMatches(pattern, path string) bool {
+    // Convert robots pattern to a regexp: '^' + pattern + ('$')?
+    anchorEnd := strings.HasSuffix(pattern, "$")
+    p := pattern
+    if anchorEnd {
+        p = strings.TrimSuffix(p, "$")
+    }
+    // Escape regex metacharacters except '*'
+    var b strings.Builder
+    b.WriteString("^")
+    for _, rn := range p {
+        if rn == '*' {
+            b.WriteString(".*")
+            continue
+        }
+        // Quote this rune
+        b.WriteString(regexp.QuoteMeta(string(rn)))
+    }
+    if anchorEnd {
+        b.WriteString("$")
+    }
+    re := regexp.MustCompile(b.String())
+    return re.MatchString(path)
+}
+
+// patternSpecificity computes a comparable specificity score for a pattern.
+// Longer concrete prefixes and more characters increase specificity. '*' is
+// ignored in the score; a trailing '$' is ignored as well.
+func patternSpecificity(pattern string) int {
+    p := strings.TrimSuffix(pattern, "$")
+    // Remove '*' from length computation
+    p = strings.ReplaceAll(p, "*", "")
+    return len(p)
 }
 
 func isHTTPScheme(u *url.URL) bool {
