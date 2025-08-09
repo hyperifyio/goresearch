@@ -182,6 +182,43 @@ func TestGet_DeniesOnXRobotsTagOptOut(t *testing.T) {
     }
 }
 
+func TestGet_DeniesOnHTTPLinkTDMReservation(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.Header().Add("Link", "<https://example.com/policy>; rel=\"tdm-reservation\"")
+        w.WriteHeader(200)
+        _, _ = io.WriteString(w, "<html><body>ok</body></html>")
+    }))
+    t.Cleanup(srv.Close)
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
+    _, _, err := c.Get(context.Background(), srv.URL)
+    if err == nil {
+        t.Fatalf("expected reuse denial due to Link rel=tdm-reservation")
+    }
+    if reason, ok := IsReuseDenied(err); !ok || !strings.Contains(reason, "Link") {
+        t.Fatalf("expected Link rel tdm-reservation denial, got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+}
+
+func TestGet_DeniesOnHTMLLinkTDMReservation(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(200)
+        _, _ = io.WriteString(w, `<!doctype html><html><head><link rel="tdm-reservation" href="/policy"></head><body>ok</body></html>`)
+    }))
+    t.Cleanup(srv.Close)
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
+    _, _, err := c.Get(context.Background(), srv.URL)
+    if err == nil {
+        t.Fatalf("expected reuse denial due to HTML link rel=tdm-reservation")
+    }
+    if reason, ok := IsReuseDenied(err); !ok || !strings.Contains(reason, "link rel=tdm-reservation") {
+        t.Fatalf("expected HTML link rel tdm-reservation denial, got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+}
+
 func TestDetectTDMOptOut_ScopedAndCombined(t *testing.T) {
     h := http.Header{}
     h.Add("X-Robots-Tag", "googlebot: noai, other: index, follow; notrain")

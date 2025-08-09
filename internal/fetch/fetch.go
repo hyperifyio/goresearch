@@ -199,6 +199,10 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
     if reason, denied := detectTDMOptOut(resp.Header, c.UserAgent); denied {
         return nil, "", "", "", resp.StatusCode, ReuseDeniedError{Reason: reason}
     }
+    // Honor TDM reservation via HTTP Link headers (in or around content)
+    if reason, denied := detectTDMReservationLinkHeader(resp.Header); denied {
+        return nil, "", "", "", resp.StatusCode, ReuseDeniedError{Reason: reason}
+    }
 
     contentType := resp.Header.Get("Content-Type")
     if !(isAllowedHTMLContentType(contentType) || (c.EnablePDF && isAllowedPDFContentType(contentType))) {
@@ -211,6 +215,10 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
     // For HTML/XHTML, also honor page-level meta robots/googlebot opt-out
     if isAllowedHTMLContentType(contentType) {
         if reason, denied := detectMetaTDMOptOut(b); denied {
+            return nil, "", "", "", resp.StatusCode, ReuseDeniedError{Reason: reason}
+        }
+        // And honor <link rel="tdm-reservation"> in the document head
+        if reason, denied := detectHTMLTDMReservationLink(b); denied {
             return nil, "", "", "", resp.StatusCode, ReuseDeniedError{Reason: reason}
         }
     }
@@ -344,6 +352,62 @@ func detectMetaTDMOptOut(body []byte) (string, bool) {
                             return scope+":"+dir, true
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+// detectTDMReservationLinkHeader inspects HTTP Link headers for a parameter
+// rel="tdm-reservation" (case-insensitive). Presence indicates a reservation of
+// rights for text-and-data-mining; we conservatively deny reuse.
+func detectTDMReservationLinkHeader(h http.Header) (string, bool) {
+    if h == nil { return "", false }
+    vals := h.Values("Link")
+    if len(vals) == 0 { return "", false }
+    for _, v := range vals {
+        // The Link header can contain multiple entries separated by commas, but
+        // commas may also appear inside quoted strings. For a conservative check,
+        // perform a case-insensitive search for rel=tdm-reservation in the value.
+        vv := strings.ToLower(v)
+        if strings.Contains(vv, "rel=\"tdm-reservation\"") || strings.Contains(vv, "rel='tdm-reservation'") || strings.Contains(vv, "rel=tdm-reservation") {
+            return "Link: rel=tdm-reservation", true
+        }
+    }
+    return "", false
+}
+
+// detectHTMLTDMReservationLink scans the HTML head for <link rel="tdm-reservation" ...>
+// Presence indicates a reservation of rights for TDM; deny reuse.
+func detectHTMLTDMReservationLink(body []byte) (string, bool) {
+    if len(body) == 0 { return "", false }
+    z := html.NewTokenizer(bytes.NewReader(body))
+    inHead := false
+    for {
+        tt := z.Next()
+        switch tt {
+        case html.ErrorToken:
+            return "", false
+        case html.StartTagToken, html.SelfClosingTagToken:
+            tn, _ := z.TagName()
+            tagName := strings.ToLower(string(tn))
+            if tagName == "head" { inHead = true; continue }
+            if tagName == "body" && inHead { return "", false }
+            if tagName != "link" { continue }
+            var relVal string
+            for {
+                key, val, more := z.TagAttr()
+                k := strings.ToLower(string(key))
+                v := strings.ToLower(strings.TrimSpace(string(val)))
+                if k == "rel" { relVal = v }
+                if !more { break }
+            }
+            if relVal == "" { continue }
+            // rel attribute can contain space-separated tokens
+            tokens := strings.Fields(relVal)
+            for _, t := range tokens {
+                if t == "tdm-reservation" {
+                    return "link rel=tdm-reservation", true
                 }
             }
         }

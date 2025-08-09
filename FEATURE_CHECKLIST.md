@@ -130,7 +130,7 @@
 
 * [x] HTML meta robots handling — Parse page-level <meta name="robots"> and <meta name="googlebot"> directives; treat noai/notrain equivalents as hard denials, and record the matched directive and scope. (implemented in fetch with tests)
 
-* [ ] TDM opt-out recognition — Treat machine-readable text-and-data-mining reservation signals placed “in or around” the content as a fetch/use denial for research synthesis; prefer conservative interpretation when ambiguous.
+* [x] TDM opt-out recognition — Treat machine-readable text-and-data-mining reservation signals placed “in or around” the content as a fetch/use denial for research synthesis; prefer conservative interpretation when ambiguous. (implemented: HTTP Link rel="tdm-reservation" and HTML <link rel="tdm-reservation"> with tests)
 
 * [ ] Missing robots policy — When /robots.txt returns 404, proceed as allowed; when it returns 401/403/5xx or times out, treat as temporarily disallowed for that host and retry only on the next run or after cache expiry.
 
