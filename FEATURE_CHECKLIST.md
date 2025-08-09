@@ -96,7 +96,7 @@
 
 * [x] Optional cache at rest protection — The cache directory supports optional encryption or restricted permissions when environments require at-rest protection. (restricted permissions added via `-cache.strictPerms`)
 
-* [ ] Unit test coverage — Deterministic unit tests cover URL normalization, HTML extraction, deduplication, token budgeting, and citation validation using fixed fixtures.
+* [x] Unit test coverage — Deterministic unit tests cover URL normalization, HTML extraction, deduplication, token budgeting, and citation validation using fixed fixtures.
 
 * [ ] Integration test harness — Integration tests run against a stub LLM that returns canned JSON and Markdown and against recorded HTTP fixtures to validate the pipeline deterministically.
 
@@ -263,3 +263,39 @@
 * [ ] Troubleshooting & FAQ — Document common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug.&#x20;
 
 * [ ] LLM backend interface — Extract a provider interface so different OpenAI-compatible or local backends can be swapped without touching core logic.&#x20;
+
+* [ ] Report-type templates & section profiles — selectable IMRaD, decision/tech report, and literature-review profiles that enforce the right sections per type.&#x20;
+
+* [ ] Executive Summary guardrails — length target (\~150–250 words) and content checks (motivation, methods, key results, recommendations).&#x20;
+
+* [ ] Title quality check — enforce ≤12 words, descriptive keywords, and no unexplained acronyms/jargon.&#x20;
+
+* [ ] Heading audit — require descriptive “mini-title” headings, consistent hierarchy/parallel phrasing; optional auto-numbering for long reports.&#x20;
+
+* [ ] Plain-language & readability lint — active-voice preference, acronym defined on first use, average sentence length \~15–20 words, target reading level with metrics.&#x20;
+
+* [ ] Audience fit check — per-brief audience/tone settings and a pass that flags jargon or sections mismatched to the intended reader.&#x20;
+
+* [ ] Glossary & acronym list — auto-extract key terms and acronyms; add optional “Glossary” appendix.&#x20;
+
+* [ ] Visuals QA — numbered figures/tables with captions, required in-text references (“See Fig. X”), and alt text; verify placement near discussion.&#x20;
+
+* [ ] Table of Contents for long reports — auto-generate ToC when document exceeds a size threshold.&#x20;
+
+* [ ] References enrichment — resolve/insert DOIs where available, add stable URLs and “Accessed on” dates for web sources; completeness validator.&#x20;
+
+* [ ] Reference quality/mix validator — configurable policy to prefer peer-reviewed/standards, ensure recency where appropriate, and prevent over-reliance on a few sources.&#x20;
+
+* [ ] Counter-evidence search step — inject queries like “limitations of X / contrary findings”, and require a short “Alternatives & conflicting evidence” subsection.&#x20;
+
+* [ ] Reporting-guideline profiles — optional PRISMA/CONSORT/EQUATOR compliance checks tied to report type; for reviews, emit a simple PRISMA-style inclusion/exclusion table/diagram.&#x20;
+
+* [ ] Proofreading pass — grammar/spell/consistency check (units, terminology, capitalization) before final render.&#x20;
+
+* [ ] “Ready for distribution” checks — validate metadata (author/date/version), link targets, and optionally produce a PDF with working hyperlinks.&#x20;
+
+* [ ] Accessibility checks — heading order correctness and “no color-only meaning” warnings; require alt text for any images.&#x20;
+
+* [ ] Recommendations section (optional) — generate when the brief expects decisions/actions, separate from Conclusions.&#x20;
+
+* [ ] Appendix management — auto-label Appendices A/B/C…, ensure each is referenced from the body.&#x20;
