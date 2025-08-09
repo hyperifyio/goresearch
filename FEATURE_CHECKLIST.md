@@ -122,7 +122,7 @@
 
 * [x] Robots.txt fetch and cache — For each host, fetch /robots.txt once per run with a clear User-Agent, honor ETag and Last-Modified for revalidation, cache parsed rules per host with an expiry, and reuse across requests. (implemented `internal/robots` with HTTP+disk cache, in-memory expiry, and tests)
 
-* [ ] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including * wildcards and $ end anchors.
+* [x] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including * wildcards and $ end anchors. (implemented evaluator + tests)
 
 * [ ] Crawl-delay compliance — If a Crawl-delay is present for the matched agent, enforce it with a per-host scheduler that spaces requests accordingly; integrate with existing concurrency limits.
 
