@@ -134,6 +134,7 @@ func ValidateReferencesCompleteness(markdown string) (incompleteIndices []int) {
 
 var urlRe = regexp.MustCompile(`https?://[^\s)]+`)
 var linkLabelRe = regexp.MustCompile(`\[[^\]]+\]\(`) // e.g., [Title](
+var dateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 func containsURL(s string) bool {
     return urlRe.FindStringIndex(s) != nil
@@ -286,6 +287,122 @@ func ValidateReport(markdown string) error {
     }
     if len(c.OutOfRange) > 0 {
         return fmt.Errorf("out-of-range citations: %v", c.OutOfRange)
+    }
+    return nil
+}
+
+// ValidateStructure enforces a minimal Markdown output contract:
+// - First non-empty line is a single H1 title ("# Title")
+// - Second non-empty line is an ISO date (YYYY-MM-DD)
+// - Body contains section headings that match the provided outline in order
+//   (case-insensitive). Missing or out-of-order sections are reported.
+// - Contains a "Risks and limitations" section (case-insensitive)
+// - Contains a "References" section (already required by ValidateReport but
+//   checked here for structure compliance as well)
+// The function is deterministic and tolerant of blank lines.
+func ValidateStructure(markdown string, outline []string) error {
+    lines := splitLines(markdown)
+    // Locate first two non-empty lines
+    firstIdx, secondIdx := -1, -1
+    for i := 0; i < len(lines); i++ {
+        if trimSpace(lines[i]) == "" {
+            continue
+        }
+        if firstIdx == -1 {
+            firstIdx = i
+            continue
+        }
+        if secondIdx == -1 {
+            secondIdx = i
+            break
+        }
+    }
+    if firstIdx == -1 {
+        return fmt.Errorf("document is empty; missing title")
+    }
+    first := trimSpace(lines[firstIdx])
+    if !isHeading(first) || !(len(first) > 1 && first[0] == '#' && first[1] == ' ') {
+        return fmt.Errorf("first non-empty line must be an H1 markdown heading")
+    }
+    // Ensure there is exactly one leading '#'
+    hashes := 0
+    for hashes < len(first) && first[hashes] == '#' {
+        hashes++
+    }
+    if hashes != 1 {
+        return fmt.Errorf("title must be a single '# ' H1 heading")
+    }
+    if secondIdx == -1 {
+        return fmt.Errorf("second non-empty line must be an ISO date (YYYY-MM-DD)")
+    }
+    second := trimSpace(lines[secondIdx])
+    if !dateRe.MatchString(second) {
+        return fmt.Errorf("date line must be YYYY-MM-DD below title")
+    }
+
+    // Collect headings after the date line in order with their text and level
+    type hd struct{ level int; text string }
+    var heads []hd
+    for i := secondIdx + 1; i < len(lines); i++ {
+        line := trimSpace(lines[i])
+        if !isHeading(line) {
+            continue
+        }
+        // Count leading '#'
+        lvl := 0
+        for lvl < len(line) && line[lvl] == '#' {
+            lvl++
+        }
+        txt := stripHeading(line)
+        heads = append(heads, hd{level: lvl, text: txt})
+    }
+
+    // Verify presence and order of outline sections (case-insensitive match)
+    if len(outline) > 0 {
+        pos := 0
+        for idx, want := range outline {
+            found := false
+            wanted := trimSpace(want)
+            for ; pos < len(heads); pos++ {
+                if equalsIgnoreCase(trimSpace(heads[pos].text), wanted) {
+                    found = true
+                    pos++
+                    break
+                }
+            }
+            if !found {
+                return fmt.Errorf("missing or out-of-order outline section: %q (index %d)", want, idx)
+            }
+        }
+    }
+
+    // Ensure Risks and limitations section exists
+    hasRisks := false
+    hasRefs := false
+    for _, h := range heads {
+        if equalsIgnoreCase(trimSpace(h.text), "risks and limitations") {
+            hasRisks = true
+        }
+        if equalsIgnoreCase(trimSpace(h.text), "references") {
+            hasRefs = true
+        }
+    }
+    if !hasRisks {
+        return fmt.Errorf("missing 'Risks and limitations' section")
+    }
+    if !hasRefs {
+        return fmt.Errorf("missing 'References' section heading")
+    }
+
+    // Enforce a sensible hierarchy: only one H1 overall
+    h1count := 0
+    for _, h := range heads {
+        if h.level == 1 {
+            h1count++
+        }
+    }
+    if h1count > 0 {
+        return fmt.Errorf("document must not contain additional H1 headings beyond the title")
     }
     return nil
 }

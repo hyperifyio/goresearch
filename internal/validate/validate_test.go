@@ -55,4 +55,98 @@ Body with a cite [1].
     }
 }
 
+func TestValidateStructure_OK_WithOutline(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+## Executive summary
+Some text.
+
+## Background
+Info.
+
+## Risks and limitations
+Notes.
+
+## References
+1. Example — https://example.com`
+    outline := []string{"Executive summary", "Background"}
+    if err := ValidateStructure(md, outline); err != nil {
+        t.Fatalf("expected structure to be valid, got error: %v", err)
+    }
+}
+
+func TestValidateStructure_MissingTitle(t *testing.T) {
+    md := `Not a heading title
+2025-01-01
+
+## References
+1. Example — https://example.com`
+    if err := ValidateStructure(md, nil); err == nil {
+        t.Fatalf("expected missing H1 title to be an error")
+    }
+}
+
+func TestValidateStructure_MissingDate(t *testing.T) {
+    md := `# Title
+
+## References
+1. Example — https://example.com`
+    if err := ValidateStructure(md, nil); err == nil {
+        t.Fatalf("expected missing date to be an error")
+    }
+}
+
+func TestValidateStructure_MissingRisks(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+## Executive summary
+Text.
+
+## References
+1. Example — https://example.com`
+    if err := ValidateStructure(md, []string{"Executive summary"}); err == nil {
+        t.Fatalf("expected missing risks section to be an error")
+    }
+}
+
+func TestValidateStructure_OutlineOrder(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+## Background
+Info.
+
+## Executive summary
+Some.
+
+## Risks and limitations
+Notes.
+
+## References
+1. Example — https://example.com`
+    outline := []string{"Executive summary", "Background"}
+    if err := ValidateStructure(md, outline); err == nil {
+        t.Fatalf("expected out-of-order outline to be an error")
+    }
+}
+
+func TestValidateStructure_RejectExtraH1(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+# Another H1
+Text.
+
+## Risks and limitations
+Notes.
+
+## References
+1. Example — https://example.com`
+    if err := ValidateStructure(md, nil); err == nil {
+        t.Fatalf("expected extra H1 to be rejected")
+    }
+}
+
 

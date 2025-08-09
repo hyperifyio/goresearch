@@ -58,7 +58,7 @@
 
 * [x] Graceful verification failure — If the verification call fails or returns invalid data, the tool omits the appendix, emits a warning, and preserves the main report.
 
-* [ ] Markdown output contract — The output is valid, renderer-friendly Markdown that avoids decorative flourishes and maintains a sensible heading hierarchy matching the outline.
+* [x] Markdown output contract — The output is valid, renderer-friendly Markdown that avoids decorative flourishes and maintains a sensible heading hierarchy matching the outline. (validator + tests added)
 
 * [ ] Reproducibility footer — The document ends with a short footer that records the model name, the LLM base URL, the number of sources used, and whether HTTP and LLM caching were active.
 

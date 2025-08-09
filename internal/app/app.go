@@ -202,7 +202,11 @@ func (a *App) Run(ctx context.Context) error {
         return fmt.Errorf("synthesize: %w", err)
     }
 
-    // 6) Validate citations and references. If invalid, keep document but append a warning.
+    // 6) Validate structure and citations. If invalid, keep document but append a warning.
+    if err := validate.ValidateStructure(md, plan.Outline); err != nil {
+        log.Warn().Err(err).Msg("report structure issues")
+        md += "\n\n> WARNING: Structure issues: " + err.Error() + "\n"
+    }
     if err := validate.ValidateReport(md); err != nil {
         log.Warn().Err(err).Msg("report validation issues")
         md += "\n\n> WARNING: Validation noted issues: " + err.Error() + "\n"
