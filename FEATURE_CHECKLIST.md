@@ -92,7 +92,7 @@
 
 * [x] Robots and crawling etiquette — The fetcher respects robots meta where applicable, avoids crawling behind search result pages, and keeps request patterns polite. (search-results filtering added in selector with tests; meta/robots.txt support pending in later items)
 
-* [ ] Public web only — The tool targets public pages and does not authenticate to private services; outbound connections are limited to the configured search endpoint, fetched sites, and the local LLM endpoint.
+* [x] Public web only — The tool targets public pages and does not authenticate to private services; outbound connections are limited to the configured search endpoint, fetched sites, and the local LLM endpoint. (blocks localhost/private IPs and credentials-in-URL in fetcher; tests added)
 
 * [ ] Optional cache at rest protection — The cache directory supports optional encryption or restricted permissions when environments require at-rest protection.
 
@@ -230,3 +230,35 @@
 * [ ] Cache at-rest option — If cache encryption is enabled in the app, wire it to a dedicated cache volume and expose a COMPOSE profile/env toggle to activate encryption or restricted permissions at runtime.
 
 * [ ] Documentation snippet — Update README with a “Run locally with Docker” section covering prerequisites, one-line dev start, profiles, environment variables, health checks, and common troubleshooting steps.
+
+* [ ] Single-file config support — Add support for goresearch.yaml|json with env-var overrides, schema validation, and `goresearch init` to scaffold a config and `.env.example`.&#x20;
+
+* [ ] Quick Start in README — One copy-paste command with expected output, plus a “hello research” example brief and result.&#x20;
+
+* [ ] Full flag & config reference — Auto-generate a comprehensive CLI/options page and link it from README.&#x20;
+
+* [ ] Feature guides for verification & manifest — Explain how the evidence appendix is produced/read and how to use the embedded/sidecar manifest for audit.&#x20;
+
+* [ ] Architecture overview & diagram — Document Search → Fetch → Extract → Select → Synthesize → Validate → Verify data flow with package boundaries.&#x20;
+
+* [ ] Quiet default + log levels — Make concise progress output the default; route detailed structured logs to file and gate with `--log-level`. Document how to enable verbose.&#x20;
+
+* [ ] Cache size limits & eviction — Add max bytes/count with LRU eviction for HTTP and LLM caches, alongside existing age-based invalidation.&#x20;
+
+* [ ] Verification toggle — Add `--verify/--no-verify` to explicitly enable/disable the fact-check pass and appendix.&#x20;
+
+* [ ] Artifacts bundle export — Persist planner JSON, selected URLs, extracts, final report, manifest, and evidence appendix under `./reports/<topic>/` and optional tarball with digests for offline audit.&#x20;
+
+* [ ] Graceful cancel & resume — On SIGINT/SIGTERM, write partial artifacts and allow fast resume from cache on next run to keep UX “dead simple.”&#x20;
+
+* [ ] CONTRIBUTING.md + templates — Add contribution guide (coding style, running tests, Cursor rules, commit semantics) and PR/issue templates.&#x20;
+
+* [ ] Release packaging — Use GoReleaser to ship macOS/Linux/Windows binaries with version/commit info, checksums, and SBOM; publish via CI.&#x20;
+
+* [ ] Benchmarks — Add Go benchmarks for fetch, extract, selection, and token budgeting to quantify the impact of concurrency/politeness settings.&#x20;
+
+* [ ] Static analysis & pre-commit — Enforce `go fmt`, `go vet`, `staticcheck`, and pre-commit hooks; wire into CI next to existing tests.&#x20;
+
+* [ ] Troubleshooting & FAQ — Document common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug.&#x20;
+
+* [ ] LLM backend interface — Extract a provider interface so different OpenAI-compatible or local backends can be swapped without touching core logic.&#x20;

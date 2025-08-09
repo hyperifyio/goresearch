@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+    "net"
 	"net/url"
 	"strings"
 	"sync"
@@ -37,6 +38,10 @@ type Client struct {
 	// internal limiter initialized on first use when MaxConcurrent > 0
 	limiter     chan struct{}
 	limiterOnce sync.Once
+
+    // AllowPrivateHosts, when true, disables the "public web only" guard that
+    // rejects localhost and private IP ranges. Intended for tests only.
+    AllowPrivateHosts bool
 }
 
 func (c *Client) getHTTPClient() *http.Client {
@@ -96,7 +101,7 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 	c.acquire()
 	defer c.release()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, "", "", "", 0, fmt.Errorf("new request: %w", err)
 	}
@@ -104,6 +109,15 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 	if req.URL == nil || !isHTTPScheme(req.URL) {
 		return nil, "", "", "", 0, fmt.Errorf("unsupported URL scheme: %q", req.URL.String())
 	}
+    // Reject embedded credentials to avoid authenticating to private services
+    if req.URL.User != nil {
+        return nil, "", "", "", 0, errors.New("credentials in URL unsupported")
+    }
+    // Public web only: reject localhost and private/link-local addresses by literal IP or known names
+    host := req.URL.Hostname()
+    if !c.AllowPrivateHosts && isLocalOrPrivateHost(host) {
+        return nil, "", "", "", 0, fmt.Errorf("private host not allowed: %s", host)
+    }
 	if c.UserAgent != "" {
 		req.Header.Set("User-Agent", c.UserAgent)
 	}
@@ -202,6 +216,22 @@ func isAllowedHTMLContentType(ct string) bool {
 	ct = strings.ToLower(strings.TrimSpace(ct))
 	// allow text/html variants and application/xhtml+xml
 	return strings.HasPrefix(ct, "text/html") || strings.HasPrefix(ct, "application/xhtml+xml")
+}
+
+// isLocalOrPrivateHost returns true for localhost names and literal IPs that are
+// loopback, private, or link-local. Hostname resolution is intentionally not
+// performed here to keep this check deterministic and side-effect free.
+func isLocalOrPrivateHost(host string) bool {
+    h := strings.ToLower(strings.TrimSpace(host))
+    if h == "localhost" || h == "localhost.localdomain" || h == "::1" || h == "[::1]" {
+        return true
+    }
+    if ip := net.ParseIP(h); ip != nil {
+        if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+            return true
+        }
+    }
+    return false
 }
 
 func (c *Client) acquire() {

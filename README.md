@@ -23,6 +23,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 - **Deterministic and scriptable**: low-temperature prompts, structured logs, and explicit flags/envs.
 - **Pluggable search**: defaults to self-hosted SearxNG; adapters can be swapped without changing the rest.
 - **Polite fetching**: user agent, timeouts, redirect caps, content-type checks, and optional HTTP cache with conditional requests.
+- **Public web only**: blocks localhost/private IPs and URL-embedded credentials to avoid private services.
 - **Token budgeting**: proportional truncation prevents dropping sources while fitting model context.
 - **Reproducibility**: embedded manifest and sidecar JSON record URLs and content digests used in synthesis.
 - **Dry run**: plan queries and select URLs without calling the model.

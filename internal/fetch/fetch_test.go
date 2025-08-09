@@ -1,17 +1,41 @@
 package fetch
 
 import (
-	"context"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"sync"
-	"sync/atomic"
-	"testing"
-	"time"
+    "context"
+    "fmt"
+    "net/http"
+    "net/http/httptest"
+    "sync"
+    "sync/atomic"
+    "testing"
+    "time"
 
-	"github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/cache"
 )
+
+func TestRejectsCredentialsInURL(t *testing.T) {
+    c := &Client{}
+    if _, _, _, _, _, err := c.tryOnce(context.Background(), "http://user:pass@example.com", "", ""); err == nil {
+        t.Fatalf("expected credentials rejection")
+    }
+}
+
+func TestRejectsLocalhostAndPrivateIPs(t *testing.T) {
+    c := &Client{}
+    cases := []string{
+        "http://localhost/",
+        "http://127.0.0.1/",
+        "http://[::1]/",
+        "http://10.0.0.1/",
+        "http://192.168.1.2/",
+        "http://169.254.1.1/",
+    }
+    for _, u := range cases {
+        if _, _, _, _, _, err := c.tryOnce(context.Background(), u, "", ""); err == nil {
+            t.Fatalf("expected rejection for %s", u)
+        }
+    }
+}
 
 func TestGet_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +45,7 @@ func TestGet_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 2, PerRequestTimeout: 2 * time.Second}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 2, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
 	body, ct, err := c.Get(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -45,7 +69,7 @@ func TestGet_RetryOn5xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 2, PerRequestTimeout: 2 * time.Second}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 2, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
 	_, _, err := c.Get(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("expected success after retry, got %v", err)
@@ -74,7 +98,7 @@ func TestGet_Conditional304_UsesCache(t *testing.T) {
 	defer srv.Close()
 
 	tmp := t.TempDir()
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, Cache: &cache.HTTPCache{Dir: tmp}}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, Cache: &cache.HTTPCache{Dir: tmp}, AllowPrivateHosts: true}
 
 	// First fetch populates cache
 	b1, _, err := c.Get(context.Background(), srv.URL)
@@ -96,7 +120,7 @@ func TestGet_Conditional304_UsesCache(t *testing.T) {
 }
 
 func TestGet_RejectsNonHTTP(t *testing.T) {
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 1 * time.Second}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 1 * time.Second, AllowPrivateHosts: true}
 	_, _, err := c.Get(context.Background(), "file:///etc/hosts")
 	if err == nil {
 		t.Fatalf("expected error for non-http scheme")
@@ -111,7 +135,7 @@ func TestGet_ContentTypeGating(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
 	_, _, err := c.Get(context.Background(), srv.URL)
 	if err == nil {
 		t.Fatalf("expected error for unsupported content type")
@@ -130,7 +154,7 @@ func TestGet_RedirectLimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, RedirectMaxHops: 1}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, RedirectMaxHops: 1, AllowPrivateHosts: true}
 	_, _, err := c.Get(context.Background(), srv.URL)
 	if err == nil {
 		t.Fatalf("expected redirect limit error")
@@ -159,7 +183,7 @@ func TestGet_MaxConcurrent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, MaxConcurrent: 2}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, MaxConcurrent: 2, AllowPrivateHosts: true}
 
 	var wg sync.WaitGroup
 	start := make(chan struct{})
