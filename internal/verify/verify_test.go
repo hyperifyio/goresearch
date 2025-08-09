@@ -1,6 +1,7 @@
 package verify
 
 import (
+    "strings"
     "testing"
 )
 
@@ -20,6 +21,31 @@ func TestFallbackVerifyExtractsClaimsAndConfidence(t *testing.T) {
     }
     if !foundHigh {
         t.Fatalf("expected at least one high-confidence claim")
+    }
+}
+
+// Verifies go-implement item: "Verification test cases" — ensure unsupported claims are flagged.
+func TestFallbackVerifyFlagsUnsupportedClaims(t *testing.T) {
+    md := "# Title\n\nThis is a cited statement that references evidence [1]. However, this next sentence deliberately contains no citations and should be flagged as unsupported because it lacks brackets and sources.\n\n## References\n1. Ref — https://example.com\n"
+    got := fallbackVerify(md)
+    if len(got.Claims) == 0 {
+        t.Fatalf("expected some claims, got none")
+    }
+    foundUnsupported := false
+    for _, c := range got.Claims {
+        if !c.Supported {
+            foundUnsupported = true
+            if c.Confidence != "low" {
+                t.Fatalf("unsupported claim must be low confidence, got %q", c.Confidence)
+            }
+            break
+        }
+    }
+    if !foundUnsupported {
+        t.Fatalf("expected at least one unsupported claim (no citations)")
+    }
+    if !strings.Contains(got.Summary, "low-confidence") {
+        t.Fatalf("expected summary to mention low-confidence count, got %q", got.Summary)
     }
 }
 

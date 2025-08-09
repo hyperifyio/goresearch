@@ -102,7 +102,7 @@
 
 * [x] Golden output comparisons — Generated reports are compared against golden files with allowances for timestamps and benign whitespace differences to detect regressions.
 
-* [ ] Verification test cases — Synthetic documents include properly cited and deliberately uncited claims to confirm that the verification pass flags unsupported statements.
+* [x] Verification test cases — Synthetic documents include properly cited and deliberately uncited claims to confirm that the verification pass flags unsupported statements. (tests added in `internal/verify/verify_test.go`)
 
 * [x] Concurrent fetch limits — Fetch and extract stages run concurrently up to a configurable limit to balance performance and site politeness.
 
