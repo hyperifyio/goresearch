@@ -24,7 +24,7 @@
 
 * [x] Content-type gating — Only HTML and XHTML responses are processed in the baseline; binary formats are declined to keep extraction predictable.
 
-* [ ] HTML extraction focus — The extractor prefers semantic containers such as main and article and falls back to body, preserving headings, paragraphs, list items, pre/code blocks, and other content-bearing elements.
+* [x] HTML extraction focus — The extractor prefers semantic containers such as main and article and falls back to body, preserving headings, paragraphs, list items, pre/code blocks, and other content-bearing elements. (implemented with tests)
 
 * [ ] Boilerplate reduction — Navigation, cookie banners, and footer chrome are reduced using simple content-density heuristics so that the extracted text concentrates on primary content.
 
