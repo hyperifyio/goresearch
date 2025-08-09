@@ -87,13 +87,17 @@ func (a *App) Close() {
 }
 
 func (a *App) Run(ctx context.Context) error {
-	if a.cfg.DryRun {
-		// Minimal dry-run output including parsed brief to satisfy transparency.
-		inputBytes, _ := os.ReadFile(a.cfg.InputPath)
-		b := brief.ParseBrief(string(inputBytes))
-		// Plan queries and select URLs without calling the synthesizer
-		plan := a.planQueries(ctx, b)
-		// Fake search with zero provider if not configured
+    if a.cfg.DryRun {
+        // Minimal dry-run output including parsed brief to satisfy transparency.
+        stageStart := time.Now()
+        inputBytes, _ := os.ReadFile(a.cfg.InputPath)
+        b := brief.ParseBrief(string(inputBytes))
+        log.Info().Str("stage", "brief").Str("topic", b.Topic).Dur("elapsed", time.Since(stageStart)).Msg("brief parsed")
+        // Plan queries and select URLs without calling the synthesizer
+        stageStart = time.Now()
+        plan := a.planQueries(ctx, b)
+        log.Info().Str("stage", "planner").Int("queries", len(plan.Queries)).Strs("queries", plan.Queries).Dur("elapsed", time.Since(stageStart)).Msg("planner completed")
+        // Fake search with zero provider if not configured
     var provider search.Provider
     if a.cfg.FileSearchPath != "" {
         provider = &search.FileProvider{Path: a.cfg.FileSearchPath}
@@ -102,6 +106,7 @@ func (a *App) Run(ctx context.Context) error {
     }
 		var selected []search.Result
 		if provider != nil {
+            stageStart = time.Now()
 			groups := make([][]search.Result, 0, len(plan.Queries))
 			for _, q := range plan.Queries {
 				results, err := provider.Search(ctx, q, 10)
@@ -113,6 +118,9 @@ func (a *App) Run(ctx context.Context) error {
 			}
 			merged := aggregate.MergeAndNormalize(groups)
 			selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars, PreferredLanguage: a.cfg.LanguageHint})
+            urls := make([]string, 0, len(selected))
+            for _, r := range selected { urls = append(urls, r.URL) }
+            log.Info().Str("stage", "selection").Int("selected", len(selected)).Strs("urls", urls).Dur("elapsed", time.Since(stageStart)).Msg("search+selection completed")
 		}
 		content := fmt.Sprintf("# goresearch (dry run)\n\nTopic: %s\nAudience: %s\nTone: %s\nTarget Length (words): %d\n\nPlanned queries:\n", b.Topic, b.AudienceHint, b.ToneHint, b.TargetLengthWords)
 		for i, q := range plan.Queries {
@@ -135,7 +143,7 @@ func (a *App) Run(ctx context.Context) error {
 		content += fmt.Sprintf("Fits: %t\n", est.Fits)
 		// Append reproducibility footer to dry-run content as well
 		content = appendReproFooter(content, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(selected), a.httpCache != nil, true)
-		if err := os.WriteFile(a.cfg.OutputPath, []byte(content), 0o644); err != nil {
+        if err := os.WriteFile(a.cfg.OutputPath, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
 		log.Info().Str("out", a.cfg.OutputPath).Msg("wrote dry-run output")
@@ -143,16 +151,21 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	// 1) Read and parse brief
+    stageStart := time.Now()
 	inputBytes, err := os.ReadFile(a.cfg.InputPath)
 	if err != nil {
 		return fmt.Errorf("read input: %w", err)
 	}
 	b := brief.ParseBrief(string(inputBytes))
+    log.Info().Str("stage", "brief").Str("topic", b.Topic).Dur("elapsed", time.Since(stageStart)).Msg("brief parsed")
 
 	// 2) Plan queries (LLM first with fallback)
+    stageStart = time.Now()
 	plan := a.planQueries(ctx, b)
+    log.Info().Str("stage", "planner").Int("queries", len(plan.Queries)).Strs("queries", plan.Queries).Dur("elapsed", time.Since(stageStart)).Msg("planner completed")
 
     // 3) Perform searches and aggregate
+    stageStart = time.Now()
     var provider search.Provider
     // Support file-based provider for deterministic/local runs (parity with dry-run)
     if a.cfg.FileSearchPath != "" {
@@ -178,8 +191,19 @@ func (a *App) Run(ctx context.Context) error {
 		merged := aggregate.MergeAndNormalize(groups)
 		selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars, PreferredLanguage: a.cfg.LanguageHint})
 	}
+    // Log selected URLs for traceability
+    if len(selected) > 0 {
+        urls := make([]string, 0, len(selected))
+        for _, r := range selected {
+            urls = append(urls, r.URL)
+        }
+        log.Info().Str("stage", "selection").Int("selected", len(selected)).Strs("urls", urls).Dur("elapsed", time.Since(stageStart)).Msg("search+selection completed")
+    } else {
+        log.Info().Str("stage", "selection").Int("selected", 0).Dur("elapsed", time.Since(stageStart)).Msg("search+selection completed")
+    }
 
 	// 4) Fetch and extract content for each selected URL with polite settings
+    stageStart = time.Now()
 	httpClient := newHighThroughputHTTPClient()
     f := &fetchClient{client: &fetch.Client{
 		HTTPClient:        httpClient,
@@ -197,6 +221,7 @@ func (a *App) Run(ctx context.Context) error {
     excerpts := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
 	excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
+    log.Info().Str("stage", "extract").Int("excerpts", len(excerpts)).Dur("elapsed", time.Since(stageStart)).Msg("fetch+extract completed")
 
     // Exit nonzero per policy when we have no usable sources.
     if len(excerpts) == 0 {
@@ -205,6 +230,7 @@ func (a *App) Run(ctx context.Context) error {
     }
 
 	// 5) Synthesize report
+    stageStart = time.Now()
     syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt}
 	md, err := syn.Synthesize(ctx, synth.Input{
 		Brief:                b,
@@ -217,8 +243,10 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("synthesize: %w", err)
 	}
+    log.Info().Str("stage", "synth").Int("chars", len(md)).Dur("elapsed", time.Since(stageStart)).Msg("synthesis completed")
 
 	// 6) Validate structure and citations. If invalid, keep document but append a warning.
+    stageStart = time.Now()
 	if err := validate.ValidateStructure(md, plan.Outline); err != nil {
 		log.Warn().Err(err).Msg("report structure issues")
 		md += "\n\n> WARNING: Structure issues: " + err.Error() + "\n"
@@ -227,19 +255,23 @@ func (a *App) Run(ctx context.Context) error {
 		log.Warn().Err(err).Msg("report validation issues")
 		md += "\n\n> WARNING: Validation noted issues: " + err.Error() + "\n"
 	}
+    log.Info().Str("stage", "validate").Dur("elapsed", time.Since(stageStart)).Msg("validation completed")
 
 	// 7) Verification pass: extract claims and append an evidence map appendix.
+    stageStart = time.Now()
     verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, SystemPrompt: a.cfg.VerifySystemPrompt}
 	vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
 	if verr != nil {
 		log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
 	}
 	md = appendEvidenceAppendix(md, vres, verr)
+    log.Info().Str("stage", "verify").Bool("ok", verr == nil).Dur("elapsed", time.Since(stageStart)).Msg("verification completed")
 
 	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
 	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
 	// 9) Append embedded manifest and write a sidecar JSON manifest
+    stageStart = time.Now()
 	manEntries := buildManifestEntriesFromSynth(excerpts)
 	manMeta := manifestMeta{
 		Model:       a.cfg.LLMModel,
@@ -253,6 +285,7 @@ func (a *App) Run(ctx context.Context) error {
 	if data, err := marshalManifestJSON(manMeta, manEntries); err == nil {
 		_ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
 	}
+    log.Info().Str("stage", "manifest").Int("sources", len(manEntries)).Dur("elapsed", time.Since(stageStart)).Msg("manifest written")
 
 	if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
 		return fmt.Errorf("write output: %w", err)

@@ -118,7 +118,7 @@
 
 * [x] Known limitations disclosure — The design acknowledges dependence on local model capabilities, uneven public coverage for some topics, imperfect boilerplate removal, and the need for human review for high-stakes accuracy.
 
-* [ ] Operational run clarity — The end-to-end run is deterministic and auditable: input brief to planner to search to extraction to selection to synthesis to validation to verification to rendering, with each stage’s artifacts traceable via logs and the embedded manifest.
+* [x] Operational run clarity — The end-to-end run is deterministic and auditable: input brief to planner to search to extraction to selection to synthesis to validation to verification to rendering, with each stage’s artifacts traceable via logs and the embedded manifest.
 
 * [ ] Robots.txt fetch and cache — For each host, fetch /robots.txt once per run with a clear User-Agent, honor ETag and Last-Modified for revalidation, cache parsed rules per host with an expiry, and reuse across requests.
 
