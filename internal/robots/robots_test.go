@@ -87,6 +87,120 @@ func TestManager_FetchOncePerRun_WithETagRevalidation(t *testing.T) {
     }
 }
 
+// When /robots.txt returns 404, proceed as allowed and cache the negative
+// result in memory until expiry so we do not refetch within the window.
+func TestMissingRobots404_ProceedAllowed_WithMemCache(t *testing.T) {
+    t.Parallel()
+    var hits int32
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path != "/robots.txt" {
+            http.NotFound(w, r)
+            return
+        }
+        atomic.AddInt32(&hits, 1)
+        http.NotFound(w, r)
+    }))
+    t.Cleanup(srv.Close)
+
+    ctx := context.Background()
+    m := &Manager{
+        HTTPClient:        srv.Client(),
+        UserAgent:         "goresearch-test/1.0",
+        EntryExpiry:       time.Minute,
+        AllowPrivateHosts: true,
+    }
+    u := srv.URL + "/robots.txt"
+    rules1, src1, err1 := m.Get(ctx, u)
+    if err1 != nil {
+        t.Fatalf("get 404 robots: %v", err1)
+    }
+    if src1 != SourceNetwork {
+        t.Fatalf("expected SourceNetwork, got %v", src1)
+    }
+    // An empty ruleset should allow by default
+    if allowed := rules1.IsAllowed("goresearch", "/any/path"); !allowed {
+        t.Fatalf("expected allow with missing robots 404")
+    }
+    if atomic.LoadInt32(&hits) != 1 {
+        t.Fatalf("expected 1 hit, got %d", hits)
+    }
+    // Second call should use memory and not refetch
+    _, src2, err2 := m.Get(ctx, u)
+    if err2 != nil {
+        t.Fatalf("second get: %v", err2)
+    }
+    if src2 != SourceMemory {
+        t.Fatalf("expected SourceMemory, got %v", src2)
+    }
+    if atomic.LoadInt32(&hits) != 1 {
+        t.Fatalf("expected still 1 hit after memory reuse, got %d", hits)
+    }
+}
+
+// When /robots.txt returns 5xx or 401/403 or times out, treat host as
+// temporarily disallowed (disallow all) until cache expiry.
+func TestMissingRobots_TemporaryDisallow_On5xxAndTimeout(t *testing.T) {
+    t.Parallel()
+    // 503 case
+    var hits503 int32
+    srv503 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path != "/robots.txt" { http.NotFound(w, r); return }
+        atomic.AddInt32(&hits503, 1)
+        w.WriteHeader(http.StatusServiceUnavailable)
+    }))
+    t.Cleanup(srv503.Close)
+
+    ctx := context.Background()
+    m1 := &Manager{HTTPClient: srv503.Client(), UserAgent: "goresearch-test", EntryExpiry: time.Minute, AllowPrivateHosts: true}
+    u1 := srv503.URL + "/robots.txt"
+    rules, src, err := m1.Get(ctx, u1)
+    if err != nil {
+        t.Fatalf("unexpected error on 5xx policy: %v", err)
+    }
+    if src != SourceNetwork {
+        t.Fatalf("expected SourceNetwork, got %v", src)
+    }
+    if allowed := rules.IsAllowed("goresearch", "/any"); allowed {
+        t.Fatalf("expected disallow-all under temporary disallow (5xx)")
+    }
+    if atomic.LoadInt32(&hits503) != 1 {
+        t.Fatalf("expected 1 hit, got %d", hits503)
+    }
+    // Memory reuse
+    _, src2, err2 := m1.Get(ctx, u1)
+    if err2 != nil { t.Fatalf("second get (mem): %v", err2) }
+    if src2 != SourceMemory { t.Fatalf("expected SourceMemory, got %v", src2) }
+    if atomic.LoadInt32(&hits503) != 1 { t.Fatalf("expected still 1 hit, got %d", hits503) }
+
+    // Timeout case
+    var hitsTO int32
+    srvTO := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path != "/robots.txt" { http.NotFound(w, r); return }
+        atomic.AddInt32(&hitsTO, 1)
+        time.Sleep(200 * time.Millisecond)
+    }))
+    t.Cleanup(srvTO.Close)
+    // Clone srv client to add a short timeout
+    base := *srvTO.Client()
+    base.Timeout = 50 * time.Millisecond
+    m2 := &Manager{HTTPClient: &base, UserAgent: "goresearch-test", EntryExpiry: time.Minute, AllowPrivateHosts: true}
+    u2 := srvTO.URL + "/robots.txt"
+    rulesTO, srcTO, errTO := m2.Get(ctx, u2)
+    if errTO != nil {
+        t.Fatalf("unexpected error on timeout policy: %v", errTO)
+    }
+    if srcTO != SourceNetwork { t.Fatalf("expected SourceNetwork, got %v", srcTO) }
+    if allowed := rulesTO.IsAllowed("goresearch", "/any"); allowed {
+        t.Fatalf("expected disallow-all under temporary disallow (timeout)")
+    }
+    if atomic.LoadInt32(&hitsTO) != 1 { t.Fatalf("expected 1 hit, got %d", hitsTO) }
+    // Memory reuse
+    _, srcTO2, errTO2 := m2.Get(ctx, u2)
+    if errTO2 != nil { t.Fatalf("second get (mem): %v", errTO2) }
+    if srcTO2 != SourceMemory { t.Fatalf("expected SourceMemory, got %v", srcTO2) }
+    if atomic.LoadInt32(&hitsTO) != 1 { t.Fatalf("expected still 1 hit, got %d", hitsTO) }
+}
+
 func TestManager_RevalidateWithLastModified(t *testing.T) {
     t.Parallel()
     var hits int32

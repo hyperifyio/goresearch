@@ -104,13 +104,16 @@ func (m *Manager) Get(ctx context.Context, robotsURL string) (Rules, Source, err
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return Rules{}, SourceNetwork, err
-	}
+    resp, err := client.Do(req)
+    if err != nil {
+        // Treat network/timeouts as temporary disallow per policy; cache in memory
+        rules := disallowAllRules()
+        m.storeMem(robotsURL, rules)
+        return rules, SourceNetwork, nil
+    }
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotModified && m.Cache != nil {
+    if resp.StatusCode == http.StatusNotModified && m.Cache != nil {
 		body, err := m.Cache.LoadBody(ctx, robotsURL)
 		if err != nil {
 			return Rules{}, SourceCache304, fmt.Errorf("load cached robots: %w", err)
@@ -119,9 +122,21 @@ func (m *Manager) Get(ctx context.Context, robotsURL string) (Rules, Source, err
 		m.storeMem(robotsURL, rules)
 		return rules, SourceCache304, nil
 	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return Rules{}, SourceNetwork, fmt.Errorf("unexpected status: %d", resp.StatusCode)
-	}
+    // Special handling per FEATURE_CHECKLIST.md
+    if resp.StatusCode == http.StatusNotFound { // 404: proceed as allowed
+        rules := Rules{} // empty: default allow
+        m.storeMem(robotsURL, rules)
+        return rules, SourceNetwork, nil
+    }
+    if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || (resp.StatusCode >= 500 && resp.StatusCode <= 599) {
+        // 401/403/5xx: temporary disallow-all
+        rules := disallowAllRules()
+        m.storeMem(robotsURL, rules)
+        return rules, SourceNetwork, nil
+    }
+    if resp.StatusCode < 200 || resp.StatusCode > 299 {
+        return Rules{}, SourceNetwork, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+    }
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return Rules{}, SourceNetwork, fmt.Errorf("read robots: %w", err)
@@ -188,6 +203,11 @@ func parseRobots(text string) Rules {
 	}
 	flush()
 	return Rules{Groups: groups}
+}
+
+// disallowAllRules constructs a Rules value that denies all paths for any UA.
+func disallowAllRules() Rules {
+    return Rules{Groups: []Group{{Agents: []string{"*"}, Disallow: []string{"/"}}}}
 }
 
 // IsAllowed evaluates whether the provided path (which may include a query string)

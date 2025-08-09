@@ -132,7 +132,7 @@
 
 * [x] TDM opt-out recognition — Treat machine-readable text-and-data-mining reservation signals placed “in or around” the content as a fetch/use denial for research synthesis; prefer conservative interpretation when ambiguous. (implemented: HTTP Link rel="tdm-reservation" and HTML <link rel="tdm-reservation"> with tests)
 
-* [ ] Missing robots policy — When /robots.txt returns 404, proceed as allowed; when it returns 401/403/5xx or times out, treat as temporarily disallowed for that host and retry only on the next run or after cache expiry.
+* [x] Missing robots policy — When /robots.txt returns 404, proceed as allowed; when it returns 401/403/5xx or times out, treat as temporarily disallowed for that host and retry only on the next run or after cache expiry. (implemented with tests in `internal/robots/robots_test.go` and logic in `internal/robots/robots.go`)
 
 * [ ] Per-host allowlist override — Support an explicit, documented override flag that enables ignoring robots.txt for a bounded allowlist of domains (e.g., internal mirrors); emit a prominent warning and require a second confirmation flag.
 
