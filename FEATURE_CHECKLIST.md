@@ -26,7 +26,7 @@
 
 * [x] HTML extraction focus — The extractor prefers semantic containers such as main and article and falls back to body, preserving headings, paragraphs, list items, pre/code blocks, and other content-bearing elements. (implemented with tests)
 
-* [ ] Boilerplate reduction — Navigation, cookie banners, and footer chrome are reduced using simple content-density heuristics so that the extracted text concentrates on primary content.
+* [x] Boilerplate reduction — Navigation, cookie banners, and footer chrome are reduced using simple content-density heuristics so that the extracted text concentrates on primary content. (cookie/consent banner heuristics implemented with tests)
 
 * [ ] Text normalization — Extracted text is normalized to Unicode, whitespace is collapsed, and near-duplicate lines are removed to improve token efficiency.
 

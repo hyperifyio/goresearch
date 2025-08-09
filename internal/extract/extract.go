@@ -25,9 +25,7 @@ func FromHTML(input []byte) Document {
     title := strings.TrimSpace(findTitle(node))
     // Pick content root
     var content *html.Node
-    if content == nil {
-        content = findFirst(node, "main")
-    }
+    content = findFirst(node, "main")
     if content == nil {
         content = findFirst(node, "article")
     }
@@ -80,6 +78,10 @@ func findFirst(n *html.Node, tag string) *html.Node {
 
 func collectText(b *strings.Builder, n *html.Node, inPre bool) {
     if n.Type == html.ElementNode {
+        // Skip known boilerplate containers like cookie/consent banners
+        if isBoilerplateContainer(n) {
+            return
+        }
         name := strings.ToLower(n.Data)
         switch name {
         case "script", "style", "noscript", "nav", "footer", "aside", "iframe":
@@ -123,6 +125,38 @@ func collectText(b *strings.Builder, n *html.Node, inPre bool) {
             b.WriteString("\n")
         }
     }
+}
+
+// isBoilerplateContainer returns true if the element looks like a cookie/consent banner.
+func isBoilerplateContainer(n *html.Node) bool {
+    if n == nil || n.Type != html.ElementNode {
+        return false
+    }
+    // Check id and class attributes for common markers
+    for _, attr := range n.Attr {
+        key := strings.ToLower(attr.Key)
+        if key != "id" && key != "class" && !strings.HasPrefix(key, "data-") && key != "aria-label" && key != "role" {
+            continue
+        }
+        val := strings.ToLower(attr.Val)
+        if containsAny(val, []string{"cookie", "consent", "gdpr"}) {
+            return true
+        }
+        // Common banner/toast/modal hints when combined with consent markers often appear on ancestors.
+        if containsAny(val, []string{"cookie-banner", "cookiebar", "consent-banner", "consent-manager"}) {
+            return true
+        }
+    }
+    return false
+}
+
+func containsAny(s string, needles []string) bool {
+    for _, n := range needles {
+        if strings.Contains(s, n) {
+            return true
+        }
+    }
+    return false
 }
 
 func normalizeWhitespace(s string) string {

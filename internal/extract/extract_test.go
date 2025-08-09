@@ -89,4 +89,50 @@ func TestFromHTML_PreservesCodeAndListItems(t *testing.T) {
     }
 }
 
+func TestFromHTML_BoilerplateReduction_CookieBanner(t *testing.T) {
+    html := `<!doctype html>
+    <html>
+      <head><title>Cookie Page</title></head>
+      <body>
+        <main>
+          <div id="cookie-banner">We use cookies to improve your experience.</div>
+          <div class="cookie-consent">Accept all cookies</div>
+          <p>Main content that should remain.</p>
+        </main>
+      </body>
+    </html>`
+
+    doc := FromHTML([]byte(html))
+    if doc.Title != "Cookie Page" {
+        t.Fatalf("expected title 'Cookie Page', got %q", doc.Title)
+    }
+    if !strings.Contains(doc.Text, "Main content that should remain.") {
+        t.Fatalf("expected main content to be present; got: %q", doc.Text)
+    }
+    if strings.Contains(doc.Text, "We use cookies") || strings.Contains(doc.Text, "Accept all cookies") {
+        t.Fatalf("expected cookie/consent banner text to be removed; got: %q", doc.Text)
+    }
+}
+
+func TestFromHTML_BoilerplateReduction_DoesNotStripLegitimateCookieWord(t *testing.T) {
+    html := `<!doctype html>
+    <html>
+      <head><title>Legit Cookie</title></head>
+      <body>
+        <article>
+          <h2>Security</h2>
+          <p>Cookie-based authentication is a common pattern.</p>
+        </article>
+      </body>
+    </html>`
+
+    doc := FromHTML([]byte(html))
+    if doc.Title != "Legit Cookie" {
+        t.Fatalf("expected title 'Legit Cookie', got %q", doc.Title)
+    }
+    if !strings.Contains(doc.Text, "Cookie-based authentication is a common pattern.") {
+        t.Fatalf("expected sentence mentioning cookie to remain; got: %q", doc.Text)
+    }
+}
+
 
