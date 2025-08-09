@@ -61,9 +61,9 @@ func TestFetchAndExtract_PerSourceIsolation(t *testing.T) {
 	for _, s := range selected {
 		results = append(results, search.Result{Title: s.title, URL: s.url})
 	}
-    out := fetchAndExtract(context.Background(), fg, extract.HeuristicExtractor{}, results, Config{PerSourceChars: 1000, AllowPrivateHosts: true})
-	if len(out) != 1 {
-		t.Fatalf("expected 1 excerpt after skipping failures, got %d", len(out))
+    out, skipped := fetchAndExtract(context.Background(), fg, extract.HeuristicExtractor{}, results, Config{PerSourceChars: 1000, AllowPrivateHosts: true})
+    if len(out) != 1 || len(skipped) != 0 {
+        t.Fatalf("expected 1 excerpt and 0 skipped (non-robots failure), got excerpts=%d skipped=%d", len(out), len(skipped))
 	}
 	if out[0].Index != 1 {
 		t.Fatalf("expected index 1, got %d", out[0].Index)

@@ -58,6 +58,25 @@ type Client struct {
     nextAllowed  map[string]time.Time
 }
 
+// ReuseDeniedError is returned when a response contains headers that opt out of
+// text-and-data-mining reuse (e.g., X-Robots-Tag: noai, notrain). Callers
+// should treat this as a hard denial and skip using the content.
+type ReuseDeniedError struct{
+    Reason string
+}
+
+func (e ReuseDeniedError) Error() string { return "reuse denied: " + e.Reason }
+
+// IsReuseDenied reports whether the error indicates reuse denial and returns an
+// explanatory reason when true.
+func IsReuseDenied(err error) (string, bool) {
+    var r ReuseDeniedError
+    if errors.As(err, &r) {
+        return r.Reason, true
+    }
+    return "", false
+}
+
 func (c *Client) getHTTPClient() *http.Client {
 	if c.HTTPClient != nil {
 		// Clone to attach our redirect policy without mutating caller's client
@@ -174,6 +193,11 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
+    // Honor X-Robots-Tag opt-out directives for AI/TDM reuse
+    if reason, denied := detectTDMOptOut(resp.Header, c.UserAgent); denied {
+        return nil, "", "", "", resp.StatusCode, ReuseDeniedError{Reason: reason}
+    }
+
     contentType := resp.Header.Get("Content-Type")
     if !(isAllowedHTMLContentType(contentType) || (c.EnablePDF && isAllowedPDFContentType(contentType))) {
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("unsupported content type: %s", contentType)
@@ -183,6 +207,57 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("read body: %w", err)
 	}
 	return b, contentType, resp.Header.Get("ETag"), resp.Header.Get("Last-Modified"), resp.StatusCode, nil
+}
+
+// detectTDMOptOut checks X-Robots-Tag style headers for AI/TDM opt-out signals.
+// Returns a human-readable reason and true when reuse is denied.
+func detectTDMOptOut(h http.Header, userAgent string) (string, bool) {
+    if h == nil { return "", false }
+    // Collect all X-Robots-Tag values (case-insensitive per HTTP semantics)
+    vals := h.Values("X-Robots-Tag")
+    if len(vals) == 0 {
+        return "", false
+    }
+    // Join values and split on commas/semicolons; accept tokens optionally
+    // scoped like "googlebot: noai" — we conservatively deny on any noai/notrain.
+    joined := strings.ToLower(strings.Join(vals, ","))
+    // Fast-path containment check
+    if !strings.Contains(joined, "noai") && !strings.Contains(joined, "notrain") {
+        return "", false
+    }
+    // Tokenize
+    tokens := splitTokens(joined)
+    for _, t := range tokens {
+        tt := strings.TrimSpace(t)
+        switch tt {
+        case "noai":
+            return "X-Robots-Tag:noai", true
+        case "notrain":
+            return "X-Robots-Tag:notrain", true
+        default:
+            // also support scoped forms like "googlebot: noai"
+            if strings.Contains(tt, ":") {
+                parts := strings.SplitN(tt, ":", 2)
+                if len(parts) == 2 {
+                    dir := strings.TrimSpace(parts[1])
+                    if dir == "noai" || dir == "notrain" {
+                        return "X-Robots-Tag:" + dir, true
+                    }
+                }
+            }
+        }
+    }
+    return "", false
+}
+
+func splitTokens(s string) []string {
+    // Split by comma and semicolon
+    parts := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' })
+    out := make([]string, 0, len(parts))
+    for _, p := range parts {
+        if pp := strings.TrimSpace(p); pp != "" { out = append(out, pp) }
+    }
+    return out
 }
 
 // awaitCrawlDelay enforces per-host crawl-delay based on robots.txt rules.

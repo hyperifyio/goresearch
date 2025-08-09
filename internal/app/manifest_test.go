@@ -47,3 +47,17 @@ func TestAppendEmbeddedManifest_AppendsReadableSection(t *testing.T) {
 		t.Fatalf("expected entry line; got:\n%s", out)
 	}
 }
+
+func TestAppendEmbeddedManifestWithSkipped_AppendsSkippedSection(t *testing.T) {
+    base := "# Doc\n\nBody\n"
+    meta := manifestMeta{Model: "gpt-local", LLMBaseURL: "http://localhost:11434/v1", SourceCount: 1, HTTPCache: true, LLMCache: true, GeneratedAt: time.Date(2024,1,1,0,0,0,0,time.UTC)}
+    entries := []manifestEntry{{Index: 1, URL: "https://example.com", SHA256: "abcd", Chars: 4}}
+    skipped := []skippedEntry{{URL: "https://example.org/blocked", Reason: "X-Robots-Tag:noai"}}
+    out := appendEmbeddedManifestWithSkipped(base, meta, entries, skipped)
+    if !strings.Contains(out, "### Skipped due to robots/opt-out") {
+        t.Fatalf("expected skipped section header")
+    }
+    if !strings.Contains(out, "https://example.org/blocked — X-Robots-Tag:noai") {
+        t.Fatalf("expected skipped entry line; got:\n%s", out)
+    }
+}

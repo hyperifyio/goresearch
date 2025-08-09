@@ -222,7 +222,7 @@ func (a *App) Run(ctx context.Context) error {
         Robots:            rb,
 	}}
     // Use adapter-based extractor to enable swap of readability tactics
-    excerpts := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
+    excerpts, skipped := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
 	excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
     log.Info().Str("stage", "extract").Int("excerpts", len(excerpts)).Dur("elapsed", time.Since(stageStart)).Msg("fetch+extract completed")
@@ -285,7 +285,8 @@ func (a *App) Run(ctx context.Context) error {
 		LLMCache:    true,
 		GeneratedAt: time.Now().UTC(),
 	}
-	md = appendEmbeddedManifest(md, manMeta, manEntries)
+    // Include a list of skipped URLs due to robots/opt-out decisions in the manifest
+    md = appendEmbeddedManifestWithSkipped(md, manMeta, manEntries, skipped)
 	if data, err := marshalManifestJSON(manMeta, manEntries); err == nil {
 		_ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
 	}
@@ -352,8 +353,9 @@ type sourceGetter interface {
     get(ctx context.Context, url string) ([]byte, string, error)
 }
 
-func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ Extract([]byte) extract.Document }, selected []search.Result, cfg Config) []synth.SourceExcerpt {
-	excerpts := make([]synth.SourceExcerpt, 0, len(selected))
+func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ Extract([]byte) extract.Document }, selected []search.Result, cfg Config) ([]synth.SourceExcerpt, []skippedEntry) {
+    excerpts := make([]synth.SourceExcerpt, 0, len(selected))
+    skipped := make([]skippedEntry, 0)
 	capChars := cfg.PerSourceChars
 	if capChars <= 0 {
 		capChars = 12_000
@@ -362,8 +364,13 @@ func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ E
 	for _, r := range selected {
         body, contentType, err := f.get(ctx, r.URL)
 		if err != nil {
-			log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")
-			continue
+            if reason, denied := fetch.IsReuseDenied(err); denied {
+                log.Info().Str("url", r.URL).Str("reason", reason).Msg("skipping due to robots/opt-out")
+                skipped = append(skipped, skippedEntry{URL: r.URL, Reason: reason})
+                continue
+            }
+            log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")
+            continue
 		}
         // Choose extraction strategy based on content type and config
         var doc extract.Document
@@ -388,5 +395,5 @@ func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ E
 		})
 		nextIndex++
 	}
-	return excerpts
+    return excerpts, skipped
 }

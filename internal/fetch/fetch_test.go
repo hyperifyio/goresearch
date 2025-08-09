@@ -163,6 +163,38 @@ func TestGet_ContentTypeGating(t *testing.T) {
     }
 }
 
+func TestGet_DeniesOnXRobotsTagOptOut(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.Header().Add("X-Robots-Tag", "noai")
+        w.WriteHeader(200)
+        _, _ = io.WriteString(w, "<html><body>ok</body></html>")
+    }))
+    defer srv.Close()
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
+    _, _, err := c.Get(context.Background(), srv.URL)
+    if err == nil {
+        t.Fatalf("expected reuse denial error")
+    }
+    if reason, ok := IsReuseDenied(err); !ok || reason == "" {
+        t.Fatalf("expected IsReuseDenied true with reason; got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+}
+
+func TestDetectTDMOptOut_ScopedAndCombined(t *testing.T) {
+    h := http.Header{}
+    h.Add("X-Robots-Tag", "googlebot: noai, other: index, follow; notrain")
+    if reason, ok := detectTDMOptOut(h, "goresearch"); !ok || reason == "" {
+        t.Fatalf("expected denial; got ok=%v reason=%q", ok, reason)
+    }
+    h = http.Header{}
+    h.Add("X-Robots-Tag", "index, follow")
+    if _, ok := detectTDMOptOut(h, "goresearch"); ok {
+        t.Fatalf("did not expect denial for index,follow")
+    }
+}
+
 func TestGet_RedirectLimit(t *testing.T) {
 	// First path redirects once to /next; with RedirectMaxHops=1 this should fail immediately
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

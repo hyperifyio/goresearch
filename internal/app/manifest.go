@@ -30,6 +30,13 @@ type manifestMeta struct {
 	GeneratedAt time.Time `json:"generated_at"`
 }
 
+// skippedEntry records a URL that was intentionally skipped due to robots or
+// opt-out policy (e.g., X-Robots-Tag: noai/notrain).
+type skippedEntry struct {
+    URL    string `json:"url"`
+    Reason string `json:"reason"`
+}
+
 // computeSHA256Hex returns a lowercase hex-encoded SHA-256 of the given text.
 func computeSHA256Hex(text string) string {
 	h := sha256.Sum256([]byte(text))
@@ -85,6 +92,28 @@ func appendEmbeddedManifest(markdown string, meta manifestMeta, entries []manife
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// appendEmbeddedManifestWithSkipped appends the manifest and, when provided,
+// a section enumerating URLs skipped due to robots/opt-out decisions.
+func appendEmbeddedManifestWithSkipped(markdown string, meta manifestMeta, entries []manifestEntry, skipped []skippedEntry) string {
+    out := appendEmbeddedManifest(markdown, meta, entries)
+    if len(skipped) == 0 {
+        return out
+    }
+    var b strings.Builder
+    b.WriteString(out)
+    b.WriteString("\n### Skipped due to robots/opt-out\n\n")
+    for _, s := range skipped {
+        b.WriteString("- ")
+        b.WriteString(strings.TrimSpace(s.URL))
+        if strings.TrimSpace(s.Reason) != "" {
+            b.WriteString(" — ")
+            b.WriteString(strings.TrimSpace(s.Reason))
+        }
+        b.WriteString("\n")
+    }
+    return b.String()
 }
 
 // marshalManifestJSON encodes a machine-readable sidecar manifest.

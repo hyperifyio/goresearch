@@ -32,9 +32,9 @@ func TestFetchAndExtract_PDFSwitch(t *testing.T) {
 
     selected := []search.Result{{Title: "PDF", URL: pdfSrv.URL}}
     cfg := Config{PerSourceChars: 1000, EnablePDF: true}
-    excerpts := fetchAndExtract(context.Background(), getter, nil, selected, cfg)
-    if len(excerpts) != 1 {
-        t.Fatalf("expected 1 excerpt, got %d", len(excerpts))
+    excerpts, skipped := fetchAndExtract(context.Background(), getter, nil, selected, cfg)
+    if len(excerpts) != 1 || len(skipped) != 0 {
+        t.Fatalf("expected 1 excerpt and 0 skipped, got excerpts=%d skipped=%d", len(excerpts), len(skipped))
     }
     if !strings.Contains(excerpts[0].Excerpt, "Hello PDF App") {
         t.Fatalf("expected pdf text extraction, got: %q", excerpts[0].Excerpt)
