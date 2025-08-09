@@ -120,7 +120,7 @@
 
 * [x] Operational run clarity — The end-to-end run is deterministic and auditable: input brief to planner to search to extraction to selection to synthesis to validation to verification to rendering, with each stage’s artifacts traceable via logs and the embedded manifest.
 
-* [ ] Robots.txt fetch and cache — For each host, fetch /robots.txt once per run with a clear User-Agent, honor ETag and Last-Modified for revalidation, cache parsed rules per host with an expiry, and reuse across requests.
+* [x] Robots.txt fetch and cache — For each host, fetch /robots.txt once per run with a clear User-Agent, honor ETag and Last-Modified for revalidation, cache parsed rules per host with an expiry, and reuse across requests. (implemented `internal/robots` with HTTP+disk cache, in-memory expiry, and tests)
 
 * [ ] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including * wildcards and $ end anchors.
 
