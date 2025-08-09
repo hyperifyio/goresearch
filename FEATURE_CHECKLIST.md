@@ -54,9 +54,9 @@
 
 * [x] Fact-check verification pass — A second short LLM pass extracts key claims from the document, maps each to minimal supporting source indices, assigns confidence levels, and marks any claims that are weakly supported or unsupported. (implemented with LLM + deterministic fallback, evidence appendix appended)
 
-* [ ] Evidence map appendix — The verification result is appended as a compact evidence map that narratively summarizes support strength and lists claims with their cited indices and confidence without ornate formatting.
+* [x] Evidence map appendix — The verification result is appended as a compact evidence map that narratively summarizes support strength and lists claims with their cited indices and confidence without ornate formatting.
 
-* [ ] Graceful verification failure — If the verification call fails or returns invalid data, the tool omits the appendix, emits a warning, and preserves the main report.
+* [x] Graceful verification failure — If the verification call fails or returns invalid data, the tool omits the appendix, emits a warning, and preserves the main report.
 
 * [ ] Markdown output contract — The output is valid, renderer-friendly Markdown that avoids decorative flourishes and maintains a sensible heading hierarchy matching the outline.
 
