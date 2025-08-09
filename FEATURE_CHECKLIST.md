@@ -32,7 +32,7 @@
 
 * [x] Low-signal filtering — Sources with too little meaningful text are discarded early to avoid wasting context on pages without substantive content.
 
-* [ ] Token budget estimation — The tool estimates prompt size from character counts and model characteristics to keep the combined system message, user message, and excerpts within the model’s context window.
+* [x] Token budget estimation — The tool estimates prompt size from character counts and model characteristics to keep the combined system message, user message, and excerpts within the model’s context window. (added estimator + dry-run reporting)
 
 * [ ] Proportional truncation — When total extracts exceed budget, each document’s excerpt is trimmed proportionally rather than dropping entire sources, unless redundancy is detected.
 

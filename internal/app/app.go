@@ -86,7 +86,7 @@ func (a *App) Run(ctx context.Context) error {
 				groups = append(groups, results)
 			}
 			merged := aggregate.MergeAndNormalize(groups)
-            selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars})
+			selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars})
 		}
 		content := fmt.Sprintf("# goresearch (dry run)\n\nTopic: %s\nAudience: %s\nTone: %s\nTarget Length (words): %d\n\nPlanned queries:\n", b.Topic, b.AudienceHint, b.ToneHint, b.TargetLengthWords)
 		for i, q := range plan.Queries {
@@ -98,6 +98,15 @@ func (a *App) Run(ctx context.Context) error {
 				content += fmt.Sprintf("%d. %s — %s\n", i+1, r.Title, r.URL)
 			}
 		}
+		// Append conservative token budget estimate for transparency
+		est := estimateSynthesisBudget(b, plan.Outline, selected, a.cfg)
+		content += "\nBudget estimate (synthesis):\n"
+		content += fmt.Sprintf("Model: %s\n", a.cfg.LLMModel)
+		content += fmt.Sprintf("Estimated prompt tokens: %d\n", est.PromptTokens)
+		content += fmt.Sprintf("Reserved output tokens: %d\n", est.ReservedOutput)
+		content += fmt.Sprintf("Model context window: %d\n", est.ModelContext)
+		content += fmt.Sprintf("Remaining tokens: %d\n", est.Remaining)
+		content += fmt.Sprintf("Fits: %t\n", est.Fits)
 		if err := os.WriteFile(a.cfg.OutputPath, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
