@@ -27,14 +27,32 @@ type HTTPEntry struct {
 // key is sha256(url). It is a simple, deterministic cache suitable for tests
 // and baseline performance. No eviction policy is included.
 type HTTPCache struct {
-	Dir string
+    Dir         string
+    // StrictPerms, when true, enforces 0700 on cache directories and 0600 on
+    // files to provide at-rest protection via restricted permissions.
+    StrictPerms bool
 }
 
 func (c *HTTPCache) ensureDir() error {
 	if c == nil || c.Dir == "" {
 		return errors.New("cache dir not configured")
 	}
-	return os.MkdirAll(c.Dir, 0o755)
+    perm := os.FileMode(0o755)
+    if c.StrictPerms {
+        perm = 0o700
+    }
+    if err := os.MkdirAll(c.Dir, perm); err != nil {
+        return err
+    }
+    // If directory already existed and StrictPerms is on, tighten perms
+    if c.StrictPerms {
+        if info, err := os.Stat(c.Dir); err == nil {
+            if info.Mode()&0o777 != 0o700 {
+                _ = os.Chmod(c.Dir, 0o700)
+            }
+        }
+    }
+    return nil
 }
 
 func (c *HTTPCache) key(url string) string {
@@ -79,7 +97,11 @@ func (c *HTTPCache) Save(_ context.Context, url string, contentType string, etag
 	}
 	key := c.key(url)
 	// Write body first
-	if err := os.WriteFile(c.bodyPath(key), body, 0o644); err != nil {
+    bodyMode := os.FileMode(0o644)
+    if c.StrictPerms {
+        bodyMode = 0o600
+    }
+    if err := os.WriteFile(c.bodyPath(key), body, bodyMode); err != nil {
 		return fmt.Errorf("write body: %w", err)
 	}
 	meta := HTTPEntry{
@@ -90,7 +112,7 @@ func (c *HTTPCache) Save(_ context.Context, url string, contentType string, etag
 		SavedAt:      time.Now().UTC(),
 	}
 	tmp := c.metaPath(key) + ".tmp"
-	f, err := os.Create(tmp)
+    f, err := os.Create(tmp)
 	if err != nil {
 		return fmt.Errorf("create meta: %w", err)
 	}
@@ -101,7 +123,14 @@ func (c *HTTPCache) Save(_ context.Context, url string, contentType string, etag
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, c.metaPath(key))
+    if err := os.Rename(tmp, c.metaPath(key)); err != nil {
+        return err
+    }
+    // Apply strict permissions to meta file if requested
+    if c.StrictPerms {
+        _ = os.Chmod(c.metaPath(key), 0o600)
+    }
+    return nil
 }
 
 // CopyMeta copies meta from an io.Reader (useful for tests)
@@ -114,5 +143,9 @@ func (c *HTTPCache) CopyMeta(_ context.Context, url string, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(c.metaPath(key), data, 0o644)
+    mode := os.FileMode(0o644)
+    if c.StrictPerms {
+        mode = 0o600
+    }
+    return os.WriteFile(c.metaPath(key), data, mode)
 }

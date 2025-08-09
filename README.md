@@ -142,6 +142,7 @@ goresearch -dry-run -input request.md -output report.md -searx.url "$SEARX_URL"
 - **Invalidation**:
   - `-cache.maxAge 24h` to purge entries older than 24 hours (HTTP and LLM caches)
   - `-cache.clear` to clear the cache dir before a run (bypasses reads for that run)
+  - `-cache.strictPerms` to restrict cache at rest (0700 dirs, 0600 files)
 - **Manifest**: `report.md` includes a Manifest section and a `report.md.manifest.json` sidecar listing URLs and SHA-256 digests of the excerpts used.
 
 ## Tests

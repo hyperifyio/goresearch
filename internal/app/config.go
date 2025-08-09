@@ -28,6 +28,8 @@ type Config struct {
 	DryRun   bool
 	CacheDir string
 	Verbose  bool
+    // CacheStrictPerms, when true, uses 0700 for cache dirs and 0600 for files.
+    CacheStrictPerms bool
 
 	// Cache invalidation controls
 	// If > 0, remove cache entries older than this age before running.

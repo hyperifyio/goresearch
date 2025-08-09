@@ -48,7 +48,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	a := &App{cfg: cfg, ai: client}
 	// Initialize HTTP cache lazily when needed
-	if cfg.CacheDir != "" {
+    if cfg.CacheDir != "" {
 		// Apply cache invalidation controls
 		if cfg.CacheClear {
 			_ = cache.ClearDir(cfg.CacheDir)
@@ -58,7 +58,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 			_, _ = cache.PurgeHTTPCacheByAge(cfg.CacheDir, cfg.CacheMaxAge)
 			_, _ = cache.PurgeLLMCacheByAge(cfg.CacheDir, cfg.CacheMaxAge)
 		}
-		a.httpCache = &cache.HTTPCache{Dir: cfg.CacheDir}
+        a.httpCache = &cache.HTTPCache{Dir: cfg.CacheDir, StrictPerms: cfg.CacheStrictPerms}
 	}
 
 	// Quick connectivity check to local LLM by listing models
@@ -193,7 +193,7 @@ func (a *App) Run(ctx context.Context) error {
     }
 
 	// 5) Synthesize report
-	syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir}, Verbose: a.cfg.Verbose}
+    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose}
 	md, err := syn.Synthesize(ctx, synth.Input{
 		Brief:                b,
 		Outline:              plan.Outline,
@@ -217,7 +217,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	// 7) Verification pass: extract claims and append an evidence map appendix.
-	verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir}}
+    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}}
 	vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
 	if verr != nil {
 		log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
@@ -257,8 +257,8 @@ type PlannerFacade struct {
 
 func (a *App) planQueries(ctx context.Context, b brief.Brief) planner.Plan {
 	// Build facade on first use
-	if a.planner.llm == nil && a.ai != nil && a.cfg.LLMModel != "" {
-		a.planner.llm = &planner.LLMPlanner{Client: a.ai, Model: a.cfg.LLMModel, LanguageHint: a.cfg.LanguageHint, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir}}
+    if a.planner.llm == nil && a.ai != nil && a.cfg.LLMModel != "" {
+        a.planner.llm = &planner.LLMPlanner{Client: a.ai, Model: a.cfg.LLMModel, LanguageHint: a.cfg.LanguageHint, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}}
 	}
 	if a.planner.fb == nil {
 		a.planner.fb = &planner.FallbackPlanner{LanguageHint: a.cfg.LanguageHint}

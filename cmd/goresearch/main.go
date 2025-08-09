@@ -37,6 +37,7 @@ func main() {
 		cacheDir        string
 		cacheMaxAge     time.Duration
 		cacheClear      bool
+		cacheStrict     bool
 		topicHash       string
 	)
 
@@ -57,6 +58,7 @@ func main() {
 	flag.StringVar(&cacheDir, "cache.dir", ".goresearch-cache", "Cache directory path")
 	flag.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
 	flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
+	flag.BoolVar(&cacheStrict, "cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
 	flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
 	flag.Parse()
 
@@ -84,6 +86,7 @@ func main() {
 		Verbose:         verbose,
 		CacheMaxAge:     cacheMaxAge,
 		CacheClear:      cacheClear,
+		CacheStrictPerms: cacheStrict,
 		TopicHash:       topicHash,
 	}
 

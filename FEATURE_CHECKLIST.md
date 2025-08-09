@@ -94,7 +94,7 @@
 
 * [x] Public web only — The tool targets public pages and does not authenticate to private services; outbound connections are limited to the configured search endpoint, fetched sites, and the local LLM endpoint. (blocks localhost/private IPs and credentials-in-URL in fetcher; tests added)
 
-* [ ] Optional cache at rest protection — The cache directory supports optional encryption or restricted permissions when environments require at-rest protection.
+* [x] Optional cache at rest protection — The cache directory supports optional encryption or restricted permissions when environments require at-rest protection. (restricted permissions added via `-cache.strictPerms`)
 
 * [ ] Unit test coverage — Deterministic unit tests cover URL normalization, HTML extraction, deduplication, token budgeting, and citation validation using fixed fixtures.
 
