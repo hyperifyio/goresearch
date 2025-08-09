@@ -108,7 +108,7 @@
 
 * [x] Context budgeting heuristics — Input sizing uses conservative character-to-token multipliers and headroom to avoid overrunning the model’s context window. (implemented: headroom tokens, truncation and estimator updated; tests added)
 
-* [ ] Single-pass synthesis — The baseline uses a single synthesis pass for simplicity and predictability; streaming output is deferred to future work.
+* [x] Single-pass synthesis — The baseline uses a single synthesis pass for simplicity and predictability; streaming output is deferred to future work.
 
 * [ ] Adapter-based extensibility — Search and extraction modules are built behind narrow interfaces so providers and readability tactics can be swapped without touching the rest of the pipeline.
 

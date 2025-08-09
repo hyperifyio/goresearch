@@ -39,6 +39,21 @@ func (f *flakyClient) CreateChatCompletion(ctx context.Context, req openai.ChatC
     }, nil
 }
 
+type countingClient struct{
+    calls int
+    lastReq openai.ChatCompletionRequest
+}
+
+func (c *countingClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+    c.calls++
+    c.lastReq = req
+    return openai.ChatCompletionResponse{
+        Choices: []openai.ChatCompletionChoice{{
+            Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "# ok"},
+        }},
+    }, nil
+}
+
 func TestSynthesizer_IncludesLanguageInstruction(t *testing.T) {
     cc := &capturingClient{}
     s := &Synthesizer{Client: cc}
@@ -85,6 +100,32 @@ func TestSynthesizer_RetriesOnceOnTransientError(t *testing.T) {
     }
     if fc.calls != 2 {
         t.Fatalf("expected exactly 2 calls (1 fail + 1 success), got %d", fc.calls)
+    }
+}
+
+// Verifies the checklist item: Single-pass synthesis (no streaming output, one request)
+func TestSynthesizer_SinglePassNoStreaming(t *testing.T) {
+    cc := &countingClient{}
+    s := &Synthesizer{Client: cc}
+    in := Input{Brief: brief.Brief{Topic: "single pass"}, Model: "model-x"}
+
+    out, err := s.Synthesize(context.Background(), in)
+    if err != nil {
+        t.Fatalf("synthesize error: %v", err)
+    }
+    if strings.TrimSpace(out) == "" {
+        t.Fatalf("expected non-empty output")
+    }
+    if cc.calls != 1 {
+        t.Fatalf("expected exactly one LLM call (single pass), got %d", cc.calls)
+    }
+    // Assert streaming is not enabled on the request (deferred by design)
+    if cc.lastReq.Stream {
+        t.Fatalf("expected Stream=false (non-streaming synthesis)")
+    }
+    // Single, deterministic completion requested
+    if cc.lastReq.N != 1 {
+        t.Fatalf("expected N=1 completions, got %d", cc.lastReq.N)
     }
 }
 
