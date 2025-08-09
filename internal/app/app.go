@@ -192,7 +192,8 @@ func (a *App) Run(ctx context.Context) error {
 		BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
         AllowPrivateHosts: a.cfg.AllowPrivateHosts,
 	}}
-    excerpts := fetchAndExtract(ctx, f, selected, a.cfg)
+    // Use adapter-based extractor to enable swap of readability tactics
+    excerpts := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
 	excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
 
@@ -313,7 +314,7 @@ type sourceGetter interface {
 	get(ctx context.Context, url string) ([]byte, string, error)
 }
 
-func fetchAndExtract(ctx context.Context, f sourceGetter, selected []search.Result, cfg Config) []synth.SourceExcerpt {
+func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ Extract([]byte) extract.Document }, selected []search.Result, cfg Config) []synth.SourceExcerpt {
 	excerpts := make([]synth.SourceExcerpt, 0, len(selected))
 	capChars := cfg.PerSourceChars
 	if capChars <= 0 {
@@ -326,7 +327,13 @@ func fetchAndExtract(ctx context.Context, f sourceGetter, selected []search.Resu
 			log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")
 			continue
 		}
-		doc := extract.FromHTML(body)
+        // Allow swapping extraction strategy via adapter
+        var doc extract.Document
+        if extractor != nil {
+            doc = extractor.Extract(body)
+        } else {
+            doc = extract.FromHTML(body)
+        }
 		text := doc.Text
 		if len(text) > capChars {
 			text = text[:capChars]

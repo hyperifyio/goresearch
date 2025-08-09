@@ -110,7 +110,7 @@
 
 * [x] Single-pass synthesis — The baseline uses a single synthesis pass for simplicity and predictability; streaming output is deferred to future work.
 
-* [ ] Adapter-based extensibility — Search and extraction modules are built behind narrow interfaces so providers and readability tactics can be swapped without touching the rest of the pipeline.
+* [x] Adapter-based extensibility — Search and extraction modules are built behind narrow interfaces so providers and readability tactics can be swapped without touching the rest of the pipeline.
 
 * [ ] Prompt profile flexibility — Synthesis and verification prompts are externally configurable so teams can tune style, tone, and strictness without code changes.
 

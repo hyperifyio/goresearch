@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hyperifyio/goresearch/internal/search"
+    "github.com/hyperifyio/goresearch/internal/extract"
 )
 
 func TestNewHighThroughputHTTPClient_Config(t *testing.T) {
@@ -60,7 +61,7 @@ func TestFetchAndExtract_PerSourceIsolation(t *testing.T) {
 	for _, s := range selected {
 		results = append(results, search.Result{Title: s.title, URL: s.url})
 	}
-    out := fetchAndExtract(context.Background(), fg, results, Config{PerSourceChars: 1000, AllowPrivateHosts: true})
+    out := fetchAndExtract(context.Background(), fg, extract.HeuristicExtractor{}, results, Config{PerSourceChars: 1000, AllowPrivateHosts: true})
 	if len(out) != 1 {
 		t.Fatalf("expected 1 excerpt after skipping failures, got %d", len(out))
 	}
