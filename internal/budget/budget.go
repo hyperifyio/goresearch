@@ -89,6 +89,26 @@ func FitsInContext(modelName string, reservedForOutput int, promptTokens int) bo
     return RemainingContext(modelName, reservedForOutput, promptTokens) > 0
 }
 
+// HeadroomTokens returns a conservative safety headroom to subtract from the
+// model context so that prompt sizing avoids overruns due to tokenizer and
+// message framing overheads. We use the larger of 5% of the model context or
+// a fixed floor of 512 tokens.
+func HeadroomTokens(modelName string) int {
+    max := ModelContextTokens(modelName)
+    dyn := int(math.Ceil(float64(max) * 0.05))
+    if dyn < 512 {
+        return 512
+    }
+    return dyn
+}
+
+// RemainingContextWithHeadroom computes remaining tokens after accounting for
+// output reservation and a conservative headroom for the given model.
+func RemainingContextWithHeadroom(modelName string, reservedForOutput int, promptTokens int) int {
+    headroom := HeadroomTokens(modelName)
+    return RemainingContext(modelName, reservedForOutput+headroom, promptTokens)
+}
+
 // knownModelMax contains rough context sizes for common model identifiers.
 // These are best-effort and do not need to be exhaustive.
 var knownModelMax = map[string]int{

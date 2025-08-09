@@ -70,4 +70,25 @@ func TestRemainingAndFits(t *testing.T) {
     }
 }
 
+func TestHeadroomTokens(t *testing.T) {
+    if HeadroomTokens("gpt-4o") < 512 {
+        t.Fatalf("headroom should be at least 512")
+    }
+    if HeadroomTokens("") != 512 { // 5% of 8192 is 409.6 => ceil=410, but floor is 512
+        t.Fatalf("default model headroom should floor to 512")
+    }
+}
+
+func TestRemainingWithHeadroom(t *testing.T) {
+    model := "gpt-4o"
+    max := ModelContextTokens(model)
+    head := HeadroomTokens(model)
+    prompt := max - head - 1000
+    rem := RemainingContextWithHeadroom(model, 500, prompt)
+    // remaining = max - (reserved+head) - prompt = max - (500+head) - (max-head-1000) = 500
+    if rem != 500 {
+        t.Fatalf("RemainingContextWithHeadroom unexpected = %d, want %d", rem, 500)
+    }
+}
+
 

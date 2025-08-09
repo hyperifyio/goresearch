@@ -73,7 +73,8 @@ func estimateSynthesisBudget(b brief.Brief, outline []string, selected []search.
     }
     reserved := int(math.Ceil(float64(words) * 1.4))
 
-    remaining := budget.RemainingContext(cfg.LLMModel, reserved, promptTokens)
+    // Apply conservative headroom to avoid overruns.
+    remaining := budget.RemainingContextWithHeadroom(cfg.LLMModel, reserved, promptTokens)
     return BudgetEstimate{
         ModelContext:   budget.ModelContextTokens(cfg.LLMModel),
         PromptTokens:   promptTokens,

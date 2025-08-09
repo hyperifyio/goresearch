@@ -72,7 +72,8 @@ func proportionallyTruncateExcerpts(b brief.Brief, outline []string, in []synth.
         reserved = 1500
     }
     maxCtx := budget.ModelContextTokens(cfg.LLMModel)
-    availableForExcerptsTokens := maxCtx - reserved - baselineTokens
+    // Subtract conservative headroom to avoid overruns.
+    availableForExcerptsTokens := maxCtx - budget.HeadroomTokens(cfg.LLMModel) - reserved - baselineTokens
     if availableForExcerptsTokens <= 0 {
         // No room for excerpts; keep headers only.
         out := make([]synth.SourceExcerpt, 0, len(in))

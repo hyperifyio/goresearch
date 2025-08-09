@@ -106,7 +106,7 @@
 
 * [x] Concurrent fetch limits — Fetch and extract stages run concurrently up to a configurable limit to balance performance and site politeness.
 
-* [ ] Context budgeting heuristics — Input sizing uses conservative character-to-token multipliers and headroom to avoid overrunning the model’s context window.
+* [x] Context budgeting heuristics — Input sizing uses conservative character-to-token multipliers and headroom to avoid overrunning the model’s context window. (implemented: headroom tokens, truncation and estimator updated; tests added)
 
 * [ ] Single-pass synthesis — The baseline uses a single synthesis pass for simplicity and predictability; streaming output is deferred to future work.
 
