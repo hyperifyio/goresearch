@@ -152,11 +152,18 @@ func (a *App) Run(ctx context.Context) error {
 	// 2) Plan queries (LLM first with fallback)
 	plan := a.planQueries(ctx, b)
 
-	// 3) Perform searches and aggregate
-	var provider search.Provider
-	if a.cfg.SearxURL != "" {
-		provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient()}
-	}
+    // 3) Perform searches and aggregate
+    var provider search.Provider
+    // Support file-based provider for deterministic/local runs (parity with dry-run)
+    if a.cfg.FileSearchPath != "" {
+        provider = &search.FileProvider{Path: a.cfg.FileSearchPath}
+    } else if a.cfg.SearxURL != "" {
+        ua := a.cfg.SearxUA
+        if strings.TrimSpace(ua) == "" {
+            ua = "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)"
+        }
+        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: ua}
+    }
 	var selected []search.Result
 	if provider != nil {
 		groups := make([][]search.Result, 0, len(plan.Queries))
@@ -174,7 +181,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 4) Fetch and extract content for each selected URL with polite settings
 	httpClient := newHighThroughputHTTPClient()
-	f := &fetchClient{client: &fetch.Client{
+    f := &fetchClient{client: &fetch.Client{
 		HTTPClient:        httpClient,
 		UserAgent:         "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)",
 		MaxAttempts:       2,
@@ -183,6 +190,7 @@ func (a *App) Run(ctx context.Context) error {
 		RedirectMaxHops:   5,
 		MaxConcurrent:     8,
 		BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
+        AllowPrivateHosts: a.cfg.AllowPrivateHosts,
 	}}
     excerpts := fetchAndExtract(ctx, f, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources

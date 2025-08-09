@@ -41,4 +41,9 @@ type Config struct {
 	// Optional topic hash for selective invalidation in the future. For now,
 	// accepted and logged for traceability.
 	TopicHash string
+
+    // AllowPrivateHosts relaxes the public-web guard in the fetcher so that
+    // localhost and private IPs can be used during tests and local fixtures.
+    // Defaults to false in production.
+    AllowPrivateHosts bool
 }
