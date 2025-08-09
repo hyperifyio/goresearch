@@ -1,0 +1,121 @@
+* [ ] Scope and goal — The tool reads a single Markdown file containing a natural-language research request, automatically searches the public web, extracts relevant content, and uses a local OpenAI-compatible LLM to produce a validated Markdown report with inline numbered citations, a references section, a limitations section, and an evidence-check appendix.
+
+* [x] Single input brief parsing — The program ingests exactly one Markdown file and distills it into a brief that includes topic, optional audience and tone hints, and an optional target length if present, falling back to sensible defaults when fields are missing.
+
+* [x] Planner with JSON output — The tool prompts the local LLM to return only structured JSON containing 6–10 diverse web search queries and a 5–8 heading outline; narrative text is explicitly disallowed in this planning step.
+
+* [x] Planner robustness and fallbacks — If the planner’s JSON is malformed or missing, the tool recovers by generating deterministic fallback queries from the topic (for example, adding “specification”, “documentation”, “reference”, “tutorial” in the chosen language).
+
+* [x] Search provider independence — Web search is performed via a configurable provider that is not OpenAI Search, with SearxNG as the default self-hosted option and an optional minimal HTML search adapter when allowed by terms.
+
+* [x] Result aggregation and normalization — The program merges results from multiple queries, normalizes and canonicalizes URLs, trims tracking parameters where safe, and consolidates duplicates across queries.
+
+* [x] Diversity-aware selection — The selector ranks candidates for topical diversity and domain diversity to avoid over-reliance on a single site or vendor perspective.
+
+* [x] Source count and domain caps — The selector enforces a hard maximum number of sources and a per-domain cap to prevent citation monoculture while preserving breadth.
+
+* [x] HTTP fetch timeouts — Each page fetch uses bounded timeouts to avoid hanging the run, with retry limited to transient network errors.
+
+* [x] Polite user agent and rate limiting — Requests include a descriptive user agent string and observe configurable concurrency limits to reduce load on target sites.
+
+* [x] Conditional revalidation — The fetcher records and honors ETag and Last-Modified headers to revalidate cached pages efficiently on subsequent runs.
+
+* [x] Redirect handling — The fetcher follows redirects within a modest hop limit, rejecting redirect loops and non-HTTP schemes.
+
+* [x] Content-type gating — Only HTML and XHTML responses are processed in the baseline; binary formats are declined to keep extraction predictable.
+
+* [ ] HTML extraction focus — The extractor prefers semantic containers such as main and article and falls back to body, preserving headings, paragraphs, list items, pre/code blocks, and other content-bearing elements.
+
+* [ ] Boilerplate reduction — Navigation, cookie banners, and footer chrome are reduced using simple content-density heuristics so that the extracted text concentrates on primary content.
+
+* [ ] Text normalization — Extracted text is normalized to Unicode, whitespace is collapsed, and near-duplicate lines are removed to improve token efficiency.
+
+* [ ] Low-signal filtering — Sources with too little meaningful text are discarded early to avoid wasting context on pages without substantive content.
+
+* [ ] Token budget estimation — The tool estimates prompt size from character counts and model characteristics to keep the combined system message, user message, and excerpts within the model’s context window.
+
+* [ ] Proportional truncation — When total extracts exceed budget, each document’s excerpt is trimmed proportionally rather than dropping entire sources, unless redundancy is detected.
+
+* [ ] Preference for primary sources — When topics are technical formats or specs, the selector favors primary documentation and authoritative references over secondary commentary.
+
+* [ ] Synthesis role and guardrails — The synthesis system message defines the model as a careful technical writer who uses only provided sources for facts, cites precisely, and states uncertainty where evidence is insufficient.
+
+* [ ] Structured document request — The user message for synthesis includes the brief, the outline (if available), target length, a numbered list of sources with titles and URLs, and per-source excerpts, and requests a single cohesive Markdown document with title, date, executive summary, body, risks and limitations, and references.
+
+* [ ] Inline citation format — Factual statements must be cited inline using bracketed numbers such as \[n] that map to the numbered references list, with multiple citations allowed like \[2]\[5].
+
+* [ ] No invented sources — The synthesis prompt forbids creating or altering sources and makes clear that only the enumerated sources may be cited.
+
+* [ ] Conservative generation settings — Low temperature and concise style are used to reduce embellishment and improve determinism of the produced report.
+
+* [ ] Citation validation — After synthesis, the tool validates that every cited index refers to an actual references entry and flags, fixes, or removes any out-of-range or broken citations.
+
+* [ ] Reference list completeness — The final references section includes both page titles and full URLs for each numbered source so readers can resolve citations directly.
+
+* [ ] Fact-check verification pass — A second short LLM pass extracts key claims from the document, maps each to minimal supporting source indices, assigns confidence levels, and marks any claims that are weakly supported or unsupported.
+
+* [ ] Evidence map appendix — The verification result is appended as a compact evidence map that narratively summarizes support strength and lists claims with their cited indices and confidence without ornate formatting.
+
+* [ ] Graceful verification failure — If the verification call fails or returns invalid data, the tool omits the appendix, emits a warning, and preserves the main report.
+
+* [ ] Markdown output contract — The output is valid, renderer-friendly Markdown that avoids decorative flourishes and maintains a sensible heading hierarchy matching the outline.
+
+* [ ] Reproducibility footer — The document ends with a short footer that records the model name, the LLM base URL, the number of sources used, and whether HTTP and LLM caching were active.
+
+* [ ] Language hint propagation — A language hint can be provided; planner queries incorporate the language, the synthesizer writes in that language, and the selector prefers sources whose detected language matches when diversity allows.
+
+* [ ] Language tolerance — The system does not hard-filter by language so that authoritative English sources can still be used when researching in another language if necessary.
+
+* [x] Configuration by flags and environment — The executable reads configuration from command-line flags and environment variables for LLM endpoint, model, key, source caps, truncation limits, timeouts, language, output path, and search provider settings.
+
+* [x] Dry-run mode — A diagnostic mode prints the planned queries and selected URLs without calling the LLM, aiding transparency and debugging.
+
+* [x] HTTP response caching — A local cache stores fetched page bodies keyed by canonical URL plus salient request header hashes for efficient re-use and audit.
+
+* [x] LLM response caching — Calls to the planner and synthesizer can be cached by a normalized prompt digest and model name to speed up iterative runs.
+
+* [ ] Cache invalidation controls — The cache can be invalidated by age, by explicit flags, or by topic hash to ensure fresh data when needed.
+
+* [ ] Embedded manifest — The final report embeds or ships with a compact manifest listing canonical URLs and their content digests so others can audit exactly what was read.
+
+* [x] Structured logging — The tool logs structured events with timestamps and levels and records planned queries, chosen sources, fetch durations, extract sizes, token estimates, and LLM latency without exposing secrets.
+
+* [x] Verbose prompt logging — An opt-in verbose mode can print the exact planner and synthesizer messages with optional redaction of long excerpts to aid troubleshooting.
+
+* [ ] Per-source failure isolation — Network and parse errors are isolated per URL so that one failing site does not abort the whole run.
+
+* [ ] Planner failure recovery — If the planner cannot produce parseable output, deterministic fallback queries are generated to keep the pipeline progressing.
+
+* [ ] Synthesis retry policy — Transient LLM errors during synthesis trigger a single short backoff retry before failing the run.
+
+* [ ] Exit code policy — The program exits nonzero only when no usable sources are found or the LLM returns no substantive body text; otherwise it completes with warnings as needed.
+
+* [ ] Robots and crawling etiquette — The fetcher respects robots meta where applicable, avoids crawling behind search result pages, and keeps request patterns polite.
+
+* [ ] Public web only — The tool targets public pages and does not authenticate to private services; outbound connections are limited to the configured search endpoint, fetched sites, and the local LLM endpoint.
+
+* [ ] Optional cache at rest protection — The cache directory supports optional encryption or restricted permissions when environments require at-rest protection.
+
+* [ ] Unit test coverage — Deterministic unit tests cover URL normalization, HTML extraction, deduplication, token budgeting, and citation validation using fixed fixtures.
+
+* [ ] Integration test harness — Integration tests run against a stub LLM that returns canned JSON and Markdown and against recorded HTTP fixtures to validate the pipeline deterministically.
+
+* [ ] Golden output comparisons — Generated reports are compared against golden files with allowances for timestamps and benign whitespace differences to detect regressions.
+
+* [ ] Verification test cases — Synthetic documents include properly cited and deliberately uncited claims to confirm that the verification pass flags unsupported statements.
+
+* [x] Concurrent fetch limits — Fetch and extract stages run concurrently up to a configurable limit to balance performance and site politeness.
+
+* [ ] Context budgeting heuristics — Input sizing uses conservative character-to-token multipliers and headroom to avoid overrunning the model’s context window.
+
+* [ ] Single-pass synthesis — The baseline uses a single synthesis pass for simplicity and predictability; streaming output is deferred to future work.
+
+* [ ] Adapter-based extensibility — Search and extraction modules are built behind narrow interfaces so providers and readability tactics can be swapped without touching the rest of the pipeline.
+
+* [ ] Prompt profile flexibility — Synthesis and verification prompts are externally configurable so teams can tune style, tone, and strictness without code changes.
+
+* [ ] Optional PDF support switch — PDF ingestion can be added as an optional, off-by-default feature guarded by a command flag to control binary parsing risk.
+
+* [x] Known limitations disclosure — The design acknowledges dependence on local model capabilities, uneven public coverage for some topics, imperfect boilerplate removal, and the need for human review for high-stakes accuracy.
+
+* [ ] Operational run clarity — The end-to-end run is deterministic and auditable: input brief to planner to search to extraction to selection to synthesis to validation to verification to rendering, with each stage’s artifacts traceable via logs and the embedded manifest.
