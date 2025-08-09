@@ -128,7 +128,7 @@
 
 * [x] X-Robots-Tag handling — Parse X-Robots-Tag headers on HTTP responses and treat opt-out signals relevant to text-and-data-mining (e.g., noai, notrain) as hard denials for reuse; record decisions in logs and manifest. (implemented: denial in fetch with tests; manifest logging pending in later item)
 
-* [ ] HTML meta robots handling — Parse page-level <meta name="robots"> and <meta name="googlebot"> directives; treat noai/notrain equivalents as hard denials, and record the matched directive and scope.
+* [x] HTML meta robots handling — Parse page-level <meta name="robots"> and <meta name="googlebot"> directives; treat noai/notrain equivalents as hard denials, and record the matched directive and scope. (implemented in fetch with tests)
 
 * [ ] TDM opt-out recognition — Treat machine-readable text-and-data-mining reservation signals placed “in or around” the content as a fetch/use denial for research synthesis; prefer conservative interpretation when ambiguous.
 

@@ -195,6 +195,60 @@ func TestDetectTDMOptOut_ScopedAndCombined(t *testing.T) {
     }
 }
 
+func TestGet_DeniesOnMetaRobots_NoAI(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(200)
+        _, _ = io.WriteString(w, `<!doctype html><html><head><meta name="robots" content="index, follow, noai"></head><body>ok</body></html>`)
+    }))
+    t.Cleanup(srv.Close)
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
+    _, _, err := c.Get(context.Background(), srv.URL)
+    if err == nil {
+        t.Fatalf("expected reuse denial due to meta robots noai")
+    }
+    if reason, ok := IsReuseDenied(err); !ok || !strings.Contains(reason, "meta robots:noai") {
+        t.Fatalf("expected meta robots:noai denial, got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+}
+
+func TestGet_DeniesOnMetaGooglebot_NoTrain(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(200)
+        _, _ = io.WriteString(w, `<!doctype html><html><head><meta name="googlebot" content="notrain, index"></head><body>ok</body></html>`)
+    }))
+    t.Cleanup(srv.Close)
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
+    _, _, err := c.Get(context.Background(), srv.URL)
+    if err == nil {
+        t.Fatalf("expected reuse denial due to meta googlebot notrain")
+    }
+    if reason, ok := IsReuseDenied(err); !ok || !strings.Contains(reason, "meta googlebot:notrain") {
+        t.Fatalf("expected meta googlebot:notrain denial, got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+}
+
+func TestGet_AllowsWhenNoMetaRobotsOptOut(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(200)
+        _, _ = io.WriteString(w, `<!doctype html><html><head><meta name="robots" content="index, follow"></head><body>ok</body></html>`)
+    }))
+    t.Cleanup(srv.Close)
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
+    body, ct, err := c.Get(context.Background(), srv.URL)
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if !strings.HasPrefix(ct, "text/html") || !strings.Contains(string(body), "ok") {
+        t.Fatalf("unexpected response: ct=%q body=%q", ct, string(body))
+    }
+}
+
 func TestGet_RedirectLimit(t *testing.T) {
 	// First path redirects once to /next; with RedirectMaxHops=1 this should fail immediately
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

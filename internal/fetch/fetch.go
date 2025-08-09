@@ -1,19 +1,21 @@
 package fetch
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
+    "bytes"
+    "context"
+    "errors"
+    "fmt"
+    "io"
+    "net/http"
     "net"
-	"net/url"
-	"strings"
-	"sync"
-	"time"
+    "net/url"
+    "strings"
+    "sync"
+    "time"
 
-	"github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/cache"
     "github.com/hyperifyio/goresearch/internal/robots"
+    "golang.org/x/net/html"
 )
 
 // Client wraps http.Client and provides timeouts and limited retry on transient errors.
@@ -206,6 +208,12 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 	if err != nil {
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("read body: %w", err)
 	}
+    // For HTML/XHTML, also honor page-level meta robots/googlebot opt-out
+    if isAllowedHTMLContentType(contentType) {
+        if reason, denied := detectMetaTDMOptOut(b); denied {
+            return nil, "", "", "", resp.StatusCode, ReuseDeniedError{Reason: reason}
+        }
+    }
 	return b, contentType, resp.Header.Get("ETag"), resp.Header.Get("Last-Modified"), resp.StatusCode, nil
 }
 
@@ -258,6 +266,88 @@ func splitTokens(s string) []string {
         if pp := strings.TrimSpace(p); pp != "" { out = append(out, pp) }
     }
     return out
+}
+
+// detectMetaTDMOptOut scans HTML for <meta name="robots" ...> and
+// <meta name="googlebot" ...> directives that include noai/notrain.
+// Returns a human-readable reason and true when reuse is denied.
+func detectMetaTDMOptOut(body []byte) (string, bool) {
+    if len(body) == 0 {
+        return "", false
+    }
+    z := html.NewTokenizer(bytes.NewReader(body))
+    inHead := false
+    for {
+        tt := z.Next()
+        switch tt {
+        case html.ErrorToken:
+            return "", false
+        case html.StartTagToken, html.SelfClosingTagToken:
+            tn, _ := z.TagName()
+            tagName := strings.ToLower(string(tn))
+            if tagName == "head" {
+                inHead = true
+                continue
+            }
+            if tagName == "body" && inHead {
+                // Stop once we reach body; meta directives live in head
+                return "", false
+            }
+            if tagName != "meta" {
+                continue
+            }
+            var nameVal, contentVal string
+            // Extract attributes (case-insensitive names)
+            for {
+                key, val, more := z.TagAttr()
+                k := strings.ToLower(string(key))
+                v := string(val)
+                if k == "name" || k == "http-equiv" {
+                    if nameVal == "" {
+                        nameVal = strings.ToLower(strings.TrimSpace(v))
+                    }
+                } else if k == "content" {
+                    contentVal = v
+                }
+                if !more {
+                    break
+                }
+            }
+            if nameVal == "robots" || nameVal == "googlebot" || nameVal == "x-robots-tag" {
+                if contentVal == "" {
+                    continue
+                }
+                joined := strings.ToLower(contentVal)
+                if !strings.Contains(joined, "noai") && !strings.Contains(joined, "notrain") {
+                    continue
+                }
+                // Tokenize by comma/semicolon and optional scoped tokens like "googlebot: noai"
+                tokens := splitTokens(joined)
+                for _, t := range tokens {
+                    ttok := strings.TrimSpace(t)
+                    if ttok == "noai" {
+                        scope := nameVal
+                        if scope == "x-robots-tag" { scope = "meta x-robots-tag" } else { scope = "meta "+scope }
+                        return scope+":noai", true
+                    }
+                    if ttok == "notrain" {
+                        scope := nameVal
+                        if scope == "x-robots-tag" { scope = "meta x-robots-tag" } else { scope = "meta "+scope }
+                        return scope+":notrain", true
+                    }
+                    if strings.Contains(ttok, ":") {
+                        parts := strings.SplitN(ttok, ":", 2)
+                        dir := strings.TrimSpace(parts[1])
+                        if dir == "noai" || dir == "notrain" {
+                            scope := nameVal
+                            if scope == "x-robots-tag" { scope = "meta x-robots-tag" } else { scope = "meta "+scope }
+                            return scope+":"+dir, true
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // awaitCrawlDelay enforces per-host crawl-delay based on robots.txt rules.
