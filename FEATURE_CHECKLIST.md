@@ -76,7 +76,7 @@
 
 * [x] Cache invalidation controls — The cache can be invalidated by age, by explicit flags, or by topic hash to ensure fresh data when needed.
 
-* [ ] Embedded manifest — The final report embeds or ships with a compact manifest listing canonical URLs and their content digests so others can audit exactly what was read.
+* [x] Embedded manifest — The final report embeds or ships with a compact manifest listing canonical URLs and their content digests so others can audit exactly what was read.
 
 * [x] Structured logging — The tool logs structured events with timestamps and levels and records planned queries, chosen sources, fetch durations, extract sizes, token estimates, and LLM latency without exposing secrets.
 
