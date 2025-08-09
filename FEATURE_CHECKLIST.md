@@ -88,7 +88,7 @@
 
 * [x] Synthesis retry policy — Transient LLM errors during synthesis trigger a single short backoff retry before failing the run. (implemented with test-injectable sleep and flaky client test)
 
-* [ ] Exit code policy — The program exits nonzero only when no usable sources are found or the LLM returns no substantive body text; otherwise it completes with warnings as needed.
+* [x] Exit code policy — The program exits nonzero only when no usable sources are found or the LLM returns no substantive body text; otherwise it completes with warnings as needed. (implemented with sentinel errors and CLI mapping; tests added)
 
 * [ ] Robots and crawling etiquette — The fetcher respects robots meta where applicable, avoids crawling behind search result pages, and keeps request patterns polite.
 

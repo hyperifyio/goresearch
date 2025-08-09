@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/hyperifyio/goresearch/internal/app"
+	"github.com/hyperifyio/goresearch/internal/synth"
 )
 
 func main() {
@@ -88,8 +89,21 @@ func main() {
 
 	if err := run(cfg); err != nil {
 		log.Error().Err(err).Msg("run failed")
-		os.Exit(1)
+		// Exit code policy: nonzero only on no usable sources or no substantive body.
+		// Map known sentinel errors to exit code 2, otherwise exit 0 (warnings).
+		if err == app.ErrNoUsableSources || isNoSubstantiveBody(err) {
+			os.Exit(2)
+		}
+		// For other errors, treat as warnings and exit 0 to allow completion with warnings.
+		os.Exit(0)
 	}
+}
+
+// isNoSubstantiveBody checks whether the error indicates the synthesizer
+// produced no substantive output. We keep it narrow to avoid masking real
+// failures under the exit-code policy.
+func isNoSubstantiveBody(err error) bool {
+    return err == synth.ErrNoSubstantiveBody
 }
 
 func run(cfg app.Config) error {

@@ -30,6 +30,11 @@ type App struct {
 	httpCache *cache.HTTPCache
 }
 
+// ErrNoUsableSources is returned when the pipeline ends up with zero usable
+// source excerpts after selection and extraction. Per the Exit code policy,
+// this condition should result in a non-zero process exit.
+var ErrNoUsableSources = fmt.Errorf("no usable sources")
+
 func New(ctx context.Context, cfg Config) (*App, error) {
 	// Build OpenAI-compatible config
 	transportCfg := openai.DefaultConfig(cfg.LLMAPIKey)
@@ -60,14 +65,13 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	// Do not fail hard if unreachable in dry-run; warn instead.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	models, err := a.ai.ListModels(ctx)
-	if err != nil {
-		if cfg.DryRun {
-			log.Warn().Err(err).Msg("LLM model list failed; continuing due to dry-run")
-		} else {
-			return nil, fmt.Errorf("list models: %w", err)
-		}
-	} else {
+    models, err := a.ai.ListModels(ctx)
+    if err != nil {
+        // Preflight is best-effort: do not fail hard here. We continue and let
+        // downstream synthesis surface errors as needed so the CLI can apply
+        // its exit code policy.
+        log.Warn().Err(err).Msg("LLM model list failed; continuing")
+    } else {
 		if len(models.Models) > 0 {
 			log.Info().Int("count", len(models.Models)).Msg("LLM models available")
 		} else {
@@ -178,9 +182,15 @@ func (a *App) Run(ctx context.Context) error {
 		MaxConcurrent:     8,
 		BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
 	}}
-	excerpts := fetchAndExtract(ctx, f, selected, a.cfg)
+    excerpts := fetchAndExtract(ctx, f, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
 	excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
+
+    // Exit nonzero per policy when we have no usable sources.
+    if len(excerpts) == 0 {
+        log.Warn().Msg("no usable sources after selection and extraction")
+        return ErrNoUsableSources
+    }
 
 	// 5) Synthesize report
 	syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir}, Verbose: a.cfg.Verbose}

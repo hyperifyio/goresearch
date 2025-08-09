@@ -44,6 +44,9 @@ type Synthesizer struct {
     Verbose bool
 }
 
+// ErrNoSubstantiveBody indicates the model produced no usable Markdown body.
+var ErrNoSubstantiveBody = errors.New("no substantive body")
+
 // Synthesize requests a single, cohesive Markdown document following the
 // structure and citation rules. It returns the raw Markdown string.
 func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) {
@@ -94,11 +97,11 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
         }
     }
     if len(resp.Choices) == 0 {
-        return "", errors.New("no choices from model")
+        return "", ErrNoSubstantiveBody
     }
     out := strings.TrimSpace(resp.Choices[0].Message.Content)
     if out == "" {
-        return "", errors.New("empty synthesis output")
+        return "", ErrNoSubstantiveBody
     }
     if s.Cache != nil {
         payload, _ := json.Marshal(map[string]string{"markdown": out})
