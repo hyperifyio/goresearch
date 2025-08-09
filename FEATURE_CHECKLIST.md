@@ -82,7 +82,7 @@
 
 * [x] Verbose prompt logging — An opt-in verbose mode can print the exact planner and synthesizer messages with optional redaction of long excerpts to aid troubleshooting.
 
-* [ ] Per-source failure isolation — Network and parse errors are isolated per URL so that one failing site does not abort the whole run.
+* [x] Per-source failure isolation — Network and parse errors are isolated per URL so that one failing site does not abort the whole run.
 
 * [ ] Planner failure recovery — If the planner cannot produce parseable output, deterministic fallback queries are generated to keep the pipeline progressing.
 

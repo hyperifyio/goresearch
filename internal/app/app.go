@@ -178,25 +178,7 @@ func (a *App) Run(ctx context.Context) error {
 		MaxConcurrent:     8,
 		BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
 	}}
-	excerpts := make([]synth.SourceExcerpt, 0, len(selected))
-	for i, r := range selected {
-		body, _, err := f.get(ctx, r.URL)
-		if err != nil {
-			log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed")
-			continue
-		}
-		doc := extract.FromHTML(body)
-		// Enforce per-source excerpt size cap
-		capChars := a.cfg.PerSourceChars
-		if capChars <= 0 {
-			capChars = 12_000
-		}
-		text := doc.Text
-		if len(text) > capChars {
-			text = text[:capChars]
-		}
-		excerpts = append(excerpts, synth.SourceExcerpt{Index: i + 1, Title: pickNonEmpty(doc.Title, r.Title), URL: r.URL, Excerpt: text})
-	}
+	excerpts := fetchAndExtract(ctx, f, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
 	excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
 
@@ -300,4 +282,42 @@ func pickNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// fetchAndExtract retrieves HTML for each selected URL independently and extracts
+// readable text. Errors are isolated per URL: failures are logged and skipped
+// rather than aborting the whole run. This satisfies the "Per-source failure
+// isolation" checklist item by ensuring one bad source does not stop progress.
+// sourceGetter abstracts the minimal fetch method used for tests.
+type sourceGetter interface {
+	get(ctx context.Context, url string) ([]byte, string, error)
+}
+
+func fetchAndExtract(ctx context.Context, f sourceGetter, selected []search.Result, cfg Config) []synth.SourceExcerpt {
+	excerpts := make([]synth.SourceExcerpt, 0, len(selected))
+	capChars := cfg.PerSourceChars
+	if capChars <= 0 {
+		capChars = 12_000
+	}
+	nextIndex := 1
+	for _, r := range selected {
+		body, _, err := f.get(ctx, r.URL)
+		if err != nil {
+			log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")
+			continue
+		}
+		doc := extract.FromHTML(body)
+		text := doc.Text
+		if len(text) > capChars {
+			text = text[:capChars]
+		}
+		excerpts = append(excerpts, synth.SourceExcerpt{
+			Index:   nextIndex,
+			Title:   pickNonEmpty(doc.Title, r.Title),
+			URL:     r.URL,
+			Excerpt: text,
+		})
+		nextIndex++
+	}
+	return excerpts
 }
