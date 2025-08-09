@@ -135,4 +135,34 @@ func TestFromHTML_BoilerplateReduction_DoesNotStripLegitimateCookieWord(t *testi
     }
 }
 
+func TestNormalizeText_UnicodeWhitespaceAndDedupe(t *testing.T) {
+    // Includes combining characters and multiple spaces, plus duplicate lines
+    html := "<!doctype html>\n" +
+        "<html>\n" +
+        "  <head><title>NFC Test</title></head>\n" +
+        "  <body>\n" +
+        "    <main>\n" +
+        "      <h1>Title</h1>\n" +
+        "      <p>cafe\u0301 and caf\u00E9</p>\n" +
+        "      <p>Repeat line</p>\n" +
+        "      <p>Repeat   line</p>\n" +
+        "    </main>\n" +
+        "  </body>\n" +
+        "</html>"
+
+    doc := FromHTML([]byte(html))
+    if doc.Title != "NFC Test" {
+        t.Fatalf("expected title 'NFC Test', got %q", doc.Title)
+    }
+    // After Unicode normalization, both forms of "café" should be the same NFC form
+    if !strings.Contains(doc.Text, "café") {
+        t.Fatalf("expected NFC-normalized 'café' in text; got: %q", doc.Text)
+    }
+    // Duplicate lines "Repeat line" and "Repeat   line" should collapse and dedupe to a single line
+    count := strings.Count(doc.Text, "Repeat line")
+    if count != 1 {
+        t.Fatalf("expected a single 'Repeat line' after collapse+dedupe, got count=%d; text=%q", count, doc.Text)
+    }
+}
+
 

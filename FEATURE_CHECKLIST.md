@@ -28,7 +28,7 @@
 
 * [x] Boilerplate reduction — Navigation, cookie banners, and footer chrome are reduced using simple content-density heuristics so that the extracted text concentrates on primary content. (cookie/consent banner heuristics implemented with tests)
 
-* [ ] Text normalization — Extracted text is normalized to Unicode, whitespace is collapsed, and near-duplicate lines are removed to improve token efficiency.
+* [x] Text normalization — Extracted text is normalized to Unicode, whitespace is collapsed, and near-duplicate lines are removed to improve token efficiency.
 
 * [ ] Low-signal filtering — Sources with too little meaningful text are discarded early to avoid wasting context on pages without substantive content.
 
@@ -119,3 +119,27 @@
 * [x] Known limitations disclosure — The design acknowledges dependence on local model capabilities, uneven public coverage for some topics, imperfect boilerplate removal, and the need for human review for high-stakes accuracy.
 
 * [ ] Operational run clarity — The end-to-end run is deterministic and auditable: input brief to planner to search to extraction to selection to synthesis to validation to verification to rendering, with each stage’s artifacts traceable via logs and the embedded manifest.
+
+* [ ] Robots.txt fetch and cache — For each host, fetch /robots.txt once per run with a clear User-Agent, honor ETag and Last-Modified for revalidation, cache parsed rules per host with an expiry, and reuse across requests.
+
+* [ ] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including \* wildcards and \$ end anchors.
+
+* [ ] Crawl-delay compliance — If a Crawl-delay is present for the matched agent, enforce it with a per-host scheduler that spaces requests accordingly; integrate with existing concurrency limits.
+
+* [ ] X-Robots-Tag handling — Parse X-Robots-Tag headers on HTTP responses and treat opt-out signals relevant to text-and-data-mining (e.g., noai, notrain) as hard denials for reuse; record decisions in logs and manifest.
+
+* [ ] HTML meta robots handling — Parse page-level <meta name="robots"> and <meta name="googlebot"> directives; treat noai/notrain equivalents as hard denials, and record the matched directive and scope.
+
+* [ ] TDM opt-out recognition — Treat machine-readable text-and-data-mining reservation signals placed “in or around” the content as a fetch/use denial for research synthesis; prefer conservative interpretation when ambiguous.
+
+* [ ] Missing robots policy — When /robots.txt returns 404, proceed as allowed; when it returns 401/403/5xx or times out, treat as temporarily disallowed for that host and retry only on the next run or after cache expiry.
+
+* [ ] Per-host allowlist override — Support an explicit, documented override flag that enables ignoring robots.txt for a bounded allowlist of domains (e.g., internal mirrors); emit a prominent warning and require a second confirmation flag.
+
+* [ ] Deny-on-disallow enforcement — Before each fetch, evaluate the URL path against cached rules; skip disallowed URLs, avoid partial reads, and short-circuit redirects that would land on disallowed paths.
+
+* [ ] Robots decision logging — For every skipped URL, log the host, matched directive, agent section used, and rule pattern; include a “skipped due to robots” section in the run manifest.
+
+* [ ] Tests for robots evaluation — Add unit tests covering UA-specific vs wildcard sections, longest-match precedence, Allow overriding Disallow, wildcard and anchor behavior, Crawl-delay enforcement, and header/meta opt-outs.
+
+* [ ] Documentation of policy — Document default-on compliance, the override mechanism, and the exact decision policy for 404 vs 401/403/5xx outcomes, making clear that the tool is intended for public web pages and polite use.

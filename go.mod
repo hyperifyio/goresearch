@@ -8,6 +8,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/sashabaranov/go-openai v1.26.2
 	golang.org/x/net v0.43.0
+	golang.org/x/text v0.28.0
 )
 
 require (

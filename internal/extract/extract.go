@@ -5,6 +5,7 @@ import (
     "strings"
 
     "golang.org/x/net/html"
+    "golang.org/x/text/unicode/norm"
 )
 
 // Document is a simplified representation of extracted page content.
@@ -37,8 +38,8 @@ func FromHTML(input []byte) Document {
         // Walk and collect text with simple heuristics
         collectText(&b, content, false)
     }
-    // post-process: collapse whitespace and remove many blank lines
-    text := normalizeWhitespace(b.String())
+    // post-process: Unicode normalization, whitespace normalization, and line de-duplication
+    text := normalizeText(b.String())
     return Document{Title: title, Text: text}
 }
 
@@ -199,6 +200,30 @@ func collapseSpaces(s string) string {
         lastSpace = false
     }
     return b.String()
+}
+
+// normalizeText performs Unicode NFC normalization, collapses whitespace,
+// and removes duplicate non-empty lines to improve token efficiency.
+func normalizeText(s string) string {
+    // Unicode normalization first so that visually identical content compares equal.
+    s = norm.NFC.String(s)
+    s = normalizeWhitespace(s)
+    // De-duplicate identical non-empty lines globally while preserving blank lines (already collapsed).
+    lines := strings.Split(s, "\n")
+    seen := make(map[string]struct{}, len(lines))
+    out := make([]string, 0, len(lines))
+    for _, line := range lines {
+        if line == "" {
+            out = append(out, line)
+            continue
+        }
+        if _, ok := seen[line]; ok {
+            continue
+        }
+        seen[line] = struct{}{}
+        out = append(out, line)
+    }
+    return strings.Join(out, "\n")
 }
 
 
