@@ -184,6 +184,8 @@ func (a *App) Run(ctx context.Context) error {
         }
         excerpts = append(excerpts, synth.SourceExcerpt{Index: i + 1, Title: pickNonEmpty(doc.Title, r.Title), URL: r.URL, Excerpt: text})
     }
+    // Proportionally truncate excerpts to fit global context budget while preserving all sources
+    excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
 
     // 5) Synthesize report
     syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir}, Verbose: a.cfg.Verbose}
@@ -193,7 +195,7 @@ func (a *App) Run(ctx context.Context) error {
         Sources:      excerpts,
         Model:        a.cfg.LLMModel,
         LanguageHint: a.cfg.LanguageHint,
-        ReservedOutputTokens: 1500,
+        ReservedOutputTokens: a.cfg.ReservedOutputTokens,
     })
     if err != nil {
         return fmt.Errorf("synthesize: %w", err)

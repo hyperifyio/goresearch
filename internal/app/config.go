@@ -20,6 +20,7 @@ type Config struct {
 	PerSourceChars int
 	LanguageHint   string
     MinSnippetChars int
+    ReservedOutputTokens int
 
 	// Behavior
 	DryRun   bool
