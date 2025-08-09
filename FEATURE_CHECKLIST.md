@@ -64,7 +64,7 @@
 
 * [x] Language hint propagation — A language hint can be provided; planner queries incorporate the language, the synthesizer writes in that language, and the selector prefers sources whose detected language matches when diversity allows. (implemented with tests)
 
-* [ ] Language tolerance — The system does not hard-filter by language so that authoritative English sources can still be used when researching in another language if necessary.
+* [x] Language tolerance — The system does not hard-filter by language so that authoritative English sources can still be used when researching in another language if necessary.
 
 * [x] Configuration by flags and environment — The executable reads configuration from command-line flags and environment variables for LLM endpoint, model, key, source caps, truncation limits, timeouts, language, output path, and search provider settings.
 
