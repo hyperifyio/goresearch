@@ -10,43 +10,69 @@ import (
 
 // Options configures selection constraints.
 type Options struct {
-	MaxTotal      int
-	PerDomain     int
-	PreferPrimary bool
+    MaxTotal      int
+    PerDomain     int
+    PreferPrimary bool
     // MinSnippetChars drops results whose snippet has fewer than this many
     // non-whitespace characters. Zero disables low-signal filtering.
     MinSnippetChars int
+    // PreferredLanguage, when non-empty, biases ranking toward results whose
+    // detected language matches. This is a preference only; non-matching
+    // languages are not filtered out.
+    PreferredLanguage string
 }
 
 // Select applies diversity-aware selection with per-domain caps.
 func Select(results []search.Result, opt Options) []search.Result {
-	if opt.MaxTotal <= 0 {
-		opt.MaxTotal = 10
-	}
-	if opt.PerDomain <= 0 {
-		opt.PerDomain = 3
-	}
-	// Normalize by URL host and dedupe by canonical URL string
-	domainCounts := map[string]int{}
-	seenURL := map[string]struct{}{}
+    if opt.MaxTotal <= 0 {
+        opt.MaxTotal = 10
+    }
+    if opt.PerDomain <= 0 {
+        opt.PerDomain = 3
+    }
+    // Normalize by URL host and dedupe by canonical URL string
+    domainCounts := map[string]int{}
+    seenURL := map[string]struct{}{}
 
     // Simple heuristic: prefer results with longer snippets first to increase signal.
     // If PreferPrimary is set, apply a stable reordering that bumps known
     // authoritative hosts (e.g., standards bodies and vendor docs) to the top.
     sorted := make([]search.Result, len(results))
     copy(sorted, results)
-    if opt.PreferPrimary {
+    // Precompute detected languages once for stability and to avoid recomputation in comparator
+    detected := make([]string, len(sorted))
+    if strings.TrimSpace(opt.PreferredLanguage) != "" {
+        for i, r := range sorted {
+            detected[i] = detectLanguage(strings.Join([]string{r.Title, r.Snippet}, " \n "))
+        }
+    }
+
+    if opt.PreferPrimary || strings.TrimSpace(opt.PreferredLanguage) != "" {
         sort.SliceStable(sorted, func(i, j int) bool {
-            li, lj := len(sorted[i].Snippet), len(sorted[j].Snippet)
-            hi := isPrimaryHost(sorted[i].URL)
-            hj := isPrimaryHost(sorted[j].URL)
-            if hi && !hj {
-                return true
+            // First, apply language preference if requested
+            if lang := strings.TrimSpace(opt.PreferredLanguage); lang != "" {
+                mi := strings.EqualFold(detected[i], lang)
+                mj := strings.EqualFold(detected[j], lang)
+                if mi && !mj {
+                    return true
+                }
+                if mj && !mi {
+                    return false
+                }
             }
-            if hj && !hi {
-                return false
+            // Then, apply primary host preference if requested
+            if opt.PreferPrimary {
+                hi := isPrimaryHost(sorted[i].URL)
+                hj := isPrimaryHost(sorted[j].URL)
+                if hi && !hj {
+                    return true
+                }
+                if hj && !hi {
+                    return false
+                }
             }
-            return li > lj
+            // Finally, fall back to snippet-length descending
+            return len(sorted[i].Snippet) > len(sorted[j].Snippet)
         })
     } else {
         sort.SliceStable(sorted, func(i, j int) bool {
@@ -55,45 +81,45 @@ func Select(results []search.Result, opt Options) []search.Result {
     }
 
     out := make([]search.Result, 0, opt.MaxTotal)
-	for _, r := range sorted {
+    for _, r := range sorted {
         if opt.MinSnippetChars > 0 {
             // Treat very short snippets as low-signal and skip them early.
             if len(strings.TrimSpace(r.Snippet)) < opt.MinSnippetChars {
                 continue
             }
         }
-		u, err := url.Parse(strings.TrimSpace(r.URL))
-		if err != nil || u.Host == "" {
-			continue
-		}
-		canon := canonicalizeURL(u)
-		if _, ok := seenURL[canon]; ok {
-			continue
-		}
-		host := strings.ToLower(u.Host)
-		if domainCounts[host] >= opt.PerDomain {
-			continue
-		}
-		seenURL[canon] = struct{}{}
-		domainCounts[host]++
-		out = append(out, r)
-		if len(out) >= opt.MaxTotal {
-			break
-		}
-	}
-	return out
+        u, err := url.Parse(strings.TrimSpace(r.URL))
+        if err != nil || u.Host == "" {
+            continue
+        }
+        canon := canonicalizeURL(u)
+        if _, ok := seenURL[canon]; ok {
+            continue
+        }
+        host := strings.ToLower(u.Host)
+        if domainCounts[host] >= opt.PerDomain {
+            continue
+        }
+        seenURL[canon] = struct{}{}
+        domainCounts[host]++
+        out = append(out, r)
+        if len(out) >= opt.MaxTotal {
+            break
+        }
+    }
+    return out
 }
 
 func canonicalizeURL(u *url.URL) string {
-	// drop fragments and default ports; lower-case host
-	u2 := *u
-	u2.Fragment = ""
-	u2.Host = strings.ToLower(u2.Host)
-	if (u2.Scheme == "http" && strings.HasSuffix(u2.Host, ":80")) || (u2.Scheme == "https" && strings.HasSuffix(u2.Host, ":443")) {
-		host := u2.Hostname()
-		u2.Host = host
-	}
-	return u2.String()
+    // drop fragments and default ports; lower-case host
+    u2 := *u
+    u2.Fragment = ""
+    u2.Host = strings.ToLower(u2.Host)
+    if (u2.Scheme == "http" && strings.HasSuffix(u2.Host, ":80")) || (u2.Scheme == "https" && strings.HasSuffix(u2.Host, ":443")) {
+        host := u2.Hostname()
+        u2.Host = host
+    }
+    return u2.String()
 }
 
 // isPrimaryHost returns true if the URL host appears to be an authoritative
@@ -112,4 +138,25 @@ func isPrimaryHost(rawURL string) bool {
         return true
     }
     return false
+}
+
+// detectLanguage is a lightweight heuristic detector for common languages.
+// It returns lowercase ISO-like codes such as "en" or "es" when it can guess,
+// otherwise an empty string. This is intentionally simple to keep selection
+// deterministic and dependency-free.
+func detectLanguage(text string) string {
+    s := " " + strings.ToLower(text) + " "
+    // Quick checks for Spanish markers (including accented characters)
+    if strings.ContainsAny(s, "áéíóúñ") ||
+        strings.Contains(s, " el ") || strings.Contains(s, " la ") || strings.Contains(s, " los ") || strings.Contains(s, " las ") ||
+        strings.Contains(s, " de ") || strings.Contains(s, " y ") || strings.Contains(s, " en ") || strings.Contains(s, " para ") ||
+        strings.Contains(s, " con ") || strings.Contains(s, " una ") || strings.Contains(s, " uno ") || strings.Contains(s, " este ") ||
+        strings.Contains(s, " guía ") || strings.Contains(s, " introducción ") || strings.Contains(s, " arquitectura ") {
+        return "es"
+    }
+    // Quick checks for English markers
+    if strings.Contains(s, " the ") || strings.Contains(s, " and ") || strings.Contains(s, " of ") || strings.Contains(s, " to ") || strings.Contains(s, " in ") || strings.Contains(s, " guide ") || strings.Contains(s, " introduction ") {
+        return "en"
+    }
+    return ""
 }

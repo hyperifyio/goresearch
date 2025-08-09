@@ -97,7 +97,7 @@ func (a *App) Run(ctx context.Context) error {
 				groups = append(groups, results)
 			}
 			merged := aggregate.MergeAndNormalize(groups)
-			selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars})
+			selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars, PreferredLanguage: a.cfg.LanguageHint})
 		}
 		content := fmt.Sprintf("# goresearch (dry run)\n\nTopic: %s\nAudience: %s\nTone: %s\nTarget Length (words): %d\n\nPlanned queries:\n", b.Topic, b.AudienceHint, b.ToneHint, b.TargetLengthWords)
 		for i, q := range plan.Queries {
@@ -154,7 +154,7 @@ func (a *App) Run(ctx context.Context) error {
             groups = append(groups, results)
         }
         merged := aggregate.MergeAndNormalize(groups)
-        selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars})
+        selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars, PreferredLanguage: a.cfg.LanguageHint})
     }
 
     // 4) Fetch and extract content for each selected URL with polite settings

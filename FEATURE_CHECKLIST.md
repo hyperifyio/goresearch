@@ -42,7 +42,7 @@
 
 * [x] Structured document request — The user message for synthesis includes the brief, the outline (if available), target length, a numbered list of sources with titles and URLs, and per-source excerpts, and requests a single cohesive Markdown document with title, date, executive summary, body, risks and limitations, and references.
 
-* [x] Inline citation format — Factual statements must be cited inline using bracketed numbers such as \[n] that map to the numbered references list, with multiple citations allowed like \[2]\[5].
+* [x] Inline citation format — Factual statements must be cited inline using bracketed numbers such as [n] that map to the numbered references list, with multiple citations allowed like [2][5].
 
 * [x] No invented sources — The synthesis prompt forbids creating or altering sources and makes clear that only the enumerated sources may be cited.
 
@@ -62,7 +62,7 @@
 
 * [x] Reproducibility footer — The document ends with a short footer that records the model name, the LLM base URL, the number of sources used, and whether HTTP and LLM caching were active.
 
-* [ ] Language hint propagation — A language hint can be provided; planner queries incorporate the language, the synthesizer writes in that language, and the selector prefers sources whose detected language matches when diversity allows.
+* [x] Language hint propagation — A language hint can be provided; planner queries incorporate the language, the synthesizer writes in that language, and the selector prefers sources whose detected language matches when diversity allows. (implemented with tests)
 
 * [ ] Language tolerance — The system does not hard-filter by language so that authoritative English sources can still be used when researching in another language if necessary.
 
@@ -122,7 +122,7 @@
 
 * [ ] Robots.txt fetch and cache — For each host, fetch /robots.txt once per run with a clear User-Agent, honor ETag and Last-Modified for revalidation, cache parsed rules per host with an expiry, and reuse across requests.
 
-* [ ] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including \* wildcards and \$ end anchors.
+* [ ] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including * wildcards and $ end anchors.
 
 * [ ] Crawl-delay compliance — If a Crawl-delay is present for the matched agent, enforce it with a per-host scheduler that spaces requests accordingly; integrate with existing concurrency limits.
 
@@ -143,3 +143,50 @@
 * [ ] Tests for robots evaluation — Add unit tests covering UA-specific vs wildcard sections, longest-match precedence, Allow overriding Disallow, wildcard and anchor behavior, Crawl-delay enforcement, and header/meta opt-outs.
 
 * [ ] Documentation of policy — Document default-on compliance, the override mechanism, and the exact decision policy for 404 vs 401/403/5xx outcomes, making clear that the tool is intended for public web pages and polite use.
+
+* [ ] Tool protocol adapter — Add an OpenAI-compatible “tools/functions” encoder and response parser (name, description, JSON Schema args; detect and read `tool_calls` in assistant messages). 
+* [ ] Harmony response handling — Support Harmony-style channels (analysis/commentary/final) so the loop can safely ignore raw CoT except for explicit tool calls and final answers.
+
+* [ ] CoT redaction policy — Do not log or surface raw chain-of-thought by default; expose behind a debug flag since gpt-oss may interleave tool calls within CoT.
+
+* [ ] Tool registry & versioning — Central registry mapping stable tool names to internal functions; include semantic version and capability meta for reproducibility.
+
+* [ ] Orchestration loop — Iterate: send messages + tool schema, execute any returned tool calls, append tool results as `tool` messages, stop on final assistant text.
+
+* [ ] Loop guards — Enforce max tool-calls per run, wall-clock budget, and per-tool timeouts to prevent runaway loops.
+
+* [ ] Minimal tool surface — Expose just what the model needs: `web_search`, `fetch_url`, `extract_main_text`, and `load_cached_excerpt` (IDs) to start; expand later.
+
+* [ ] Result size budgeting — Cap tool result payloads (chars/tokens); auto-summarize or return cache IDs for large blobs instead of inlining full text.
+
+* [ ] Tool-output schemas — Define strict JSON result shapes per tool (including typed errors) and validate before feeding back to the model.
+
+* [ ] Error recovery for tools — On invalid args or failures, return structured error objects; allow the model to retry with corrected parameters.
+
+* [ ] Deterministic IDs — Assign stable content IDs/digests for fetched pages and extracts so the model can request slices by ID instead of re-pulling text.
+
+* [ ] Policy enforcement in tools — Apply existing robots/opt-out/host politeness rules inside tool execution so the model cannot bypass them (deny-on-disallow).
+
+* [ ] Domain allow/deny lists — Centralized allowlist/denylist evaluated before any networked tool runs; log blocked attempts.
+
+* [ ] Safety redaction — Strip secrets, cookies, and tracking params from tool outputs; scrub headers before echoing anything into the transcript.
+
+* [ ] Structured tracing — Log every tool call with tool name, args hash, duration, byte counts, and outcome; correlate to the final report for auditability.
+
+* [ ] Cache-aware tools — Tools consult HTTP/LLM caches; add a per-tool “cache only / revalidate / bypass” flag wired to your existing caching layer.
+
+* [ ] Dry-run for tools — A mode that prints intended tool calls (with redacted args) without executing them; useful for debugging prompt-tool interplay.
+
+* [ ] Fallback path — If the model doesn’t call tools (or the adapter is disabled), fall back to your current planner→search→synthesis pipeline.
+
+* [ ] Prompt affordances — System/developer messages that document each tool’s contract, limits, and when to use it; keep this text concise to save tokens.
+
+* [ ] Token/context budgeting for tool chat — Heuristics to prune earlier loop turns and compress older tool outputs so the running conversation stays within context.
+
+* [ ] Tests: tool loop — Deterministic integration tests with a stub model that requests specific tool calls in order; assert call sequencing and final answer assembly.
+
+* [ ] Tests: schema & fuzz — Unit tests that validate tool arg/result schemas and fuzz malformed inputs to ensure graceful errors.
+
+* [ ] Config flags — CLI/env switches to enable tools, set loop caps/time budgets, and toggle Harmony/legacy function-calling modes.
+
+* [ ] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.

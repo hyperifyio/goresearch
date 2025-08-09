@@ -87,3 +87,19 @@ func TestSelect_PreferPrimarySources(t *testing.T) {
         t.Fatalf("expected a primary source to be ranked first when PreferPrimary is true; got host %q and title %q", topHost, out2[0].Title)
     }
 }
+
+func TestSelect_PreferLanguageMatchWithoutFiltering(t *testing.T) {
+    // Spanish vs English; prefer Spanish when PreferredLanguage is "es"
+    in := []search.Result{
+        {Title: "Intro a Kubernetes", URL: "https://es.example.com/k8s", Snippet: "Esta es una guía introductoria de Kubernetes y su arquitectura."},
+        {Title: "Kubernetes overview", URL: "https://en.example.com/k8s", Snippet: "This is an introductory guide to Kubernetes and its architecture."},
+    }
+
+    out := Select(in, Options{MaxTotal: 10, PerDomain: 5, PreferPrimary: false, MinSnippetChars: 5, PreferredLanguage: "es"})
+    if len(out) != 2 {
+        t.Fatalf("expected both results to remain; got %d", len(out))
+    }
+    if out[0].Title != "Intro a Kubernetes" {
+        t.Fatalf("expected Spanish result to be ranked first when PreferredLanguage=es; got %q", out[0].Title)
+    }
+}
