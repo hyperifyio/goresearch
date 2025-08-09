@@ -118,7 +118,9 @@ func (a *App) Run(ctx context.Context) error {
 		content += fmt.Sprintf("Model context window: %d\n", est.ModelContext)
 		content += fmt.Sprintf("Remaining tokens: %d\n", est.Remaining)
 		content += fmt.Sprintf("Fits: %t\n", est.Fits)
-		if err := os.WriteFile(a.cfg.OutputPath, []byte(content), 0o644); err != nil {
+        // Append reproducibility footer to dry-run content as well
+        content = appendReproFooter(content, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(selected), a.httpCache != nil, true)
+        if err := os.WriteFile(a.cfg.OutputPath, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
 		log.Info().Str("out", a.cfg.OutputPath).Msg("wrote dry-run output")
@@ -219,6 +221,9 @@ func (a *App) Run(ctx context.Context) error {
         log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
     }
     md = appendEvidenceAppendix(md, vres, verr)
+
+    // 8) Append reproducibility footer capturing model/base URL, source count, and cache status
+    md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
     if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
         return fmt.Errorf("write output: %w", err)

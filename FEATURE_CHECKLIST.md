@@ -60,7 +60,7 @@
 
 * [x] Markdown output contract — The output is valid, renderer-friendly Markdown that avoids decorative flourishes and maintains a sensible heading hierarchy matching the outline. (validator + tests added)
 
-* [ ] Reproducibility footer — The document ends with a short footer that records the model name, the LLM base URL, the number of sources used, and whether HTTP and LLM caching were active.
+* [x] Reproducibility footer — The document ends with a short footer that records the model name, the LLM base URL, the number of sources used, and whether HTTP and LLM caching were active.
 
 * [ ] Language hint propagation — A language hint can be provided; planner queries incorporate the language, the synthesizer writes in that language, and the selector prefers sources whose detected language matches when diversity allows.
 
