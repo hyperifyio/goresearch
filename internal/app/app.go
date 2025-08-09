@@ -44,6 +44,15 @@ func New(ctx context.Context, cfg Config) (*App, error) {
     a := &App{cfg: cfg, ai: client}
     // Initialize HTTP cache lazily when needed
     if cfg.CacheDir != "" {
+        // Apply cache invalidation controls
+        if cfg.CacheClear {
+            _ = cache.ClearDir(cfg.CacheDir)
+        }
+        if cfg.CacheMaxAge > 0 {
+            // Purge both HTTP and LLM caches by age; ignore errors to avoid failing startup
+            _, _ = cache.PurgeHTTPCacheByAge(cfg.CacheDir, cfg.CacheMaxAge)
+            _, _ = cache.PurgeLLMCacheByAge(cfg.CacheDir, cfg.CacheMaxAge)
+        }
         a.httpCache = &cache.HTTPCache{Dir: cfg.CacheDir}
     }
 
@@ -167,6 +176,7 @@ func (a *App) Run(ctx context.Context) error {
         Cache:             a.httpCache,
         RedirectMaxHops:   5,
         MaxConcurrent:     8,
+        BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
     }}
     excerpts := make([]synth.SourceExcerpt, 0, len(selected))
     for i, r := range selected {

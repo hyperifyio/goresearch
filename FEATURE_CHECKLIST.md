@@ -74,7 +74,7 @@
 
 * [x] LLM response caching — Calls to the planner and synthesizer can be cached by a normalized prompt digest and model name to speed up iterative runs.
 
-* [ ] Cache invalidation controls — The cache can be invalidated by age, by explicit flags, or by topic hash to ensure fresh data when needed.
+* [x] Cache invalidation controls — The cache can be invalidated by age, by explicit flags, or by topic hash to ensure fresh data when needed.
 
 * [ ] Embedded manifest — The final report embeds or ships with a compact manifest listing canonical URLs and their content digests so others can audit exactly what was read.
 

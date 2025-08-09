@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+    "github.com/rs/zerolog/log"
 
 	"github.com/hyperifyio/goresearch/internal/app"
 )
@@ -33,7 +33,10 @@ func main() {
 		language       string
 		dryRun         bool
 		verbose        bool
-		cacheDir       string
+        cacheDir       string
+        cacheMaxAge    time.Duration
+        cacheClear     bool
+        topicHash      string
 	)
 
 	flag.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -51,7 +54,10 @@ func main() {
 	flag.BoolVar(&dryRun, "dry-run", false, "Plan and select without calling the model")
 	flag.BoolVar(&verbose, "v", false, "Verbose logging")
 	flag.StringVar(&cacheDir, "cache.dir", ".goresearch-cache", "Cache directory path")
-	flag.Parse()
+    flag.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
+    flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
+    flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
+    flag.Parse()
 
 	if verbose {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -74,7 +80,10 @@ func main() {
 		LanguageHint:   language,
 		DryRun:         dryRun,
 		CacheDir:       cacheDir,
-		Verbose:        verbose,
+        Verbose:        verbose,
+        CacheMaxAge:    cacheMaxAge,
+        CacheClear:     cacheClear,
+        TopicHash:      topicHash,
 	}
 
 	if err := run(cfg); err != nil {
