@@ -42,6 +42,8 @@ type Synthesizer struct {
     Client ChatClient
     Cache  *cache.LLMCache
     Verbose bool
+    // SystemPrompt, when non-empty, overrides the default system message.
+    SystemPrompt string
 }
 
 // ErrNoSubstantiveBody indicates the model produced no usable Markdown body.
@@ -54,6 +56,9 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
         return "", errors.New("synthesizer not configured")
     }
     system := buildSystemMessage()
+    if strings.TrimSpace(s.SystemPrompt) != "" {
+        system = s.SystemPrompt
+    }
     user := buildUserMessage(in)
 
     // Cache by model+prompt to allow deterministic re-runs.

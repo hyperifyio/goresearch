@@ -17,6 +17,9 @@ type Config struct {
 	LLMBaseURL string
 	LLMModel   string
 	LLMAPIKey  string
+    // Prompt overrides
+    SynthSystemPrompt  string
+    VerifySystemPrompt string
 
 	// Selection / budgeting
 	MaxSources           int

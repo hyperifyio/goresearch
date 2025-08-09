@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+    "strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -41,6 +42,10 @@ func main() {
 		cacheClear      bool
 		cacheStrict     bool
 		topicHash       string
+	    synthSystemPrompt     string
+	    synthSystemPromptFile string
+	    verifySystemPrompt    string
+	    verifySystemPromptFile string
 	)
 
 	flag.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -64,7 +69,23 @@ func main() {
 	flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
 	flag.BoolVar(&cacheStrict, "cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
 	flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
+	// Prompt profile flexibility: allow overriding system prompts via flags/env
+	flag.StringVar(&synthSystemPrompt, "synth.systemPrompt", os.Getenv("SYNTH_SYSTEM_PROMPT"), "Override synthesis system prompt (inline string)")
+	flag.StringVar(&synthSystemPromptFile, "synth.systemPromptFile", os.Getenv("SYNTH_SYSTEM_PROMPT_FILE"), "Path to file containing synthesis system prompt")
+	flag.StringVar(&verifySystemPrompt, "verify.systemPrompt", os.Getenv("VERIFY_SYSTEM_PROMPT"), "Override verification system prompt (inline string)")
+	flag.StringVar(&verifySystemPromptFile, "verify.systemPromptFile", os.Getenv("VERIFY_SYSTEM_PROMPT_FILE"), "Path to file containing verification system prompt")
 	flag.Parse()
+	// If file-based prompts are provided, they take precedence over inline strings
+	if strings.TrimSpace(synthSystemPromptFile) != "" {
+		if b, err := os.ReadFile(synthSystemPromptFile); err == nil {
+			synthSystemPrompt = string(b)
+		}
+	}
+	if strings.TrimSpace(verifySystemPromptFile) != "" {
+		if b, err := os.ReadFile(verifySystemPromptFile); err == nil {
+			verifySystemPrompt = string(b)
+		}
+	}
 
 	if verbose {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -92,6 +113,8 @@ func main() {
 		CacheClear:      cacheClear,
 		CacheStrictPerms: cacheStrict,
 		TopicHash:       topicHash,
+		SynthSystemPrompt:  synthSystemPrompt,
+		VerifySystemPrompt: verifySystemPrompt,
 	}
 
 	if err := run(cfg); err != nil {

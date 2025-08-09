@@ -112,7 +112,7 @@
 
 * [x] Adapter-based extensibility — Search and extraction modules are built behind narrow interfaces so providers and readability tactics can be swapped without touching the rest of the pipeline.
 
-* [ ] Prompt profile flexibility — Synthesis and verification prompts are externally configurable so teams can tune style, tone, and strictness without code changes.
+* [x] Prompt profile flexibility — Synthesis and verification prompts are externally configurable so teams can tune style, tone, and strictness without code changes.
 
 * [ ] Optional PDF support switch — PDF ingestion can be added as an optional, off-by-default feature guarded by a command flag to control binary parsing risk.
 

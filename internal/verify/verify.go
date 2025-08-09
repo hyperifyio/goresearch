@@ -37,6 +37,8 @@ type Result struct {
 type Verifier struct {
     Client ChatClient
     Cache  *cache.LLMCache
+    // SystemPrompt, when non-empty, overrides the default verifier system message.
+    SystemPrompt string
 }
 
 // Verify analyzes the provided Markdown report and returns a verification
@@ -46,6 +48,9 @@ func (v *Verifier) Verify(ctx context.Context, markdown string, model string, la
     // Try LLM path when configured
     if v.Client != nil && strings.TrimSpace(model) != "" {
         sys := buildSystemMessage()
+        if strings.TrimSpace(v.SystemPrompt) != "" {
+            sys = v.SystemPrompt
+        }
         user := buildUserMessage(markdown, languageHint)
         // Cache lookup
         if v.Cache != nil {

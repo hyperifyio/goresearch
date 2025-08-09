@@ -204,7 +204,7 @@ func (a *App) Run(ctx context.Context) error {
     }
 
 	// 5) Synthesize report
-    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose}
+    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt}
 	md, err := syn.Synthesize(ctx, synth.Input{
 		Brief:                b,
 		Outline:              plan.Outline,
@@ -228,7 +228,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	// 7) Verification pass: extract claims and append an evidence map appendix.
-    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}}
+    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, SystemPrompt: a.cfg.VerifySystemPrompt}
 	vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
 	if verr != nil {
 		log.Warn().Err(verr).Msg("verification failed; continuing without appendix")

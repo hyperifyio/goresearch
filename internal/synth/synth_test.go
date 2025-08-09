@@ -22,6 +22,17 @@ func (c *capturingClient) CreateChatCompletion(ctx context.Context, req openai.C
         }},
     }, nil
 }
+func TestSynthesizer_UsesOverrideSystemPrompt(t *testing.T) {
+    cc := &capturingClient{}
+    s := &Synthesizer{Client: cc, SystemPrompt: "OVERRIDE_SYSTEM_PROMPT"}
+    in := Input{Brief: brief.Brief{Topic: "x"}, Model: "m"}
+    out, err := s.Synthesize(context.Background(), in)
+    if err != nil { t.Fatalf("err: %v", err) }
+    if strings.TrimSpace(out) == "" { t.Fatalf("expected output") }
+    if got := cc.lastReq.Messages[0].Content; got != "OVERRIDE_SYSTEM_PROMPT" {
+        t.Fatalf("expected override system prompt, got: %q", got)
+    }
+}
 
 type flakyClient struct{
     calls int
