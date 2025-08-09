@@ -19,6 +19,7 @@ type Config struct {
 	PerDomainCap   int
 	PerSourceChars int
 	LanguageHint   string
+    MinSnippetChars int
 
 	// Behavior
 	DryRun   bool

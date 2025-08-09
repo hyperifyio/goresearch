@@ -31,3 +31,20 @@ func TestSelect_PerDomainCap(t *testing.T) {
 		t.Fatalf("per-domain cap exceeded: a=%d b=%d", countA, countB)
 	}
 }
+
+func TestSelect_LowSignalFilteringBySnippetLength(t *testing.T) {
+    in := []search.Result{
+        {Title: "weak", URL: "https://a.com/1", Snippet: "ok"},
+        {Title: "strong", URL: "https://a.com/2", Snippet: "this is a longer snippet with substance"},
+        {Title: "spaces only", URL: "https://b.com/1", Snippet: "    \t  "},
+    }
+    out := Select(in, Options{MaxTotal: 10, PerDomain: 5, MinSnippetChars: 5})
+    for _, r := range out {
+        if r.Title == "weak" || r.Title == "spaces only" {
+            t.Fatalf("expected low-signal results to be filtered out; got %q", r.Title)
+        }
+    }
+    if len(out) != 1 || out[0].Title != "strong" {
+        t.Fatalf("expected only the strong result to remain; got %v", out)
+    }
+}

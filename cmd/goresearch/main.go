@@ -29,6 +29,7 @@ func main() {
 		maxSources     int
 		perDomain      int
 		perSourceChars int
+        minSnippetChars int
 		language       string
 		dryRun         bool
 		verbose        bool
@@ -44,7 +45,8 @@ func main() {
 	flag.StringVar(&llmKey, "llm.key", os.Getenv("LLM_API_KEY"), "API key for OpenAI-compatible server")
 	flag.IntVar(&maxSources, "max.sources", 12, "Maximum number of sources")
 	flag.IntVar(&perDomain, "max.perDomain", 3, "Maximum sources per domain")
-	flag.IntVar(&perSourceChars, "max.perSourceChars", 12000, "Maximum characters per source extract")
+    flag.IntVar(&perSourceChars, "max.perSourceChars", 12000, "Maximum characters per source extract")
+    flag.IntVar(&minSnippetChars, "min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
 	flag.StringVar(&language, "lang", "", "Optional language hint, e.g. 'en' or 'fi'")
 	flag.BoolVar(&dryRun, "dry-run", false, "Plan and select without calling the model")
 	flag.BoolVar(&verbose, "v", false, "Verbose logging")
@@ -68,6 +70,7 @@ func main() {
 		MaxSources:     maxSources,
 		PerDomainCap:   perDomain,
 		PerSourceChars: perSourceChars,
+        MinSnippetChars: minSnippetChars,
 		LanguageHint:   language,
 		DryRun:         dryRun,
 		CacheDir:       cacheDir,

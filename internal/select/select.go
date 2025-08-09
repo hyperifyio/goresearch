@@ -13,6 +13,9 @@ type Options struct {
 	MaxTotal      int
 	PerDomain     int
 	PreferPrimary bool
+    // MinSnippetChars drops results whose snippet has fewer than this many
+    // non-whitespace characters. Zero disables low-signal filtering.
+    MinSnippetChars int
 }
 
 // Select applies diversity-aware selection with per-domain caps.
@@ -34,8 +37,14 @@ func Select(results []search.Result, opt Options) []search.Result {
 		return len(sorted[i].Snippet) > len(sorted[j].Snippet)
 	})
 
-	out := make([]search.Result, 0, opt.MaxTotal)
+    out := make([]search.Result, 0, opt.MaxTotal)
 	for _, r := range sorted {
+        if opt.MinSnippetChars > 0 {
+            // Treat very short snippets as low-signal and skip them early.
+            if len(strings.TrimSpace(r.Snippet)) < opt.MinSnippetChars {
+                continue
+            }
+        }
 		u, err := url.Parse(strings.TrimSpace(r.URL))
 		if err != nil || u.Host == "" {
 			continue

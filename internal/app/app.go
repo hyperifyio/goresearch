@@ -86,7 +86,7 @@ func (a *App) Run(ctx context.Context) error {
 				groups = append(groups, results)
 			}
 			merged := aggregate.MergeAndNormalize(groups)
-			selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap})
+            selected = sel.Select(merged, sel.Options{MaxTotal: a.cfg.MaxSources, PerDomain: a.cfg.PerDomainCap, MinSnippetChars: a.cfg.MinSnippetChars})
 		}
 		content := fmt.Sprintf("# goresearch (dry run)\n\nTopic: %s\nAudience: %s\nTone: %s\nTarget Length (words): %d\n\nPlanned queries:\n", b.Topic, b.AudienceHint, b.ToneHint, b.TargetLengthWords)
 		for i, q := range plan.Queries {

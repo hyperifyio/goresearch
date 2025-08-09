@@ -30,7 +30,7 @@
 
 * [x] Text normalization — Extracted text is normalized to Unicode, whitespace is collapsed, and near-duplicate lines are removed to improve token efficiency.
 
-* [ ] Low-signal filtering — Sources with too little meaningful text are discarded early to avoid wasting context on pages without substantive content.
+* [x] Low-signal filtering — Sources with too little meaningful text are discarded early to avoid wasting context on pages without substantive content.
 
 * [ ] Token budget estimation — The tool estimates prompt size from character counts and model characteristics to keep the combined system message, user message, and excerpts within the model’s context window.
 
