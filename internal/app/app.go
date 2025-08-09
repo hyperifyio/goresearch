@@ -15,6 +15,7 @@ import (
 	"github.com/hyperifyio/goresearch/internal/cache"
 	"github.com/hyperifyio/goresearch/internal/extract"
 	"github.com/hyperifyio/goresearch/internal/fetch"
+	"github.com/hyperifyio/goresearch/internal/robots"
 	"github.com/hyperifyio/goresearch/internal/planner"
 	"github.com/hyperifyio/goresearch/internal/search"
 	sel "github.com/hyperifyio/goresearch/internal/select"
@@ -205,6 +206,8 @@ func (a *App) Run(ctx context.Context) error {
 	// 4) Fetch and extract content for each selected URL with polite settings
     stageStart = time.Now()
 	httpClient := newHighThroughputHTTPClient()
+    // Configure robots manager for crawl-delay and polite fetching
+    rb := &robots.Manager{HTTPClient: httpClient, Cache: a.httpCache, UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", EntryExpiry: 30 * time.Minute, AllowPrivateHosts: a.cfg.AllowPrivateHosts}
     f := &fetchClient{client: &fetch.Client{
 		HTTPClient:        httpClient,
 		UserAgent:         "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)",
@@ -216,6 +219,7 @@ func (a *App) Run(ctx context.Context) error {
 		BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
         AllowPrivateHosts: a.cfg.AllowPrivateHosts,
         EnablePDF:         a.cfg.EnablePDF,
+        Robots:            rb,
 	}}
     // Use adapter-based extractor to enable swap of readability tactics
     excerpts := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)

@@ -13,6 +13,7 @@ import (
     "time"
 
     "github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/robots"
 )
 
 func TestRejectsCredentialsInURL(t *testing.T) {
@@ -222,4 +223,41 @@ func TestGet_MaxConcurrent(t *testing.T) {
 	if maxObserved > 2 {
 		t.Fatalf("expected max concurrency <= 2, got %d", maxObserved)
 	}
+}
+
+func TestGet_RespectsCrawlDelayPerHost(t *testing.T) {
+    t.Parallel()
+    // Single server serves both content and robots.txt with Crawl-delay
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path == "/robots.txt" {
+            w.Header().Set("Content-Type", "text/plain")
+            _, _ = w.Write([]byte("User-agent: goresearch-test\nCrawl-delay: 0.2\n"))
+            return
+        }
+        w.Header().Set("Content-Type", "text/html")
+        _, _ = w.Write([]byte("ok"))
+    }))
+    t.Cleanup(srv.Close)
+
+    // Robots manager points to the same server; allow private hosts for tests
+    rb := &robots.Manager{HTTPClient: srv.Client(), Cache: &cache.HTTPCache{Dir: t.TempDir()}, UserAgent: "goresearch-test", AllowPrivateHosts: true, EntryExpiry: time.Minute}
+
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true, Robots: rb}
+
+    // Measure wall time for three sequential requests started concurrently; with 0.2s delay
+    // the total should be at least about 0.4s beyond baseline, within tolerance.
+    start := time.Now()
+    var wg sync.WaitGroup
+    wg.Add(3)
+    for i := 0; i < 3; i++ {
+        go func() {
+            defer wg.Done()
+            _, _, _ = c.Get(context.Background(), srv.URL)
+        }()
+    }
+    wg.Wait()
+    elapsed := time.Since(start)
+    if elapsed < 350*time.Millisecond { // allow some tolerance
+        t.Fatalf("expected elapsed >= 350ms due to crawl-delay, got %v", elapsed)
+    }
 }

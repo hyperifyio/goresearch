@@ -124,7 +124,7 @@
 
 * [x] Robots.txt parser with UA precedence — Evaluate rules first for the explicit tool User-Agent, then fall back to the wildcard agent; implement longest-path match and Allow vs Disallow precedence, including * wildcards and $ end anchors. (implemented evaluator + tests)
 
-* [ ] Crawl-delay compliance — If a Crawl-delay is present for the matched agent, enforce it with a per-host scheduler that spaces requests accordingly; integrate with existing concurrency limits.
+* [x] Crawl-delay compliance — If a Crawl-delay is present for the matched agent, enforce it with a per-host scheduler that spaces requests accordingly; integrate with existing concurrency limits.
 
 * [ ] X-Robots-Tag handling — Parse X-Robots-Tag headers on HTTP responses and treat opt-out signals relevant to text-and-data-mining (e.g., noai, notrain) as hard denials for reuse; record decisions in logs and manifest.
 

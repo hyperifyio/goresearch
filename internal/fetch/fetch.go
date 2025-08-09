@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/robots"
 )
 
 // Client wraps http.Client and provides timeouts and limited retry on transient errors.
@@ -46,6 +47,15 @@ type Client struct {
     // EnablePDF, when true, allows fetching and accepting application/pdf bodies.
     // The caller is responsible for choosing an appropriate extractor.
     EnablePDF bool
+
+    // Robots, when provided, enables crawl-delay compliance based on robots.txt
+    // rules. The client will schedule requests per host to respect any declared
+    // Crawl-delay for the most specific matching User-agent group.
+    Robots *robots.Manager
+
+    // internal per-host scheduler state for crawl-delay
+    crawlMu      sync.Mutex
+    nextAllowed  map[string]time.Time
 }
 
 func (c *Client) getHTTPClient() *http.Client {
@@ -101,9 +111,9 @@ func (c *Client) Get(ctx context.Context, url string) ([]byte, string, error) {
 }
 
 func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod string) ([]byte, string, string, string, int, error) {
-	// Concurrency gate per client instance
-	c.acquire()
-	defer c.release()
+    // Concurrency gate per client instance
+    c.acquire()
+    defer c.release()
 
     req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -121,6 +131,13 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
     host := req.URL.Hostname()
     if !c.AllowPrivateHosts && isLocalOrPrivateHost(host) {
         return nil, "", "", "", 0, fmt.Errorf("private host not allowed: %s", host)
+    }
+
+    // Respect per-host Crawl-delay if robots manager is configured
+    if c.Robots != nil {
+        if err := c.awaitCrawlDelay(ctx, req.URL); err != nil {
+            return nil, "", "", "", 0, err
+        }
     }
 	if c.UserAgent != "" {
 		req.Header.Set("User-Agent", c.UserAgent)
@@ -166,6 +183,60 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("read body: %w", err)
 	}
 	return b, contentType, resp.Header.Get("ETag"), resp.Header.Get("Last-Modified"), resp.StatusCode, nil
+}
+
+// awaitCrawlDelay enforces per-host crawl-delay based on robots.txt rules.
+// It schedules request start times so that consecutive requests to the same
+// host are spaced by at least the configured delay. If no delay is set for
+// the effective user agent, it returns immediately.
+func (c *Client) awaitCrawlDelay(ctx context.Context, u *url.URL) error {
+    if u == nil || c.Robots == nil {
+        return nil
+    }
+    scheme := strings.ToLower(u.Scheme)
+    host := u.Hostname()
+    hostWithPort := u.Host // includes port when present
+    if scheme == "" || hostWithPort == "" {
+        return nil
+    }
+    robotsURL := scheme + "://" + hostWithPort + "/robots.txt"
+    // Fetch and cache rules (memory/disk cache inside Manager keeps this cheap)
+    rules, _, err := c.Robots.Get(ctx, robotsURL)
+    if err != nil {
+        // On robots errors, be conservative and proceed without delay rather than
+        // blocking fetches, since separate checklist items govern 404/5xx policy.
+        return nil
+    }
+    d := rules.CrawlDelayFor(c.UserAgent)
+    if d == nil || *d <= 0 {
+        return nil
+    }
+    delay := *d
+
+    // Reserve a start time slot for this host and sleep until then (context-aware)
+    now := time.Now()
+    c.crawlMu.Lock()
+    if c.nextAllowed == nil { c.nextAllowed = make(map[string]time.Time) }
+    startAt := now
+    if next, ok := c.nextAllowed[host]; ok && next.After(now) {
+        startAt = next
+    }
+    c.nextAllowed[host] = startAt.Add(delay)
+    c.crawlMu.Unlock()
+
+    if startAt.After(now) {
+        wait := time.Until(startAt)
+        if wait > 0 {
+            timer := time.NewTimer(wait)
+            defer timer.Stop()
+            select {
+            case <-ctx.Done():
+                return ctx.Err()
+            case <-timer.C:
+            }
+        }
+    }
+    return nil
 }
 
 func isTransient(err error) bool {
