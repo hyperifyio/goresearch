@@ -36,6 +36,11 @@ type Config struct {
     // CacheStrictPerms, when true, uses 0700 for cache dirs and 0600 for files.
     CacheStrictPerms bool
 
+    // EnablePDF gates optional PDF ingestion. When true, the fetcher will accept
+    // application/pdf content types and the extractor will attempt to parse text
+    // from PDFs. Default is false to avoid binary parsing risk by default.
+    EnablePDF bool
+
 	// Cache invalidation controls
 	// If > 0, remove cache entries older than this age before running.
 	CacheMaxAge time.Duration

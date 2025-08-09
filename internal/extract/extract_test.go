@@ -165,4 +165,19 @@ func TestNormalizeText_UnicodeWhitespaceAndDedupe(t *testing.T) {
     }
 }
 
+func TestFromPDF_MinimalExtraction(t *testing.T) {
+    // Simple fake PDF content stream with one text string
+    pdf := "%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\nstream\n(Hello, PDF World!) Tj\n(Second line) Tj\nendstream\n%%EOF"
+    doc := FromPDF([]byte(pdf))
+    if doc.Text == "" {
+        t.Fatalf("expected some text from PDF")
+    }
+    if !strings.Contains(doc.Text, "Hello, PDF World!") {
+        t.Fatalf("expected first string extracted; got: %q", doc.Text)
+    }
+    if !strings.Contains(doc.Text, "Second line") {
+        t.Fatalf("expected second string extracted; got: %q", doc.Text)
+    }
+}
+
 

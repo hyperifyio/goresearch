@@ -3,8 +3,10 @@ package fetch
 import (
     "context"
     "fmt"
+    "io"
     "net/http"
     "net/http/httptest"
+    "strings"
     "sync"
     "sync/atomic"
     "testing"
@@ -128,18 +130,36 @@ func TestGet_RejectsNonHTTP(t *testing.T) {
 }
 
 func TestGet_ContentTypeGating(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/pdf")
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte("%PDF-1.7"))
-	}))
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        switch r.URL.Path {
+        case "/html":
+            w.Header().Set("Content-Type", "text/html; charset=utf-8")
+            w.WriteHeader(200)
+            _, _ = io.WriteString(w, "<html><body>ok</body></html>")
+        case "/pdf":
+            w.Header().Set("Content-Type", "application/pdf")
+            w.WriteHeader(200)
+            _, _ = w.Write([]byte("%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\nstream\n(Hello PDF) Tj\nendstream\n"))
+        default:
+            w.WriteHeader(404)
+        }
+    }))
 	defer srv.Close()
 
     c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: 2 * time.Second, AllowPrivateHosts: true}
-	_, _, err := c.Get(context.Background(), srv.URL)
-	if err == nil {
-		t.Fatalf("expected error for unsupported content type")
-	}
+    // HTML allowed
+    if _, ct, err := c.Get(context.Background(), srv.URL+"/html"); err != nil || !strings.HasPrefix(ct, "text/html") {
+        t.Fatalf("expected html allowed, ct=%q err=%v", ct, err)
+    }
+    // PDF blocked by default
+    if _, _, err := c.Get(context.Background(), srv.URL+"/pdf"); err == nil {
+        t.Fatalf("expected error for pdf without EnablePDF")
+    }
+    // Enable and allow PDF
+    c.EnablePDF = true
+    if _, ct, err := c.Get(context.Background(), srv.URL+"/pdf"); err != nil || !strings.HasPrefix(ct, "application/pdf") {
+        t.Fatalf("expected pdf allowed with EnablePDF, ct=%q err=%v", ct, err)
+    }
 }
 
 func TestGet_RedirectLimit(t *testing.T) {

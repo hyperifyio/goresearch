@@ -114,7 +114,7 @@
 
 * [x] Prompt profile flexibility — Synthesis and verification prompts are externally configurable so teams can tune style, tone, and strictness without code changes.
 
-* [ ] Optional PDF support switch — PDF ingestion can be added as an optional, off-by-default feature guarded by a command flag to control binary parsing risk.
+* [x] Optional PDF support switch — PDF ingestion can be added as an optional, off-by-default feature guarded by a command flag to control binary parsing risk.
 
 * [x] Known limitations disclosure — The design acknowledges dependence on local model capabilities, uneven public coverage for some topics, imperfect boilerplate removal, and the need for human review for high-stakes accuracy.
 

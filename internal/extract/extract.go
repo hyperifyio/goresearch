@@ -14,6 +14,60 @@ type Document struct {
     Text  string
 }
 
+// FromPDF performs a minimal best-effort text extraction from PDF bytes.
+// It is intentionally conservative: it scans for common string literal
+// patterns and decodes simple escape sequences. This is not a full PDF parser
+// but suffices for quick prototyping behind an off-by-default flag.
+func FromPDF(input []byte) Document {
+    if len(input) == 0 {
+        return Document{}
+    }
+    // Very lightweight heuristic: collect printable runs and parentheses-delimited strings.
+    // Avoid heavy dependencies while we keep PDF optional.
+    var b strings.Builder
+    // 1) Extract text inside parentheses which often contain string operands
+    // in content streams. This is simplistic but yields readable snippets.
+    depth := 0
+    for i := 0; i < len(input); i++ {
+        c := input[i]
+        if c == '(' {
+            depth++
+            // skip writing the parenthesis
+            continue
+        }
+        if c == ')' && depth > 0 {
+            depth--
+            b.WriteString("\n")
+            continue
+        }
+        if depth > 0 {
+            // handle simple escapes \n \r \t and \\
+            if c == '\\' && i+1 < len(input) {
+                i++
+                switch input[i] {
+                case 'n':
+                    b.WriteByte('\n')
+                case 'r':
+                    b.WriteByte('\n')
+                case 't':
+                    b.WriteByte(' ')
+                case '\\':
+                    b.WriteByte('\\')
+                default:
+                    b.WriteByte(input[i])
+                }
+                continue
+            }
+            // write byte if likely printable ASCII
+            if c >= 32 && c <= 126 {
+                b.WriteByte(c)
+            }
+        }
+    }
+    text := normalizeText(b.String())
+    return Document{Title: "", Text: text}
+}
+
 // FromHTML extracts readable text from HTML, preferring <main> or <article>,
 // falling back to <body>. It preserves headings, paragraphs, list items,
 // and pre/code blocks, while skipping obvious boilerplate like <nav> and <footer>.

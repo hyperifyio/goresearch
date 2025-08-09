@@ -42,6 +42,7 @@ func main() {
 		cacheClear      bool
 		cacheStrict     bool
 		topicHash       string
+		enablePDF       bool
 	    synthSystemPrompt     string
 	    synthSystemPromptFile string
 	    verifySystemPrompt    string
@@ -69,6 +70,7 @@ func main() {
 	flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
 	flag.BoolVar(&cacheStrict, "cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
 	flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
+	flag.BoolVar(&enablePDF, "enable.pdf", false, "Enable optional PDF ingestion (application/pdf)")
 	// Prompt profile flexibility: allow overriding system prompts via flags/env
 	flag.StringVar(&synthSystemPrompt, "synth.systemPrompt", os.Getenv("SYNTH_SYSTEM_PROMPT"), "Override synthesis system prompt (inline string)")
 	flag.StringVar(&synthSystemPromptFile, "synth.systemPromptFile", os.Getenv("SYNTH_SYSTEM_PROMPT_FILE"), "Path to file containing synthesis system prompt")
@@ -113,6 +115,7 @@ func main() {
 		CacheClear:      cacheClear,
 		CacheStrictPerms: cacheStrict,
 		TopicHash:       topicHash,
+		EnablePDF:       enablePDF,
 		SynthSystemPrompt:  synthSystemPrompt,
 		VerifySystemPrompt: verifySystemPrompt,
 	}

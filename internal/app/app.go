@@ -191,6 +191,7 @@ func (a *App) Run(ctx context.Context) error {
 		MaxConcurrent:     8,
 		BypassCache:       a.cfg.CacheMaxAge == 0 && a.cfg.CacheClear, // bypass when user forces clear
         AllowPrivateHosts: a.cfg.AllowPrivateHosts,
+        EnablePDF:         a.cfg.EnablePDF,
 	}}
     // Use adapter-based extractor to enable swap of readability tactics
     excerpts := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
@@ -311,7 +312,7 @@ func pickNonEmpty(a, b string) string {
 // isolation" checklist item by ensuring one bad source does not stop progress.
 // sourceGetter abstracts the minimal fetch method used for tests.
 type sourceGetter interface {
-	get(ctx context.Context, url string) ([]byte, string, error)
+    get(ctx context.Context, url string) ([]byte, string, error)
 }
 
 func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ Extract([]byte) extract.Document }, selected []search.Result, cfg Config) []synth.SourceExcerpt {
@@ -322,17 +323,21 @@ func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ E
 	}
 	nextIndex := 1
 	for _, r := range selected {
-		body, _, err := f.get(ctx, r.URL)
+        body, contentType, err := f.get(ctx, r.URL)
 		if err != nil {
 			log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")
 			continue
 		}
-        // Allow swapping extraction strategy via adapter
+        // Choose extraction strategy based on content type and config
         var doc extract.Document
-        if extractor != nil {
-            doc = extractor.Extract(body)
+        if cfg.EnablePDF && strings.HasPrefix(strings.ToLower(contentType), "application/pdf") {
+            doc = extract.FromPDF(body)
         } else {
-            doc = extract.FromHTML(body)
+            if extractor != nil {
+                doc = extractor.Extract(body)
+            } else {
+                doc = extract.FromHTML(body)
+            }
         }
 		text := doc.Text
 		if len(text) > capChars {

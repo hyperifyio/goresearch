@@ -42,6 +42,10 @@ type Client struct {
     // AllowPrivateHosts, when true, disables the "public web only" guard that
     // rejects localhost and private IP ranges. Intended for tests only.
     AllowPrivateHosts bool
+
+    // EnablePDF, when true, allows fetching and accepting application/pdf bodies.
+    // The caller is responsible for choosing an appropriate extractor.
+    EnablePDF bool
 }
 
 func (c *Client) getHTTPClient() *http.Client {
@@ -153,8 +157,8 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
-	contentType := resp.Header.Get("Content-Type")
-	if !isAllowedHTMLContentType(contentType) {
+    contentType := resp.Header.Get("Content-Type")
+    if !(isAllowedHTMLContentType(contentType) || (c.EnablePDF && isAllowedPDFContentType(contentType))) {
 		return nil, "", "", "", resp.StatusCode, fmt.Errorf("unsupported content type: %s", contentType)
 	}
 	b, err := io.ReadAll(resp.Body)
@@ -216,6 +220,12 @@ func isAllowedHTMLContentType(ct string) bool {
 	ct = strings.ToLower(strings.TrimSpace(ct))
 	// allow text/html variants and application/xhtml+xml
 	return strings.HasPrefix(ct, "text/html") || strings.HasPrefix(ct, "application/xhtml+xml")
+}
+
+// isAllowedPDFContentType returns true for PDF content types.
+func isAllowedPDFContentType(ct string) bool {
+    ct = strings.ToLower(strings.TrimSpace(ct))
+    return strings.HasPrefix(ct, "application/pdf")
 }
 
 // isLocalOrPrivateHost returns true for localhost names and literal IPs that are
