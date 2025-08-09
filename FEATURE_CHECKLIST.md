@@ -100,7 +100,7 @@
 
 * [x] Integration test harness — Integration tests run against a stub LLM that returns canned JSON and Markdown and against recorded HTTP fixtures to validate the pipeline deterministically. (added `internal/app/integration_llm_test.go`)
 
-* [ ] Golden output comparisons — Generated reports are compared against golden files with allowances for timestamps and benign whitespace differences to detect regressions.
+* [x] Golden output comparisons — Generated reports are compared against golden files with allowances for timestamps and benign whitespace differences to detect regressions.
 
 * [ ] Verification test cases — Synthetic documents include properly cited and deliberately uncited claims to confirm that the verification pass flags unsupported statements.
 
