@@ -98,7 +98,7 @@
 
 * [x] Unit test coverage — Deterministic unit tests cover URL normalization, HTML extraction, deduplication, token budgeting, and citation validation using fixed fixtures.
 
-* [ ] Integration test harness — Integration tests run against a stub LLM that returns canned JSON and Markdown and against recorded HTTP fixtures to validate the pipeline deterministically.
+* [x] Integration test harness — Integration tests run against a stub LLM that returns canned JSON and Markdown and against recorded HTTP fixtures to validate the pipeline deterministically. (added `internal/app/integration_llm_test.go`)
 
 * [ ] Golden output comparisons — Generated reports are compared against golden files with allowances for timestamps and benign whitespace differences to detect regressions.
 
