@@ -89,6 +89,101 @@ func EnsureReferencesSection(markdown string) (num int, ok bool) {
     return 0, false
 }
 
+// ValidateReferencesCompleteness checks that each numbered reference item
+// contains both a human-readable title and at least one full URL.
+// Title detection is heuristic: after stripping the leading numeric marker and
+// any URLs, the remaining text must contain at least a few letters or a
+// Markdown link label like [Title].
+func ValidateReferencesCompleteness(markdown string) (incompleteIndices []int) {
+    lines := splitLines(markdown)
+    inRefs := false
+    itemOrder := 0
+    for i := 0; i < len(lines); i++ {
+        line := trimSpace(lines[i])
+        if line == "" {
+            if inRefs && itemOrder > 0 {
+                // Allow early termination on blank line after some items
+                return incompleteIndices
+            }
+            continue
+        }
+        if isHeading(line) {
+            if inRefs {
+                // End of references section
+                return incompleteIndices
+            }
+            if equalsIgnoreCase(stripHeading(line), "references") {
+                inRefs = true
+                continue
+            }
+        }
+        if inRefs {
+            if isNumberedItem(line) {
+                itemOrder++
+                content := stripNumberedPrefix(line)
+                hasURL := containsURL(content)
+                hasTitle := containsTitleText(content)
+                if !hasURL || !hasTitle {
+                    incompleteIndices = append(incompleteIndices, itemOrder)
+                }
+            }
+        }
+    }
+    return incompleteIndices
+}
+
+var urlRe = regexp.MustCompile(`https?://[^\s)]+`)
+var linkLabelRe = regexp.MustCompile(`\[[^\]]+\]\(`) // e.g., [Title](
+
+func containsURL(s string) bool {
+    return urlRe.FindStringIndex(s) != nil
+}
+
+func containsTitleText(s string) bool {
+    // If there is an explicit markdown link label, that's a title.
+    if linkLabelRe.FindStringIndex(s) != nil {
+        return true
+    }
+    // Remove URLs and common separators, then check for letters
+    withoutURLs := urlRe.ReplaceAllString(s, "")
+    // Drop common separators like dash, em dash, colon, parentheses
+    cleaned := make([]rune, 0, len(withoutURLs))
+    for _, r := range withoutURLs {
+        switch r {
+        case '—', '-', '–', ':', '(', ')', '[', ']', ' ', '\t':
+            continue
+        default:
+            cleaned = append(cleaned, r)
+        }
+    }
+    // Count ASCII letters as a simple proxy for a human-readable title
+    letters := 0
+    for _, r := range cleaned {
+        if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+            letters++
+            if letters >= 3 {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+func stripNumberedPrefix(s string) string {
+    // Assumes isNumberedItem(s) was true
+    i := 0
+    for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+        i++
+    }
+    if i < len(s) && s[i] == '.' {
+        i++
+    }
+    if i < len(s) && s[i] == ' ' {
+        i++
+    }
+    return trimSpace(s[i:])
+}
+
 func splitLines(s string) []string {
     var out []string
     start := 0
@@ -181,6 +276,9 @@ func ValidateReport(markdown string) error {
     n, ok := EnsureReferencesSection(markdown)
     if !ok {
         return fmt.Errorf("references section missing or empty")
+    }
+    if bad := ValidateReferencesCompleteness(markdown); len(bad) > 0 {
+        return fmt.Errorf("incomplete references (need title and full URL) at items: %v", bad)
     }
     c := ValidateCitations(markdown, n)
     if c.MissingReferences {

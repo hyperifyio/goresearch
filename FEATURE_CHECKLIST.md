@@ -50,7 +50,7 @@
 
 * [x] Citation validation — After synthesis, the tool validates that every cited index refers to an actual references entry and flags any out-of-range or broken citations.
 
-* [ ] Reference list completeness — The final references section includes both page titles and full URLs for each numbered source so readers can resolve citations directly.
+* [x] Reference list completeness — The final references section includes both page titles and full URLs for each numbered source so readers can resolve citations directly. (validated in code with tests)
 
 * [ ] Fact-check verification pass — A second short LLM pass extracts key claims from the document, maps each to minimal supporting source indices, assigns confidence levels, and marks any claims that are weakly supported or unsupported.
 
