@@ -416,6 +416,15 @@ Actively developed; APIs and flags are stable enough for day-to-day use, but exp
 
 ## Architecture and design
 
+### Data flow overview
+
+A concise view of the primary pipeline stages and boundaries. See the full architecture write‑up and detailed diagram in `docs/architecture.md`.
+
+```mermaid
+flowchart LR
+    Search --> Fetch --> Extract --> Select --> Synthesize --> Validate --> Verify
+```
+
 Scope and goal. The tool reads a single Markdown file that describes a research 
 request in natural language, for example “Detailed documentation about Cursor 
 MDC format including examples”. It automatically plans a web research strategy, 
