@@ -446,4 +446,106 @@ func TestValidateVisuals_Table_ReferenceTooFar_Fails(t *testing.T) {
     }
 }
 
+// Tests for FEATURE_CHECKLIST item 295: “Ready for distribution” checks — metadata and anchor links
+func TestValidateDistributionReady_OK(t *testing.T) {
+    md := `# Report Title
+
+2025-01-01
+
+Author: Jane Doe
+Version: v1.2.3
+
+## Intro
+See [details](#risks-and-limitations).
+
+## Risks and limitations
+Text.
+
+## References
+1. A — https://a.example`
+    if err := ValidateDistributionReady(md, "Jane Doe", "v1.2.3"); err != nil {
+        t.Fatalf("unexpected distribution-ready error: %v", err)
+    }
+}
+
+func TestValidateDistributionReady_MissingAuthor(t *testing.T) {
+    md := `# T
+
+2025-01-01
+
+Version: v0.1.0
+
+## References
+1. A — https://a`
+    if err := ValidateDistributionReady(md, "", ""); err == nil {
+        t.Fatalf("expected missing author error")
+    }
+}
+
+func TestValidateDistributionReady_BrokenAnchor(t *testing.T) {
+    md := `# T
+
+2025-01-01
+
+Author: X
+Version: v0.1.0
+
+See [foo](#no-such-heading).
+
+## References
+1. A — https://a`
+    if err := ValidateDistributionReady(md, "", ""); err == nil {
+        t.Fatalf("expected broken anchor error")
+    }
+}
+
+
+// Tests for FEATURE_CHECKLIST item 271: Title quality check — enforce ≤12 words,
+// descriptive keywords, and no unexplained acronyms/jargon.
+func TestValidateTitleQuality_WordLimit(t *testing.T) {
+    md := `# This Title Has More Than Twelve Words In It For Sure Indeed Today
+2025-01-01
+
+## References
+1. A — https://a`
+    if err := ValidateTitleQuality(md); err == nil {
+        t.Fatalf("expected failure for title exceeding 12 words")
+    }
+}
+
+func TestValidateTitleQuality_KeywordsRequired(t *testing.T) {
+    md := `# A Study Of The Web
+2025-01-01
+
+## References
+1. A — https://a`
+    if err := ValidateTitleQuality(md); err == nil {
+        t.Fatalf("expected failure for lacking descriptive keywords")
+    }
+}
+
+func TestValidateTitleQuality_AcronymMustBeDefined(t *testing.T) {
+    md := `# TLS Deployment Guidance
+2025-01-01
+
+Body without defining TLS.
+
+## References
+1. A — https://a`
+    if err := ValidateTitleQuality(md); err == nil {
+        t.Fatalf("expected failure for undefined acronym in title")
+    }
+
+    // Now define the acronym in the body
+    md2 := `# TLS Deployment Guidance
+2025-01-01
+
+Transport Layer Security (TLS) configuration tips.
+
+## References
+1. A — https://a`
+    if err := ValidateTitleQuality(md2); err != nil {
+        t.Fatalf("expected success when acronym is defined, got %v", err)
+    }
+}
 

@@ -313,10 +313,27 @@ func (a *App) Run(ctx context.Context) error {
         log.Warn().Err(err).Msg("visuals QA issues")
         md += "\n\n> WARNING: Visuals QA issues: " + err.Error() + "\n"
     }
+    // Title quality check — enforce word count, keywords, and acronym definitions
+    if err := validate.ValidateTitleQuality(md); err != nil {
+        log.Warn().Err(err).Msg("title quality issues")
+        md += "\n\n> WARNING: Title quality issues: " + err.Error() + "\n"
+    }
     // Audience fit check — flag jargon or mismatched sections vs audience/tone
     if err := validate.ValidateAudienceFit(md, b.AudienceHint, b.ToneHint); err != nil {
         log.Warn().Err(err).Msg("audience fit issues")
         md += "\n\n> WARNING: Audience fit issues: " + err.Error() + "\n"
+    }
+    // Distribution readiness (opt-in): ensure metadata and anchors are valid.
+    if a.cfg.DistributionChecks {
+        distVersion := a.cfg.ExpectedVersion
+        if strings.TrimSpace(distVersion) == "" {
+            distVersion = BuildVersion
+        }
+        if strings.TrimSpace(distVersion) == "" { distVersion = "0.0.0-dev" }
+        if err := validate.ValidateDistributionReady(md, a.cfg.ExpectedAuthor, distVersion); err != nil {
+            log.Warn().Err(err).Msg("distribution readiness issues")
+            md += "\n\n> WARNING: Distribution readiness: " + err.Error() + "\n"
+        }
     }
     log.Info().Str("stage", "validate").Dur("elapsed", time.Since(stageStart)).Msg("validation completed")
 
@@ -359,6 +376,15 @@ func (a *App) Run(ctx context.Context) error {
 		_ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
 	}
     log.Info().Str("stage", "manifest").Int("sources", len(manEntries)).Dur("elapsed", time.Since(stageStart)).Msg("manifest written")
+
+    // 10) Optionally render a PDF copy with basic clickable links
+    if strings.TrimSpace(a.cfg.OutputPDFPath) != "" {
+        if err := writeSimplePDF(md, a.cfg.OutputPDFPath); err != nil {
+            log.Warn().Err(err).Str("pdf", a.cfg.OutputPDFPath).Msg("failed to write PDF copy")
+        } else {
+            log.Info().Str("pdf", a.cfg.OutputPDFPath).Msg("wrote PDF copy")
+        }
+    }
 
 	if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
 		return fmt.Errorf("write output: %w", err)

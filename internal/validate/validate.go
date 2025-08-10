@@ -7,6 +7,7 @@ import (
     "sort"
     "strings"
     "time"
+    "unicode"
 )
 
 // Citations represents the validation result for inline [n] citations
@@ -910,4 +911,125 @@ func ValidateVisuals(markdown string) error {
 
 func absInt(x int) int { if x<0 { return -x }; return x }
 
+
+// ValidateTitleQuality enforces basic title quality rules:
+// - Title must be a single-line H1 (already enforced by ValidateStructure) and ≤ 12 words
+// - Title must include at least two descriptive keywords (non-stopwords with length ≥ 4)
+// - No unexplained acronyms in the title: any ALL-CAPS acronym (2..6 letters, optional plural 's')
+//   must be defined somewhere in the document body as either "Long Form (ACRO)" or "ACRO (Long Form)"
+func ValidateTitleQuality(markdown string) error {
+    title, err := extractH1Title(markdown)
+    if err != nil {
+        return err
+    }
+
+    // Word count (consider tokens with at least one letter/digit)
+    tokens := strings.Fields(title)
+    words := 0
+    for _, tok := range tokens {
+        if isWordToken(tok) { words++ }
+    }
+    if words > 12 {
+        return fmt.Errorf("title must be <= 12 words (found %d)", words)
+    }
+
+    // Descriptive keywords: at least one non-stopword of length >=4
+    if countContentKeywords(tokens) < 1 {
+        return fmt.Errorf("title must include at least one descriptive keyword (non-stopword length >= 4)")
+    }
+
+    // Unexplained acronyms check
+    undefined := undefinedTitleAcronyms(markdown, title)
+    if len(undefined) > 0 {
+        return fmt.Errorf("unexplained acronyms in title: %s", strings.Join(undefined, ", "))
+    }
+    return nil
+}
+
+func extractH1Title(markdown string) (string, error) {
+    lines := splitLines(markdown)
+    for i := 0; i < len(lines); i++ {
+        s := trimSpace(lines[i])
+        if s == "" { continue }
+        if !isHeading(s) || !(len(s) > 1 && s[0] == '#' && s[1] == ' ') {
+            return "", fmt.Errorf("first non-empty line must be an H1 markdown heading")
+        }
+        // ensure exactly one '#'
+        hashes := 0
+        for hashes < len(s) && s[hashes] == '#' { hashes++ }
+        if hashes != 1 {
+            return "", fmt.Errorf("title must be a single '# ' H1 heading")
+        }
+        return stripHeading(s), nil
+    }
+    return "", fmt.Errorf("document is empty; missing title")
+}
+
+func isWordToken(tok string) bool {
+    for _, r := range tok {
+        if unicode.IsLetter(r) || unicode.IsDigit(r) { return true }
+    }
+    return false
+}
+
+func normalizeToken(tok string) string {
+    // strip leading/trailing punctuation
+    i, j := 0, len(tok)
+    for i < j {
+        r := rune(tok[i])
+        if unicode.IsLetter(r) || unicode.IsDigit(r) { break }
+        i++
+    }
+    for j > i {
+        r := rune(tok[j-1])
+        if unicode.IsLetter(r) || unicode.IsDigit(r) { break }
+        j--
+    }
+    return strings.ToLower(tok[i:j])
+}
+
+func countContentKeywords(tokens []string) int {
+    // minimal stopword list sufficient for title heuristics
+    stop := map[string]struct{}{
+        "a":{},"an":{},"the":{},"of":{},"and":{},"or":{},"to":{},"for":{},"in":{},"on":{},
+        "with":{},"without":{},"by":{},"about":{},"from":{},"into":{},"over":{},"under":{},
+        "between":{},"beyond":{},"at":{},"as":{},"is":{},"are":{},"be":{},"being":{},"been":{},
+        "study":{},"report":{},"overview":{},"guide":{},"introduction":{},"analysis":{},
+    }
+    count := 0
+    for _, t := range tokens {
+        n := normalizeToken(t)
+        if n == "" { continue }
+        if _, ok := stop[n]; ok { continue }
+        if len(n) >= 4 { count++ }
+    }
+    return count
+}
+
+var acronymInTitleRe = regexp.MustCompile(`\b([A-Z]{2,6})s?\b`)
+
+func undefinedTitleAcronyms(markdown, title string) []string {
+    seen := map[string]struct{}{}
+    var acros []string
+    for _, m := range acronymInTitleRe.FindAllStringSubmatch(title, -1) {
+        if len(m) < 2 { continue }
+        ac := m[1]
+        // Skip when it's just a single letter repeated (unlikely due to {2,6})
+        if _, ok := seen[ac]; ok { continue }
+        seen[ac] = struct{}{}
+        if !isAcronymDefined(markdown, ac) {
+            acros = append(acros, ac)
+        }
+    }
+    return acros
+}
+
+func isAcronymDefined(markdown, acro string) bool {
+    if strings.TrimSpace(acro) == "" { return true }
+    // Pattern A: Long form (ACRO)
+    reA := regexp.MustCompile(`(?s)\b([A-Za-z][A-Za-z0-9&/\-]+(?:\s+[A-Za-z][A-Za-z0-9&/\-]+){0,6})\s*\(` + regexp.QuoteMeta(acro) + `\)`) //nolint:gosimple
+    // Pattern B: ACRO (Long form)
+    reB := regexp.MustCompile(`(?s)\b` + regexp.QuoteMeta(acro) + `\s*\(([A-Za-z][A-Za-z0-9&/\-]+(?:\s+[A-Za-z][A-Za-z0-9&/\-]+){0,6})\)`) //nolint:gosimple
+    return reA.FindStringIndex(markdown) != nil || reB.FindStringIndex(markdown) != nil
+}
 

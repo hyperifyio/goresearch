@@ -268,7 +268,7 @@
 
 * [ ] Executive Summary guardrails — length target (\~150–250 words) and content checks (motivation, methods, key results, recommendations).&#x20;
 
-* [ ] Title quality check — enforce ≤12 words, descriptive keywords, and no unexplained acronyms/jargon.&#x20;
+* [x] Title quality check — enforce ≤12 words, descriptive keywords, and no unexplained acronyms/jargon.&#x20;
 
 * [ ] Heading audit — require descriptive “mini-title” headings, consistent hierarchy/parallel phrasing; optional auto-numbering for long reports.&#x20;
 
@@ -292,7 +292,7 @@
 
 * [ ] Proofreading pass — grammar/spell/consistency check (units, terminology, capitalization) before final render.&#x20;
 
-* [ ] “Ready for distribution” checks — validate metadata (author/date/version), link targets, and optionally produce a PDF with working hyperlinks.&#x20;
+* [x] “Ready for distribution” checks — validate metadata (author/date/version), link targets, and optionally produce a PDF with working hyperlinks.&#x20;
 
 * [ ] Accessibility checks — heading order correctness and “no color-only meaning” warnings; require alt text for any images.&#x20;
 
