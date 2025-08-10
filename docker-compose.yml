@@ -35,14 +35,14 @@ services:
     profiles: ["dev", "test", "offline"]
     depends_on:
       llm-openai:
-        condition: service_started
+        condition: service_healthy
       searxng:
-        condition: service_started
+        condition: service_healthy
 
   # OpenAI-compatible LLM server
   # This uses LocalAI as a convenient default for development.
   llm-openai:
-    image: quay.io/go-skynet/local-ai:latest
+    image: quay.io/go-skynet/local-ai@sha256:1111111111111111111111111111111111111111111111111111111111111111
     environment:
       - MODELS_PATH=/models
       - GIN_MODE=release
