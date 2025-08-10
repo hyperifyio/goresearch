@@ -20,6 +20,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
  - [Full CLI reference](#full-cli-reference)
  - [Run locally with Docker](#run-locally-with-docker)
  - [Local stack helpers (optional)](#local-stack-helpers-optional)
+ - [Troubleshooting & FAQ](#troubleshooting--faq)
 
 ## Features
 - **End-to-end pipeline**: brief parsing → planning → search → fetch/extract → selection/dedup → budgeting → synthesis → validation → verification → rendering.
@@ -364,6 +365,10 @@ Override mechanism for controlled environments:
 - `-robots.overrideDomains example.com,docs.internal`: Ignore robots.txt for the listed domains. This is only activated when `-robots.overrideConfirm` is also provided. The override affects robots.txt evaluation only; AI/TDM opt-out signals (`noai`, `notrain`, TDM reservation) remain enforced.
 
 These safeguards exist to keep usage respectful of site operators and content owners. If you need to test against mirrors or internal docs, prefer adding those hosts to the explicit override allowlist for the duration of your run.
+
+## Troubleshooting & FAQ
+
+For common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug, see [docs/troubleshooting-and-faq.md](docs/troubleshooting-and-faq.md).
 
 ## Tests
 
