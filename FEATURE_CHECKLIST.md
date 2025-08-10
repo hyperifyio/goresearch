@@ -181,7 +181,7 @@
 
 * [x] Prompt affordances — System/developer messages that document each tool’s contract, limits, and when to use it; keep this text concise to save tokens. (implemented in `internal/llmtools/orchestrator.go` with test `TestOrchestrator_IncludesPromptAffordancesInSystem`)
 
-* [ ] Token/context budgeting for tool chat — Heuristics to prune earlier loop turns and compress older tool outputs so the running conversation stays within context.
+* [x] Token/context budgeting for tool chat — Heuristics to prune earlier loop turns and compress older tool outputs so the running conversation stays within context.
 
 * [ ] Tests: tool loop — Deterministic integration tests with a stub model that requests specific tool calls in order; assert call sequencing and final answer assembly.
 
