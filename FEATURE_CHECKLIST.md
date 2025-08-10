@@ -230,7 +230,7 @@
 
 * [ ] Cache at-rest option — If cache encryption is enabled in the app, wire it to a dedicated cache volume and expose a COMPOSE profile/env toggle to activate encryption or restricted permissions at runtime.
 
-* [ ] Documentation snippet — Update README with a “Run locally with Docker” section covering prerequisites, one-line dev start, profiles, environment variables, health checks, and common troubleshooting steps.
+* [x] Documentation snippet — Update README with a “Run locally with Docker” section covering prerequisites, one-line dev start, profiles, environment variables, health checks, and common troubleshooting steps.
 
 * [x] Single-file config support — Add support for goresearch.yaml|json with env-var overrides, schema validation, and `goresearch init` to scaffold a config and `.env.example`.&#x20;
 

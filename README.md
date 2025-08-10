@@ -18,6 +18,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 - [License](#license)
 - [Project status](#project-status)
  - [Full CLI reference](#full-cli-reference)
+ - [Run locally with Docker](#run-locally-with-docker)
  - [Local stack helpers (optional)](#local-stack-helpers-optional)
 
 ## Features
@@ -138,6 +139,97 @@ Primary flags (with defaults):
 ## Full CLI reference
 
 For a comprehensive, auto-generated list of all flags and environment variables, see: [docs/cli-reference.md](docs/cli-reference.md).
+
+## Run locally with Docker
+
+Important: On Apple M2 virtual machines (including this development environment), Docker is not available due to nested virtualization limits. Use the non-Docker alternatives documented below (for example, Homebrew/venv SearxNG and a local LLM). On machines with Docker installed, you can run the full local stack.
+
+### Prerequisites
+- Docker Desktop with Compose v2 (or Docker Engine + `docker compose` CLI)
+- Recommended: ≥4 CPUs and ≥8 GB RAM for the LLM service
+- Network access to pull images on first run
+
+### One-line dev start
+
+Bring up the development profile (research tool + SearxNG + OpenAI-compatible LLM):
+
+```bash
+docker compose --profile dev up -d
+```
+
+Alternatively, use the convenience target:
+
+```bash
+make up
+```
+
+### Profiles
+- dev: `research-tool`, `searxng`, `llm-openai` (default local stack)
+- test: `research-tool`, `stub-llm` (deterministic testing)
+- offline: `research-tool-offline`, `llm-openai` (cache-only; no SearxNG)
+
+Examples:
+
+```bash
+# Dev stack
+docker compose --profile dev up -d
+
+# Test stack with stub model
+docker compose --profile test up -d stub-llm
+
+# Offline stack (HTTP/LLM cache only)
+docker compose --profile offline up -d
+```
+
+### Environment variables
+Compose will read a local `.env` file when present and also respects exported shell variables. Useful settings:
+
+- `LLM_MODEL`: model identifier known to your LLM server (default `gpt-neo`)
+- `LLM_API_KEY`: API key if your server requires one (not baked into images)
+- `SEARX_URL`: internal URL for SearxNG (default `http://searxng:8080`)
+- `APP_UID` / `APP_GID`: host user/group IDs to avoid permission issues on bind mounts (e.g., `APP_UID=$(id -u) APP_GID=$(id -g)` before `make up`)
+
+You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container, but the defaults in `docker-compose.yml` are sufficient for most dev flows.
+
+### Health checks and readiness
+- Services declare health checks: `llm-openai` probes `/v1/models`, `searxng` probes `/status`.
+- The app services use `depends_on: condition: service_healthy` so they start only after dependencies are ready.
+- Check health via:
+
+```bash
+docker compose ps
+docker compose logs -f --tail=100
+```
+
+- From the host, you can also poll readiness without Docker using the helper:
+
+```bash
+make wait
+```
+
+### Common troubleshooting
+- Permissions on `./reports` or `./.goresearch-cache`:
+  - Export your IDs: `export APP_UID=$(id -u) APP_GID=$(id -g)` and re-run `make up`.
+  - Or run the ownership fixer once:
+
+    ```bash
+    docker compose -f docker-compose.yml -f docker-compose.permissions.yml.example run --rm fix-perms
+    ```
+
+- No ports exposed / cannot reach services from host:
+  - By default, the stack is on an internal network only. To expose ports temporarily:
+
+    ```bash
+    docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
+    ```
+
+    This maps `llm-openai` to `localhost:8080` and `searxng` to `localhost:8888`.
+
+- LLM not ready or “model not found” errors:
+  - Ensure `LLM_MODEL` matches a model your server has installed. Consult your LLM server docs for installing or selecting a model.
+
+- Docker unavailable on this machine (e.g., Apple M2 VM):
+  - Use the non-Docker options in “Running SearxNG without Docker (optional)” and point `goresearch` at those endpoints.
 
 ## Local stack helpers (optional)
 
