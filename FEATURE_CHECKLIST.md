@@ -284,7 +284,7 @@
 
 * [ ] References enrichment — resolve/insert DOIs where available, add stable URLs and “Accessed on” dates for web sources; completeness validator.&#x20;
 
-* [ ] Reference quality/mix validator — configurable policy to prefer peer-reviewed/standards, ensure recency where appropriate, and prevent over-reliance on a few sources.&#x20;
+* [x] Reference quality/mix validator — configurable policy to prefer peer-reviewed/standards, ensure recency where appropriate, and prevent over-reliance on a few sources.&#x20;
 
 * [ ] Counter-evidence search step — inject queries like “limitations of X / contrary findings”, and require a short “Alternatives & conflicting evidence” subsection.&#x20;
 
