@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hyperifyio/goresearch/internal/synth"
+    "github.com/hyperifyio/goresearch/internal/llmtools"
 )
 
 // manifestEntry is a compact record of a single source used in synthesis.
@@ -111,6 +112,36 @@ func appendEmbeddedManifestWithSkipped(markdown string, meta manifestMeta, entri
             b.WriteString(" — ")
             b.WriteString(strings.TrimSpace(s.Reason))
         }
+        b.WriteString("\n")
+    }
+    return b.String()
+}
+
+// appendToolTranscript appends a transcript of tool calls if provided.
+func appendToolTranscript(markdown string, transcript []llmtools.ToolCallRecord) string {
+    if len(transcript) == 0 {
+        return markdown
+    }
+    var b strings.Builder
+    b.WriteString(markdown)
+    b.WriteString("\n### Tool-call transcript\n\n")
+    for i, rec := range transcript {
+        // Format: N. name (id=..., ok=..., dry_run=...) args_hash=... result_sha256=... result_bytes=...
+        b.WriteString(strconv.Itoa(i+1))
+        b.WriteString(". ")
+        b.WriteString(rec.Name)
+        b.WriteString(" (id=")
+        b.WriteString(strings.TrimSpace(rec.ToolCallID))
+        b.WriteString(", ok=")
+        b.WriteString(boolToString(rec.OK))
+        b.WriteString(", dry_run=")
+        b.WriteString(boolToString(rec.DryRun))
+        b.WriteString(") args_hash=")
+        b.WriteString(rec.ArgumentsHash)
+        b.WriteString(" result_sha256=")
+        b.WriteString(rec.ResultSHA256)
+        b.WriteString(" result_bytes=")
+        b.WriteString(strconv.Itoa(rec.ResultBytes))
         b.WriteString("\n")
     }
     return b.String()

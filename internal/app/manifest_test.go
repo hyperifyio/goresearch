@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hyperifyio/goresearch/internal/synth"
+    "github.com/hyperifyio/goresearch/internal/llmtools"
 )
 
 func TestBuildManifestEntriesFromSynth_ComputesSHA256AndChars(t *testing.T) {
@@ -59,6 +60,24 @@ func TestAppendEmbeddedManifestWithSkipped_AppendsSkippedSection(t *testing.T) {
     }
     if !strings.Contains(out, "https://example.org/blocked — X-Robots-Tag:noai") {
         t.Fatalf("expected skipped entry line; got:\n%s", out)
+    }
+}
+
+func TestAppendToolTranscript_AppendsEntries(t *testing.T) {
+    base := "# Doc\n\nBody\n"
+    transcript := []llmtools.ToolCallRecord{
+        {Name: "web_search", ToolCallID: "tc1", ArgumentsHash: "aabb", ResultSHA256: "ccdd", ResultBytes: 123, OK: true, DryRun: false},
+        {Name: "fetch_url", ToolCallID: "tc2", ArgumentsHash: "eeff", ResultSHA256: "0011", ResultBytes: 456, OK: false, DryRun: true},
+    }
+    out := appendToolTranscript(base, transcript)
+    if !strings.Contains(out, "### Tool-call transcript") {
+        t.Fatalf("expected tool-call transcript header")
+    }
+    if !strings.Contains(out, "1. web_search (id=tc1, ok=true, dry_run=false) args_hash=aabb result_sha256=ccdd result_bytes=123") {
+        t.Fatalf("expected first transcript line; got:\n%s", out)
+    }
+    if !strings.Contains(out, "2. fetch_url (id=tc2, ok=false, dry_run=true) args_hash=eeff result_sha256=0011 result_bytes=456") {
+        t.Fatalf("expected second transcript line; got:\n%s", out)
     }
 }
 

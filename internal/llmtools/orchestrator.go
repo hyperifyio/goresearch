@@ -62,6 +62,10 @@ type Orchestrator struct {
     //
     // The function should return the final Markdown and an error if it fails.
     Fallback func(ctx context.Context) (string, error)
+
+    // toolTranscript captures an ordered summary of executed tool calls for
+    // auditability and later inclusion in manifests.
+    toolTranscript []ToolCallRecord
 }
 
 // Run executes the orchestration loop.
@@ -76,6 +80,9 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
     if o.Registry == nil {
         return "", nil, fmt.Errorf("orchestrator: Registry is nil")
     }
+
+    // Reset transcript for this run
+    o.toolTranscript = nil
 
     // Seed conversation (system message will be augmented with prompt affordances)
     messages := make([]openai.ChatCompletionMessage, 0, 2+len(extra))
@@ -314,6 +321,18 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                 Bool("dry_run", o.DryRunTools).
                 Int64("duration_ms", time.Since(startedTool).Milliseconds()).
                 Msg("tool call")
+
+            // Record transcript entry for manifest purposes
+            resultHashBytes := sha256.Sum256([]byte(resultContent))
+            o.toolTranscript = append(o.toolTranscript, ToolCallRecord{
+                Name:          call.Name,
+                ToolCallID:    call.ID,
+                ArgumentsHash: argsHash,
+                ResultSHA256:  fmt.Sprintf("%x", resultHashBytes[:]),
+                ResultBytes:   len(resultContent),
+                OK:            okFlag,
+                DryRun:        o.DryRunTools,
+            })
 
             messages = append(messages, openai.ChatCompletionMessage{
                 Role:       openai.ChatMessageRoleTool,

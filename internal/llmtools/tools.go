@@ -28,6 +28,18 @@ type ToolCall struct {
     Arguments json.RawMessage // raw JSON arguments
 }
 
+// ToolCallRecord is a compact, stable summary of an executed tool call used for
+// auditability and manifest recording.
+type ToolCallRecord struct {
+    Name          string `json:"name"`
+    ToolCallID    string `json:"tool_call_id"`
+    ArgumentsHash string `json:"args_hash"`
+    ResultSHA256  string `json:"result_sha256"`
+    ResultBytes   int    `json:"result_bytes"`
+    OK            bool   `json:"ok"`
+    DryRun        bool   `json:"dry_run"`
+}
+
 // EncodeTools converts ToolSpec entries into OpenAI-compatible tools array.
 func EncodeTools(specs []ToolSpec) []openai.Tool {
     out := make([]openai.Tool, 0, len(specs))

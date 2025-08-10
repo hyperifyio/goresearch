@@ -283,7 +283,7 @@ func (a *App) Run(ctx context.Context) error {
 	// 5) Synthesize report
     stageStart = time.Now()
     syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt, AllowCOTLogging: a.cfg.DebugVerbose}
-	md, err := syn.Synthesize(ctx, synth.Input{
+    md, err := syn.Synthesize(ctx, synth.Input{
 		Brief:                b,
 		Outline:              plan.Outline,
 		Sources:              excerpts,
@@ -321,7 +321,7 @@ func (a *App) Run(ctx context.Context) error {
 	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
 	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
-	// 9) Append embedded manifest and write a sidecar JSON manifest
+    // 9) Append embedded manifest and write a sidecar JSON manifest
     stageStart = time.Now()
 	manEntries := buildManifestEntriesFromSynth(excerpts)
 	manMeta := manifestMeta{
@@ -334,6 +334,12 @@ func (a *App) Run(ctx context.Context) error {
 	}
     // Include a list of skipped URLs due to robots/opt-out decisions in the manifest
     md = appendEmbeddedManifestWithSkipped(md, manMeta, manEntries, skipped)
+    // If tools were used this run and a transcript exists, append it
+    if a.cfg.ToolsEnabled {
+        // The orchestrated path would own synthesis; for baseline pipeline we have no transcript.
+        // We append only when orchestrator provides one in future integration.
+        // noop for now
+    }
 	if data, err := marshalManifestJSON(manMeta, manEntries); err == nil {
 		_ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
 	}
