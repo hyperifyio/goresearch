@@ -67,3 +67,23 @@ Summary.
         t.Fatalf("expected body reference to appendices; got:\n%s", out)
     }
 }
+
+func TestAutoNumberHeadings_LongReport_Numbered(t *testing.T) {
+    md := "# T\n2025-01-01\n\n"
+    for i := 0; i < 8; i++ {
+        md += "## Section title here\nText\n\n"
+        md += "### Subsection detail\nMore\n\n"
+    }
+    out := autoNumberHeadings(md, true)
+    if !strings.Contains(out, "## 1. Section title here") {
+        t.Fatalf("expected H2 numbering to appear; got:\n%s", out)
+    }
+    if !strings.Contains(out, "### 1.1 Subsection detail") {
+        t.Fatalf("expected H3 numbering to appear; got:\n%s", out)
+    }
+    // Idempotent: applying again should not double-number
+    out2 := autoNumberHeadings(out, true)
+    if strings.Count(out2, "## 1. Section title here") != 1 {
+        t.Fatalf("expected idempotent numbering for H2")
+    }
+}

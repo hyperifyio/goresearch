@@ -549,3 +549,100 @@ Transport Layer Security (TLS) configuration tips.
     }
 }
 
+
+// Tests for FEATURE_CHECKLIST item 273: Heading audit — require descriptive
+// mini-title headings, consistent hierarchy/parallel phrasing; optional
+// auto-numbering for long reports (numbering tested in app package).
+func TestValidateHeadingsQuality_OK(t *testing.T) {
+    md := `# T
+2025-01-01
+
+## Executive summary
+A brief overview of findings and recommendations.
+
+## Background and context
+Why this matters and prior art.
+
+### Prior work
+Survey of approaches.
+
+### Current constraints
+Budget, data availability, and deadlines.
+
+## Risks and limitations
+List of constraints.
+
+## References
+1. A — https://a`
+    if err := ValidateHeadingsQuality(md); err != nil {
+        t.Fatalf("expected headings quality to pass, got %v", err)
+    }
+}
+
+func TestValidateHeadingsQuality_NonDescriptiveFails(t *testing.T) {
+    md := `# T
+2025-01-01
+
+## Introduction
+Text.
+
+## Background
+Text.
+
+## Risks and limitations
+Text.
+
+## References
+1. A — https://a`
+    if err := ValidateHeadingsQuality(md); err == nil {
+        t.Fatalf("expected headings quality to fail for non-descriptive mini-titles")
+    }
+}
+
+func TestValidateHeadingsQuality_LevelJumpFails(t *testing.T) {
+    md := `# T
+2025-01-01
+
+## Section one details
+Text.
+
+#### Jumped too far
+Text.
+
+## Risks and limitations
+Text.
+
+## References
+1. A — https://a`
+    if err := ValidateHeadingsQuality(md); err == nil {
+        t.Fatalf("expected failure for heading level jump (H2 -> H4)")
+    }
+}
+
+func TestValidateHeadingsQuality_ParallelPhrasingMismatch(t *testing.T) {
+    md := `# T
+2025-01-01
+
+## Evaluating options
+Text.
+
+### Choosing providers
+Some.
+
+### Cost analysis
+Some.
+
+### Compare latency
+Some.
+
+## Risks and limitations
+Text.
+
+## References
+1. A — https://a`
+    // Sibling H3 headings mix gerund starts (Choosing) with non-gerund (Cost, Compare)
+    if err := ValidateHeadingsQuality(md); err == nil {
+        t.Fatalf("expected failure for parallel phrasing mismatch among sibling headings")
+    }
+}
+

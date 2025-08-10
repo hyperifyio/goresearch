@@ -81,6 +81,75 @@ func appendAutoToC(markdown string, minHeadings int) string {
     return strings.Join(out, "\n")
 }
 
+// autoNumberHeadings optionally prefixes section headings with numbers for
+// long reports to improve navigation. Applies to H2 and H3 levels only and
+// skips meta sections (References, Glossary, Evidence, Manifest). Idempotent.
+func autoNumberHeadings(markdown string, enable bool) string {
+    if !enable { return markdown }
+    lines := strings.Split(markdown, "\n")
+    h1Seen := false
+    sec := 0
+    sub := 0
+    for i, raw := range lines {
+        s := strings.TrimSpace(raw)
+        if !strings.HasPrefix(s, "#") { continue }
+        lvl := countPrefix(s, '#')
+        if lvl == 1 { h1Seen = true; continue }
+        if !h1Seen { continue }
+        // Extract title text after hashes and a space
+        if len(s) <= lvl || s[lvl] != ' ' { continue }
+        title := strings.TrimSpace(s[lvl+1:])
+        low := strings.ToLower(title)
+        // Skip meta sections
+        if low == "references" || strings.Contains(low, "glossary") || strings.HasPrefix(low, "evidence") || strings.Contains(low, "manifest") {
+            continue
+        }
+        // If already numbered (e.g., "1. ", "2.3 "), skip to keep idempotent
+        if hasLeadingNumber(title) { continue }
+        switch lvl {
+        case 2:
+            sec++
+            sub = 0
+            lines[i] = strings.Repeat("#", lvl) + " " + itoa(sec) + ". " + title
+        case 3:
+            if sec == 0 { continue } // avoid numbering H3 before first H2
+            sub++
+            lines[i] = strings.Repeat("#", lvl) + " " + itoa(sec) + "." + itoa(sub) + " " + title
+        }
+    }
+    return strings.Join(lines, "\n")
+}
+
+func hasLeadingNumber(title string) bool {
+    t := strings.TrimSpace(title)
+    // Accept patterns like "1. ", "2.3 ", "10.2 "
+    i := 0
+    digits := 0
+    for i < len(t) && t[i] >= '0' && t[i] <= '9' { i++; digits++ }
+    if digits == 0 { return false }
+    if i < len(t) && t[i] == '.' {
+        // allow one dot for H2 or dot+digits for H3
+        i++
+        // optional second number
+        for i < len(t) && t[i] >= '0' && t[i] <= '9' { i++ }
+    }
+    // require trailing space after numbering
+    return i < len(t) && t[i] == ' '
+}
+
+// itoa converts a small positive int to string without fmt.Sprint
+func itoa(n int) string {
+    if n == 0 { return "0" }
+    buf := [12]byte{}
+    i := len(buf)
+    for n > 0 {
+        i--
+        buf[i] = byte('0' + (n % 10))
+        n /= 10
+    }
+    return string(buf[i:])
+}
+
 // indexAfterHeaderAndMetadata returns the line index after the initial header
 // block consisting of: first H1, next non-empty line (date), and up to ~40 lines
 // scanning for Author:/Version: metadata. Falls back to after the first H1.

@@ -368,6 +368,16 @@ func (a *App) Run(ctx context.Context) error {
 
     // 7d) Appendix management — defer until all appendices are appended
 
+    // 7e) Heading quality audit — enforce mini-titles, hierarchy, parallel phrasing
+    if err := validate.ValidateHeadingsQuality(md); err != nil {
+        log.Warn().Err(err).Msg("heading quality issues")
+        md += "\n\n> WARNING: Heading quality: " + err.Error() + "\n"
+    }
+
+    // 7f) Optional auto-numbering for long reports (H2/H3)
+    // Enabled when ToC inserted (heuristic: at least 12 headings) to improve navigation.
+    md = autoNumberHeadings(md, containsHeadingCase(md, "table of contents"))
+
 	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
 	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 

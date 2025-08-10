@@ -30,6 +30,9 @@ Key claims mapped.
 - Another with [1][2] — cites [1,2]; confidence: high; supported: true
 
 
+> WARNING: Heading quality: non-descriptive heading: "Background" (line 7) — use a mini-title like 'Background and context' or add a subtitle
+
+
 ---
 Reproducibility: model=test-model; llm_base_url=LLM_BASE_URL; sources_used=2; http_cache=true; llm_cache=true
 

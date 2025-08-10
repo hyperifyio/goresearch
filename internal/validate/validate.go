@@ -946,6 +946,113 @@ func ValidateTitleQuality(markdown string) error {
     return nil
 }
 
+// ValidateHeadingsQuality enforces heading mini-title quality and hierarchy:
+// - Headings must be descriptive: avoid generic labels like "Introduction", "Background" alone.
+//   Require either at least 2 content words (non-stopwords length ≥4) or a colon/mdash subtitle.
+// - Hierarchy must not jump more than one level at a time (e.g., H2 -> H4 is rejected).
+// - Parallel phrasing for sibling headings: among immediate siblings (same level), the leading
+//   word form should be consistent. We approximate by checking whether a majority start with a
+//   gerund (ends with "ing"); mixing gerund and non-gerund starts triggers a warning-level error.
+// Excludes the H1 title and appendix/meta sections.
+func ValidateHeadingsQuality(markdown string) error {
+    lines := splitLines(markdown)
+    type hd struct{ level int; text string; line int }
+    var heads []hd
+    h1Seen := false
+    for i, raw := range lines {
+        s := trimSpace(raw)
+        if !isHeading(s) { continue }
+        lvl := 0
+        for lvl < len(s) && s[lvl] == '#' { lvl++ }
+        txt := stripHeading(s)
+        if !h1Seen && lvl == 1 { h1Seen = true; continue }
+        // Skip common meta sections
+        low := strings.ToLower(txt)
+        if low == "references" || strings.Contains(low, "glossary") || strings.HasPrefix(low, "evidence") || strings.Contains(low, "manifest") {
+            continue
+        }
+        heads = append(heads, hd{level: lvl, text: txt, line: i+1})
+    }
+
+    if len(heads) == 0 { return nil }
+
+    // 1) Hierarchy consistency: no jumps >1 level
+    prev := heads[0].level
+    for i := 1; i < len(heads); i++ {
+        if heads[i].level > prev+1 {
+            return fmt.Errorf("heading level jumps from H%d to H%d at line %d", prev, heads[i].level, heads[i].line)
+        }
+        prev = heads[i].level
+    }
+
+    // 2) Descriptive mini-titles
+    for _, h := range heads {
+        if !isDescriptiveHeading(h.text) {
+            return fmt.Errorf("non-descriptive heading: %q (line %d) — use a mini-title like 'Background and context' or add a subtitle", h.text, h.line)
+        }
+    }
+
+    // 3) Parallel phrasing among siblings: check runs of same-level headings between deeper ones
+    for i := 0; i < len(heads); {
+        j := i + 1
+        for j < len(heads) && heads[j].level == heads[i].level { j++ }
+        // check siblings heads[i:j]
+        if j-i >= 2 {
+            gerunds := 0
+            non := 0
+            for k := i; k < j; k++ {
+                if startsWithGerund(heads[k].text) { gerunds++ } else { non++ }
+            }
+            if gerunds > 0 && non > 0 {
+                return fmt.Errorf("sibling headings at level H%d mix gerund and non-gerund starts; keep phrasing parallel", heads[i].level)
+            }
+        }
+        // advance to next group; if next is deeper, skip until we return to same or above
+        i = j
+        // If the next heading is deeper, we still process groups independently as encountered.
+    }
+    return nil
+}
+
+func isDescriptiveHeading(s string) bool {
+    t := strings.TrimSpace(s)
+    if t == "" { return false }
+    // Allow subtitle punctuation to qualify as descriptive
+    if strings.Contains(t, ":") || strings.Contains(t, "—") || strings.Contains(t, "–") {
+        return true
+    }
+    // Generic labels commonly produced by LLMs
+    generic := map[string]struct{}{
+        "introduction": {},
+        "background": {},
+        "overview": {},
+        "conclusion": {},
+        "summary": {},
+        "body": {},
+        "analysis": {},
+    }
+    low := strings.ToLower(t)
+    if _, ok := generic[low]; ok { return false }
+    // Count content keywords
+    tokens := strings.Fields(t)
+    if countContentKeywords(tokens) >= 2 { return true }
+    return false
+}
+
+func startsWithGerund(s string) bool {
+    // Consider first token after stripping leading punctuation
+    fields := strings.Fields(s)
+    if len(fields) == 0 { return false }
+    w := normalizeToken(fields[0])
+    if len(w) < 4 { return false }
+    if strings.HasSuffix(w, "ing") {
+        // avoid words like "string" by requiring not to end with "string" exact
+        if w == "string" { return false }
+        return true
+    }
+    return false
+}
+
 func extractH1Title(markdown string) (string, error) {
     lines := splitLines(markdown)
     for i := 0; i < len(lines); i++ {

@@ -10,7 +10,7 @@ commit_if_changes() {
     echo "--- COMMITTING LOCAL CHANGES ---"
     echo
     git add .
-    cursor-agent -p --output-format text -f -m gpt-5 \
+    gtimeout 5m cursor-agent -p --output-format text -f -m gpt-5 \
       "Follow these rules .cursor/rules/go-commit.mdc"
   fi
 }
@@ -51,7 +51,7 @@ $task_text
 When implementation and tests are complete, update FEATURE_CHECKLIST.md to check off this exact line. Keep commits small and meaningful.
 EOF
 )
-    cursor-agent -p --output-format text -f -m gpt-5 "$prompt"
+    gtimeout 15m cursor-agent -p --output-format text -f -m gpt-5 "$prompt"
 
     # Commit after each attempt
     commit_if_changes
