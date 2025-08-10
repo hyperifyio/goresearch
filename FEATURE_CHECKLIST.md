@@ -214,7 +214,7 @@
 
 * [ ] Reproducible images — Pin all service images by digest, add SBOM export at build (BuildKit attestations), and label images with vcs-ref and build-date for traceability.
 
-* [ ] Make targets for DX — Add make up, make down, make logs, make rebuild, make test (uses test profile + stub-llm), and make clean (prunes volumes for caches). Document one-liners in README.
+* [x] Make targets for DX — Add make up, make down, make logs, make rebuild, make test (uses test profile + stub-llm), and make clean (prunes volumes for caches). Document one-liners in README.
 
 * [ ] CI compose smoke test — GitHub Actions workflow that builds the tool image, brings up the test profile (tool+stub-llm), runs a canned brief, asserts a report file exists, and uploads it as an artifact.
 

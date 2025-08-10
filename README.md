@@ -18,6 +18,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 - [License](#license)
 - [Project status](#project-status)
  - [Full CLI reference](#full-cli-reference)
+ - [Local stack helpers (optional)](#local-stack-helpers-optional)
 
 ## Features
 - **End-to-end pipeline**: brief parsing → planning → search → fetch/extract → selection/dedup → budgeting → synthesis → validation → verification → rendering.
@@ -135,6 +136,32 @@ Primary flags (with defaults):
 ## Full CLI reference
 
 For a comprehensive, auto-generated list of all flags and environment variables, see: [docs/cli-reference.md](docs/cli-reference.md).
+
+## Local stack helpers (optional)
+
+These convenience targets manage the optional local stack defined in `docker-compose.yml`.
+
+Important: On Apple M2 virtual machines (including this development environment), Docker is not available due to nested virtualization limits. Skip these and use the non-Docker alternatives documented below (e.g., Homebrew/venv SearxNG, local LLM). On machines with Docker, you can use:
+
+```bash
+# Start dev profile (tool + searxng + llm)
+make up
+
+# Tail logs
+make logs
+
+# Rebuild and recreate dev services
+make rebuild
+
+# Stop services (keeps caches)
+make down
+
+# Run tests; if Docker is available, starts the test profile with stub-llm
+make test
+
+# Prune cache volumes and local cache dir
+make clean
+```
 
 ## Usage
 
