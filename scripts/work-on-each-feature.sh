@@ -1,6 +1,8 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 set -x
+
+FEATURE_FILE="FEATURE_CHECKLIST.md"
 
 commit_if_changes() {
   if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -13,36 +15,49 @@ commit_if_changes() {
   fi
 }
 
-while grep -Eq '^\s*\*\s\[\s\]' FEATURE_CHECKLIST.md; do
+# Portable shuffler (works on macOS/BSD + Linux without gshuf)
+shuffle_lines() {
+  awk 'BEGIN{srand()} {printf "%f\t%s\n", rand(), $0}' \
+  | sort -k1,1 \
+  | cut -f2-
+}
+
+while grep -Eq '^\s*\*\s\[\s\]' "$FEATURE_FILE"; do
   commit_if_changes
 
-  # Pick the first unchecked checklist item
-  line=$(grep -nE '^\s*\*\s\[\s\]' FEATURE_CHECKLIST.md | head -n1)
-  line_num=${line%%:*}
-  raw_line=${line#*:}
-  task_text=$(printf '%s\n' "$raw_line" | sed 's/^[[:space:]]*\*\s\[\s\]\s*//')
+  # Build a randomized list of current unchecked tasks (task text only)
+  tasks=()
+  while IFS= read -r t; do
+    tasks+=("$t")
+  done < <(
+    grep -nE '^\s*\*\s\[\s\]\s' "$FEATURE_FILE" \
+    | shuffle_lines \
+    | sed -E 's/^[[:space:]]*[0-9]+:[[:space:]]*\*\s\[\s\]\s*//'
+  )
 
-  echo
-  echo "--- WORKING ON (#$line_num): $task_text ---"
-  echo
+  # Work through the shuffled tasks
+  for task_text in "${tasks[@]}"; do
+    echo
+    echo "--- WORKING ON: $task_text ---"
+    echo
 
-  prompt=$(cat <<EOF
+    prompt=$(cat <<EOF
 Follow these rules .cursor/rules/go-implement.mdc .cursor/rules/go-dod.mdc .cursor/rules/go-diverse-tests.mdc .cursor/rules/go-work.mdc
 
 Implement the following single FEATURE_CHECKLIST item now — focus ONLY on this item:
 
-${task_text}
+$task_text
 
 When implementation and tests are complete, update FEATURE_CHECKLIST.md to check off this exact line. Keep commits small and meaningful.
 EOF
 )
+    cursor-agent -p --output-format text -f -m gpt-5 "$prompt"
 
-  time cursor-agent -p --output-format text -f -m gpt-5 "$prompt"
-
-  # Optionally commit after each attempt as well
-  commit_if_changes
-
-  sleep 5
+    # Commit after each attempt
+    commit_if_changes
+    sleep 5
+  done
 done
 
-echo "All checklist items completed or none remain unchecked."
+echo "All checklist items completed (no unchecked tasks remain)."
+
