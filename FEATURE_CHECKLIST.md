@@ -191,7 +191,7 @@
 
 * [x] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.
 
-* [ ] Docker Compose local stack — Provide docker-compose.yml with services: research-tool, searxng (default search), llm-openai (local OpenAI-compatible LLM server), and stub-llm (for tests). Use a dedicated bridge network, named volumes for http\_cache, llm\_cache, and reports, and Compose profiles: dev (tool+searxng+llm), test (tool+stub-llm), and offline (tool only, cache-only mode).
+* [x] Docker Compose local stack — Provide docker-compose.yml with services: research-tool, searxng (default search), llm-openai (local OpenAI-compatible LLM server), and stub-llm (for tests). Use a dedicated bridge network, named volumes for http\_cache, llm\_cache, and reports, and Compose profiles: dev (tool+searxng+llm), test (tool+stub-llm), and offline (tool only, cache-only mode).
 
 * [ ] Research tool container — Add a minimal Dockerfile for the CLI with a non-root user, pinned base image, labels (org.opencontainers), build args for version/commit, and an entrypoint that reads config from env/flags. Mount ./reports and ./cache as writable volumes. Include healthcheck that runs a quick “--dry-run” and exits 0 on success.
 

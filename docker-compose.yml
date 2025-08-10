@@ -1,0 +1,85 @@
+version: "3.9"
+
+name: goresearch
+
+networks:
+  goresearch_net:
+    driver: bridge
+    internal: true
+
+volumes:
+  http_cache:
+  llm_cache:
+  reports:
+
+services:
+  research-tool:
+    # Runs the CLI from source using the official Go image.
+    # A dedicated Dockerfile will be added in a later checklist item.
+    image: golang:1.24-bookworm
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - http_cache:/app/.goresearch-cache/http
+      - llm_cache:/app/.goresearch-cache/llm
+      - reports:/app/reports
+    environment:
+      - LLM_BASE_URL=http://llm-openai:8080/v1
+      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
+      - LLM_API_KEY=${LLM_API_KEY:-sk-local}
+      - SEARX_URL=http://searxng:8080
+      - SEARX_KEY=${SEARX_KEY:-}
+    command: ["sleep", "infinity"]
+    networks:
+      - goresearch_net
+    profiles: ["dev", "test", "offline"]
+    depends_on:
+      llm-openai:
+        condition: service_started
+      searxng:
+        condition: service_started
+
+  # OpenAI-compatible LLM server
+  # This uses LocalAI as a convenient default for development.
+  llm-openai:
+    image: quay.io/go-skynet/local-ai:latest
+    environment:
+      - MODELS_PATH=/models
+      - GIN_MODE=release
+    networks:
+      - goresearch_net
+    volumes:
+      - llm_cache:/models
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/models"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    profiles: ["dev", "test"]
+
+  # SearxNG meta-search engine (default search provider)
+  searxng:
+    image: searxng/searxng:latest
+    networks:
+      - goresearch_net
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/status"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    profiles: ["dev"]
+
+  # Stub LLM for deterministic tests (placeholder image; refined later)
+  stub-llm:
+    image: ghcr.io/hyperifyio/openai-stub:latest
+    networks:
+      - goresearch_net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/models"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    profiles: ["test"]
