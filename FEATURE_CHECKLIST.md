@@ -177,7 +177,7 @@
 
 * [x] Dry-run for tools — A mode that prints intended tool calls (with redacted args) without executing them; useful for debugging prompt-tool interplay.
 
-* [ ] Fallback path — If the model doesn’t call tools (or the adapter is disabled), fall back to your current planner→search→synthesis pipeline.
+* [x] Fallback path — If the model doesn’t call tools (or the adapter is disabled), fall back to your current planner→search→synthesis pipeline.
 
 * [ ] Prompt affordances — System/developer messages that document each tool’s contract, limits, and when to use it; keep this text concise to save tokens.
 

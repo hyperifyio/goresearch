@@ -49,6 +49,18 @@ type Orchestrator struct {
     // Requirement: FEATURE_CHECKLIST.md — Dry-run for tools
     // Source: https://github.com/hyperifyio/goresearch/blob/main/FEATURE_CHECKLIST.md
     DryRunTools bool
+
+    // Fallback, when non-nil, is invoked to produce a final answer using the
+    // legacy planner→search→synthesis pipeline in cases where tool use is not
+    // possible or the model declines to call tools. This satisfies the
+    // "Fallback path" checklist item.
+    //
+    // Trigger conditions:
+    // - No tools are registered in the Registry (adapter disabled)
+    // - The model response contains no tool_calls (model didn't call tools)
+    //
+    // The function should return the final Markdown and an error if it fails.
+    Fallback func(ctx context.Context) (string, error)
 }
 
 // Run executes the orchestration loop.
@@ -74,9 +86,15 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
         messages = append(messages, extra...)
     }
 
-    // Encode tool specs from registry
+    // Encode tool specs from registry. If no tools are available and a fallback
+    // is provided, immediately use the fallback pipeline rather than attempting
+    // a chat without tools.
     specs := o.Registry.Specs()
     tools := EncodeTools(specs)
+    if len(tools) == 0 && o.Fallback != nil {
+        final, err := o.Fallback(ctx)
+        return final, messages, err
+    }
 
     // Loop guards
     started := time.Now()
@@ -127,7 +145,14 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
 
         final, calls := ParseHarmony(resp)
         if len(calls) == 0 {
-            // No tool calls requested; final content (if any) ends the loop
+            // No tool calls requested. If a fallback pipeline is configured,
+            // prefer it over returning free-form assistant content so we
+            // preserve the existing planner→search→synthesis contract.
+            if o.Fallback != nil {
+                fbFinal, err := o.Fallback(ctx)
+                return fbFinal, messages, err
+            }
+            // Otherwise, treat the assistant content as final.
             return final, messages, nil
         }
 

@@ -385,3 +385,29 @@ func TestOrchestrator_DryRunTools_DoesNotExecute(t *testing.T) {
     }
     if !found { t.Fatalf("expected dry-run tool message not found") }
 }
+
+// The fallback path should be used when no tools are registered or when the
+// model returns no tool_calls. In both cases, the orchestrator should invoke
+// the provided Fallback function and return its result.
+func TestOrchestrator_FallbackPath_NoToolsOrNoCalls(t *testing.T) {
+    // Case A: No tools registered in registry
+    clientA := &stubClient{responses: []openai.ChatCompletionResponse{}}
+    rA := NewRegistry() // empty
+    calledA := 0
+    orchA := &Orchestrator{Client: clientA, Registry: rA, Fallback: func(ctx context.Context) (string, error) { calledA++; return "FB", nil }}
+    finalA, _, err := orchA.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil { t.Fatalf("fallback A error: %v", err) }
+    if finalA != "FB" || calledA != 1 { t.Fatalf("fallback A not used: final=%q called=%d", finalA, calledA) }
+
+    // Case B: Tools exist but model returns no tool_calls; Fallback should be used
+    raw := "{\n  \"choices\": [{\n    \"message\": {\n      \"role\": \"assistant\",\n      \"content\": \"<final>Ignored</final>\"\n    }\n  }]\n}"
+    resp := mustUnmarshalResp(t, raw)
+    clientB := &stubClient{responses: []openai.ChatCompletionResponse{resp}}
+    rB := NewRegistry()
+    _ = rB.Register(ToolDefinition{StableName: "noop", SemVer: "v1.0.0", Description: "noop", JSONSchema: jsonObj(map[string]any{"type":"object"}), Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) { return jsonObj(map[string]any{"ok": true}), nil }})
+    calledB := 0
+    orchB := &Orchestrator{Client: clientB, Registry: rB, Fallback: func(ctx context.Context) (string, error) { calledB++; return "FB2", nil }}
+    finalB, _, err := orchB.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil { t.Fatalf("fallback B error: %v", err) }
+    if finalB != "FB2" || calledB != 1 { t.Fatalf("fallback B not used: final=%q called=%d", finalB, calledB) }
+}
