@@ -15,6 +15,7 @@ import (
 	"github.com/hyperifyio/goresearch/internal/cache"
 	"github.com/hyperifyio/goresearch/internal/extract"
 	"github.com/hyperifyio/goresearch/internal/fetch"
+    "github.com/hyperifyio/goresearch/internal/llm"
 	"github.com/hyperifyio/goresearch/internal/robots"
 	"github.com/hyperifyio/goresearch/internal/planner"
 	"github.com/hyperifyio/goresearch/internal/search"
@@ -71,7 +72,7 @@ func formatRobotsDetails(host, agent, directive, pattern string) string {
 
 type App struct {
 	cfg       Config
-	ai        *openai.Client
+    ai        llm.Client
 	planner   PlannerFacade
 	httpCache *cache.HTTPCache
 }
@@ -90,9 +91,9 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	// Use a high-throughput HTTP client to avoid client-side throttling
 	transportCfg.HTTPClient = newHighThroughputHTTPClient()
-	client := openai.NewClientWithConfig(transportCfg)
-
-	a := &App{cfg: cfg, ai: client}
+    client := openai.NewClientWithConfig(transportCfg)
+    // Wrap in provider adapter implementing the llm.Client interface
+    a := &App{cfg: cfg, ai: &llm.OpenAIProvider{Inner: client}}
 	// Initialize HTTP cache lazily when needed
     if cfg.CacheDir != "" {
 		// Apply cache invalidation controls
@@ -117,17 +118,25 @@ func New(ctx context.Context, cfg Config) (*App, error) {
     if !cfg.LLMCacheOnly {
         ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
         defer cancel()
-        models, err := a.ai.ListModels(ctx)
+    var models any
+    var err error
+    if l, ok := a.ai.(llm.ModelLister); ok {
+        models, err = l.ListModels(ctx)
+    } else {
+        models, err = nil, fmt.Errorf("model listing not supported")
+    }
         if err != nil {
             // Preflight is best-effort: do not fail hard here. We continue and let
             // downstream synthesis surface errors as needed so the CLI can apply
             // its exit code policy.
             log.Warn().Err(err).Msg("LLM model list failed; continuing")
         } else {
-            if len(models.Models) > 0 {
-                log.Info().Int("count", len(models.Models)).Msg("LLM models available")
-            } else {
-                log.Warn().Msg("LLM returned zero models")
+            if ml, ok := models.(openai.ModelsList); ok {
+                if len(ml.Models) > 0 {
+                    log.Info().Int("count", len(ml.Models)).Msg("LLM models available")
+                } else {
+                    log.Warn().Msg("LLM returned zero models")
+                }
             }
         }
     }

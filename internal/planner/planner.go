@@ -11,6 +11,7 @@ import (
 
 	"github.com/hyperifyio/goresearch/internal/brief"
 	"github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/llm"
 	"github.com/rs/zerolog/log"
 )
 
@@ -27,7 +28,7 @@ type Planner interface {
 
 // LLMPlanner calls an OpenAI-compatible endpoint and enforces a JSON-only contract.
 type LLMPlanner struct {
-	Client       *openai.Client
+    Client       llm.Client
 	Model        string
 	LanguageHint string
 	Cache        *cache.LLMCache

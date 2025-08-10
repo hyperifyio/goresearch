@@ -11,15 +11,12 @@ import (
     "time"
 
     "github.com/hyperifyio/goresearch/internal/budget"
+    "github.com/hyperifyio/goresearch/internal/llm"
     "github.com/rs/zerolog/log"
     openai "github.com/sashabaranov/go-openai"
 )
 
-// ChatClient abstracts the OpenAI client dependency for testability.
-// It mirrors the minimal method we use across the codebase.
-type ChatClient interface {
-	CreateChatCompletion(ctx context.Context, request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
-}
+// Uses llm.Client provider interface for backend independence.
 
 // Orchestrator coordinates a tool-enabled chat loop until a final answer.
 // It sends tool specs, executes any returned tool calls via the registry,
@@ -31,7 +28,7 @@ type ChatClient interface {
 // Note: Loop guards (max steps, budgets) are implemented in later items.
 // This struct focuses on correctness of the tool loop semantics.
 type Orchestrator struct {
-	Client   ChatClient
+    Client   llm.Client
 	Registry *Registry
     // MaxToolCalls limits the total number of tool calls executed during a single Run.
     // If zero or negative, a default of 32 is used.

@@ -11,12 +11,10 @@ import (
     openai "github.com/sashabaranov/go-openai"
 
     "github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/llm"
 )
 
-// ChatClient mirrors the subset we need from the OpenAI client for testability.
-type ChatClient interface {
-    CreateChatCompletion(ctx context.Context, request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
-}
+// Uses llm.Client provider interface for backend independence.
 
 // Claim represents a single extracted claim and its support assessment.
 type Claim struct {
@@ -35,7 +33,7 @@ type Result struct {
 // Verifier performs a secondary model pass (with deterministic fallback) to
 // extract claims, map citations, and assess support strength.
 type Verifier struct {
-    Client ChatClient
+    Client llm.Client
     Cache  *cache.LLMCache
     // SystemPrompt, when non-empty, overrides the default verifier system message.
     SystemPrompt string

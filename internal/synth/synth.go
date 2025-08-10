@@ -12,13 +12,11 @@ import (
 
     "github.com/hyperifyio/goresearch/internal/brief"
     "github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/llm"
     "github.com/hyperifyio/goresearch/internal/llmtools"
 )
 
-// ChatClient abstracts the OpenAI client dependency for testability.
-type ChatClient interface {
-    CreateChatCompletion(ctx context.Context, request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
-}
+// Uses llm.Client provider interface for backend independence.
 
 // SourceExcerpt contains a single source and its excerpt text to feed the model.
 type SourceExcerpt struct {
@@ -40,7 +38,7 @@ type Input struct {
 
 // Synthesizer calls the LLM to produce a Markdown report per strict contract.
 type Synthesizer struct {
-    Client ChatClient
+    Client llm.Client
     Cache  *cache.LLMCache
     Verbose bool
     // SystemPrompt, when non-empty, overrides the default system message.
