@@ -151,7 +151,7 @@
 
 * [x] Tool registry & versioning — Central registry mapping stable tool names to internal functions; include semantic version and capability meta for reproducibility.
 
-* [ ] Orchestration loop — Iterate: send messages + tool schema, execute any returned tool calls, append tool results as `tool` messages, stop on final assistant text.
+* [x] Orchestration loop — Iterate: send messages + tool schema, execute any returned tool calls, append tool results as `tool` messages, stop on final assistant text. (implemented in `internal/llmtools/orchestrator.go` with tests)
 
 * [ ] Loop guards — Enforce max tool-calls per run, wall-clock budget, and per-tool timeouts to prevent runaway loops.
 
