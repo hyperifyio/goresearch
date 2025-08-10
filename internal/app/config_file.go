@@ -16,6 +16,7 @@ import (
 type FileConfig struct {
     Input   string `yaml:"input" json:"input"`
     Output  string `yaml:"output" json:"output"`
+    OutputPDF string `yaml:"outputPDF" json:"outputPDF"`
 
     LLM struct {
         BaseURL string `yaml:"base" json:"base"`
@@ -57,6 +58,12 @@ type FileConfig struct {
     } `yaml:"cache" json:"cache"`
 
     EnablePDF bool `yaml:"enablePDF" json:"enablePDF"`
+
+    Distribution struct {
+        Enable   bool   `yaml:"enable" json:"enable"`
+        Author   string `yaml:"author" json:"author"`
+        Version  string `yaml:"version" json:"version"`
+    } `yaml:"distribution" json:"distribution"`
 
     Prompts struct {
         SynthSystemPrompt      string `yaml:"synthSystemPrompt" json:"synthSystemPrompt"`
@@ -134,6 +141,7 @@ func ApplyFileConfig(cfg *Config, fc FileConfig) {
 
     if (cfg.InputPath == "" || cfg.InputPath == inputDefault) && fc.Input != "" { cfg.InputPath = fc.Input }
     if (cfg.OutputPath == "" || cfg.OutputPath == outputDefault) && fc.Output != "" { cfg.OutputPath = fc.Output }
+    if fc.OutputPDF != "" { cfg.OutputPDFPath = fc.OutputPDF }
 
     if cfg.LLMBaseURL == "" && fc.LLM.BaseURL != "" { cfg.LLMBaseURL = fc.LLM.BaseURL }
     if cfg.LLMModel == "" && fc.LLM.Model != "" { cfg.LLMModel = fc.LLM.Model }
@@ -160,6 +168,9 @@ func ApplyFileConfig(cfg *Config, fc FileConfig) {
     if cfg.TopicHash == "" && fc.Cache.TopicHash != "" { cfg.TopicHash = fc.Cache.TopicHash }
 
     if !cfg.EnablePDF && fc.EnablePDF { cfg.EnablePDF = true }
+    if !cfg.DistributionChecks && fc.Distribution.Enable { cfg.DistributionChecks = true }
+    if cfg.ExpectedAuthor == "" && fc.Distribution.Author != "" { cfg.ExpectedAuthor = fc.Distribution.Author }
+    if cfg.ExpectedVersion == "" && fc.Distribution.Version != "" { cfg.ExpectedVersion = fc.Distribution.Version }
 
     if cfg.SynthSystemPrompt == "" && fc.Prompts.SynthSystemPrompt != "" { cfg.SynthSystemPrompt = fc.Prompts.SynthSystemPrompt }
     if cfg.VerifySystemPrompt == "" && fc.Prompts.VerifySystemPrompt != "" { cfg.VerifySystemPrompt = fc.Prompts.VerifySystemPrompt }

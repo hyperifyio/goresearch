@@ -53,6 +53,17 @@ type Config struct {
     // from PDFs. Default is false to avoid binary parsing risk by default.
     EnablePDF bool
 
+    // When set, also write a PDF copy of the final report with links.
+    OutputPDFPath string
+
+    // Distribution readiness checks — when true, run metadata/link checks
+    // and warn in the output when issues are found.
+    DistributionChecks bool
+    // Optional expected metadata for distribution checks. When non-empty,
+    // the document's Author/Version must match exactly (case-insensitive).
+    ExpectedAuthor  string
+    ExpectedVersion string
+
 	// Cache invalidation controls
 	// If > 0, remove cache entries older than this age before running.
 	CacheMaxAge time.Duration
