@@ -322,3 +322,66 @@ func TestOrchestrator_WallClockBudgetExceeded(t *testing.T) {
         t.Fatalf("expected wall-clock budget error, got final=%q err=%v", final, err)
     }
 }
+
+func TestOrchestrator_DryRunTools_DoesNotExecute(t *testing.T) {
+    // Assistant requests a tool; orchestrator in DryRunTools mode should not
+    // invoke the handler and should append a structured dry_run envelope.
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"noop","arguments":"{\"x\":123,\"url\":\"https://example.com/?token=abc#frag\"}"}}]
+            }
+        }]
+    }`
+    rawResp2 := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>Done</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+
+    r := NewRegistry()
+    called := 0
+    _ = r.Register(ToolDefinition{
+        StableName:  "noop",
+        SemVer:      "v1.0.0",
+        Description: "no operation",
+        JSONSchema:  jsonObj(map[string]any{"type": "object"}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            called++
+            return jsonObj(map[string]any{"ok": true}), nil
+        },
+    })
+
+    orch := &Orchestrator{Client: client, Registry: r, DryRunTools: true}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if final != "Done" {
+        t.Fatalf("unexpected final: %q", final)
+    }
+    if called != 0 {
+        t.Fatalf("handler should not be executed in dry-run, called=%d", called)
+    }
+    // Find tool message and assert dry_run envelope and redaction of URL token/fragments
+    found := false
+    for _, m := range transcript {
+        if m.Role == openai.ChatMessageRoleTool && m.Name == "noop" {
+            var env map[string]any
+            if err := json.Unmarshal([]byte(m.Content), &env); err != nil { t.Fatalf("tool content not JSON: %v", err) }
+            if ok, _ := env["ok"].(bool); !ok { t.Fatalf("expected ok=true in dry_run envelope: %v", env) }
+            if dr, _ := env["dry_run"].(bool); !dr { t.Fatalf("expected dry_run=true in envelope: %v", env) }
+            argsObj, _ := env["args"].(map[string]any)
+            if argsObj == nil { t.Fatalf("expected args object in envelope: %v", env) }
+            if urlStr, _ := argsObj["url"].(string); urlStr != "" {
+                // No fragment should remain and sensitive token value must be redacted
+                if strings.Contains(urlStr, "#") {
+                    t.Fatalf("expected no fragment in url, got %q", urlStr)
+                }
+                if !strings.Contains(urlStr, "%5Bredacted%5D") && !strings.Contains(urlStr, "[redacted]") {
+                    t.Fatalf("expected redacted token value in url, got %q", urlStr)
+                }
+            }
+            found = true
+        }
+    }
+    if !found { t.Fatalf("expected dry-run tool message not found") }
+}

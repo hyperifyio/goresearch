@@ -41,6 +41,14 @@ type Orchestrator struct {
     // PerToolTimeout bounds the duration of a single tool handler execution.
     // If zero or negative, a default of 10 seconds is used.
     PerToolTimeout time.Duration
+    // DryRunTools, when true, does not execute tool handlers. Instead it appends
+    // a structured tool message that records the intended tool name and a
+    // redacted view of the arguments. This is useful for debugging prompt↔tool
+    // interplay without performing network or filesystem operations.
+    //
+    // Requirement: FEATURE_CHECKLIST.md — Dry-run for tools
+    // Source: https://github.com/hyperifyio/goresearch/blob/main/FEATURE_CHECKLIST.md
+    DryRunTools bool
 }
 
 // Run executes the orchestration loop.
@@ -136,7 +144,21 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
             argsHash := fmt.Sprintf("%x", argsHashBytes[:])
             argsBytes := len(call.Arguments)
             okFlag := false
-            if def, ok := o.Registry.Get(call.Name); ok && def.Handler != nil {
+            if o.DryRunTools {
+                // Build a structured envelope noting dry-run with redacted args
+                var argAny any
+                _ = json.Unmarshal(call.Arguments, &argAny)
+                argAny = scrubValue(argAny)
+                env := map[string]any{
+                    "ok":       true,
+                    "tool":     call.Name,
+                    "dry_run":  true,
+                    "args":     argAny,
+                }
+                b, _ := json.Marshal(env)
+                resultContent = string(b)
+                okFlag = true
+            } else if def, ok := o.Registry.Get(call.Name); ok && def.Handler != nil {
                 // Compute effective timeout respecting remaining wall-clock and per-tool timeout
                 per := o.PerToolTimeout
                 if per <= 0 {
@@ -226,6 +248,7 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                 Int("args_bytes", argsBytes).
                 Int("result_bytes", len(resultContent)).
                 Bool("ok", okFlag).
+                Bool("dry_run", o.DryRunTools).
                 Int64("duration_ms", time.Since(startedTool).Milliseconds()).
                 Msg("tool call")
 
