@@ -118,7 +118,7 @@ Primary flags (with defaults):
 - `-dry-run` (default: false): plan/select without calling the LLM
   - `-v` (default: false): verbose console output (progress). Detailed logs are controlled via `-log.level`.
   - `-log.level` (default: info): structured log level for the log file: trace|debug|info|warn|error|fatal|panic
-  - `-log.file` (default: goresearch.log): path to write structured JSON logs
+  - `-log.file` (default: logs/goresearch.log): path to write structured JSON logs
   - `-debug-verbose` (default: false): allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay. Off by default.
 - `-cache.dir` (default: `.goresearch-cache`): cache directory
 - `-cache.maxAge` (default: 0): purge cache entries older than this duration (e.g. `24h`, `7d`); 0 disables

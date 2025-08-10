@@ -23,7 +23,7 @@ goresearch -v -log.level debug -input request.md -output report.md \
 goresearch -debug-verbose ...
 ```
 
-The CLI prints concise progress to stderr. Structured JSON logs go to `goresearch.log` by default (or `-log.file`). Tail them during a run:
+The CLI prints concise progress to stderr. Structured JSON logs go to `logs/goresearch.log` by default (or `-log.file`). Tail them during a run:
 
 ```bash
 tail -f goresearch.log | sed -E 's/\\n/ /g'

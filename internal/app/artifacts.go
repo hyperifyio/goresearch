@@ -56,7 +56,7 @@ func exportArtifactsBundle(cfg Config, b brief.Brief, plan planner.Plan, selecte
         if err := writeJSON(filepath.Join(dir, "extracts.json"), excerpts); err != nil { return err }
     }
 
-    // 4) final report copy as report.md
+    // 4) final report copy as report.md in the bundle directory
     if strings.TrimSpace(finalReportMarkdown) != "" {
         if err := os.WriteFile(filepath.Join(dir, "report.md"), []byte(finalReportMarkdown), 0o644); err != nil {
             return fmt.Errorf("write report copy: %w", err)

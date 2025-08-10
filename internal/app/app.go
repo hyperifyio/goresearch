@@ -195,11 +195,19 @@ func (a *App) Run(ctx context.Context) error {
 		content += fmt.Sprintf("Remaining tokens: %d\n", est.Remaining)
 		content += fmt.Sprintf("Fits: %t\n", est.Fits)
 		// Append reproducibility footer to dry-run content as well
-		content = appendReproFooter(content, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(selected), a.httpCache != nil, true)
-        if err := os.WriteFile(a.cfg.OutputPath, []byte(content), 0o644); err != nil {
+        content = appendReproFooter(content, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(selected), a.httpCache != nil, true)
+        // When output path is the default "report.md", map it to ./reports/<slug-hash>.md
+        outPath := a.cfg.OutputPath
+        if strings.TrimSpace(outPath) == "" || strings.EqualFold(strings.TrimSpace(outPath), "report.md") {
+            if strings.TrimSpace(a.cfg.ReportsDir) == "" { a.cfg.ReportsDir = "reports" }
+            // Ensure reports dir exists
+            _ = os.MkdirAll(a.cfg.ReportsDir, 0o755)
+            outPath = deriveReportsOutputPath(a.cfg, b)
+        }
+        if err := os.WriteFile(outPath, []byte(content), 0o644); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
-		log.Info().Str("out", a.cfg.OutputPath).Msg("wrote dry-run output")
+        log.Info().Str("out", outPath).Msg("wrote dry-run output")
         // Export a minimal artifacts bundle for dry-run (planner + selection only)
         if strings.TrimSpace(a.cfg.ReportsDir) != "" {
             _ = exportArtifactsBundle(a.cfg, b, plan, selected, nil, content)
@@ -209,7 +217,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 1) Read and parse brief
     stageStart := time.Now()
-	inputBytes, err := os.ReadFile(a.cfg.InputPath)
+    inputBytes, err := os.ReadFile(a.cfg.InputPath)
 	if err != nil {
 		return fmt.Errorf("read input: %w", err)
 	}
@@ -425,10 +433,17 @@ func (a *App) Run(ctx context.Context) error {
         }
     }
 
-	if err := os.WriteFile(a.cfg.OutputPath, []byte(md), 0o644); err != nil {
+    // When output path is the default "report.md", map it to ./reports/<slug-hash>.md
+    outPath := a.cfg.OutputPath
+    if strings.TrimSpace(outPath) == "" || strings.EqualFold(strings.TrimSpace(outPath), "report.md") {
+        if strings.TrimSpace(a.cfg.ReportsDir) == "" { a.cfg.ReportsDir = "reports" }
+        _ = os.MkdirAll(a.cfg.ReportsDir, 0o755)
+        outPath = deriveReportsOutputPath(a.cfg, b)
+    }
+    if err := os.WriteFile(outPath, []byte(md), 0o644); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
-	log.Info().Str("out", a.cfg.OutputPath).Msg("wrote output")
+    log.Info().Str("out", outPath).Msg("wrote output")
 
     // 11) Artifacts bundle export under reports/<topic>/ with optional tarball and digests
     if strings.TrimSpace(a.cfg.ReportsDir) != "" {

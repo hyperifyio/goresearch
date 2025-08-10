@@ -48,7 +48,7 @@ goresearch doc
 - `-tools.perToolTimeout` (default: `10s`) — Per-tool execution timeout (e.g. 10s)
 - `-v` (default: `false`) — Verbose logging
 - `-log.level` (default: ``) — Structured log level for file output: trace|debug|info|warn|error|fatal|panic (default info)
-- `-log.file` (default: ``) — Path to write structured JSON logs (default goresearch.log)
+- `-log.file` (default: ``) — Path to write structured JSON logs (default `logs/goresearch.log`)
 - `-verify.systemPrompt` (default: ``) — Override verification system prompt (inline string)
 - `-verify.systemPromptFile` (default: ``) — Path to file containing verification system prompt
  - `-verify`/`-no-verify` (default: `-verify`) — Enable or disable the fact-check verification pass and Evidence check appendix

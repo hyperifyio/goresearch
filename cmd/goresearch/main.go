@@ -25,6 +25,8 @@ func main() {
     // Logging setup
     // Keep legacy console writer settings from previous implementation.
     log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+    // Ensure all timestamps are recorded in UTC.
+    zerolog.TimestampFunc = func() time.Time { return time.Now().UTC() }
 
     // Load dotenv files early so env defaults in flag parsing can see them.
     // Non-fatal if files are missing.
@@ -90,7 +92,11 @@ func main() {
 
     // Open log file for structured logs (JSON). Default path when unset.
     logPath := strings.TrimSpace(cfg.LogFilePath)
-    if logPath == "" { logPath = "goresearch.log" }
+    if logPath == "" { logPath = filepath.ToSlash(filepath.Join("logs", "goresearch.log")) }
+    // Ensure parent directory exists for the log file path
+    if dir := filepath.Dir(logPath); strings.TrimSpace(dir) != "" && dir != "." {
+        _ = os.MkdirAll(dir, 0o755)
+    }
     var file io.Writer
     if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
         file = f
@@ -98,7 +104,12 @@ func main() {
         log.Warn().Err(err).Str("log_file", logPath).Msg("cannot open log file; continuing without file logs")
     }
     console := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+    console.NoColor = false
+    // Ensure UTC in console timestamps as well
+    console.TimeFormat = time.RFC3339
     if file != nil {
+        // Route logs to both console and file using a MultiWriter.
+        // Console formatting is applied only to stderr; file receives plain JSON entries.
         mw := io.MultiWriter(console, file)
         log.Logger = zerolog.New(mw).With().Timestamp().Logger()
     } else {

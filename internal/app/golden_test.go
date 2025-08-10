@@ -87,6 +87,8 @@ func normalizeGolden(in string, alphaURL, betaURL string) string {
     // Normalize dynamic URLs
     s = strings.ReplaceAll(s, alphaURL, "ALPHA_URL")
     s = strings.ReplaceAll(s, betaURL, "BETA_URL")
+    // Normalize volatile access dates appended by references enrichment
+    s = regexp.MustCompile(`(?i)\s*\(Accessed on \d{4}-\d{2}-\d{2}\)`).ReplaceAllString(s, "")
     // Normalize LLM base URL in both footer and manifest
     s = regexp.MustCompile(`llm_base_url=[^;\n]+`).ReplaceAllString(s, "llm_base_url=LLM_BASE_URL")
     s = regexp.MustCompile(`LLM base URL:.*`).ReplaceAllString(s, "LLM base URL: LLM_BASE_URL")
