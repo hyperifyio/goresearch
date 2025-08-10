@@ -179,7 +179,7 @@
 
 * [x] Fallback path — If the model doesn’t call tools (or the adapter is disabled), fall back to your current planner→search→synthesis pipeline.
 
-* [ ] Prompt affordances — System/developer messages that document each tool’s contract, limits, and when to use it; keep this text concise to save tokens.
+* [x] Prompt affordances — System/developer messages that document each tool’s contract, limits, and when to use it; keep this text concise to save tokens. (implemented in `internal/llmtools/orchestrator.go` with test `TestOrchestrator_IncludesPromptAffordancesInSystem`)
 
 * [ ] Token/context budgeting for tool chat — Heuristics to prune earlier loop turns and compress older tool outputs so the running conversation stays within context.
 

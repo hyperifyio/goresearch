@@ -386,6 +386,45 @@ func TestOrchestrator_DryRunTools_DoesNotExecute(t *testing.T) {
     if !found { t.Fatalf("expected dry-run tool message not found") }
 }
 
+// Requirement: FEATURE_CHECKLIST.md — Prompt affordances
+// Source: https://github.com/hyperifyio/goresearch/blob/main/FEATURE_CHECKLIST.md
+func TestOrchestrator_IncludesPromptAffordancesInSystem(t *testing.T) {
+    // Single assistant final; we only need to inspect the first system message
+    raw := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>Done</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, raw)}}
+
+    r := NewRegistry()
+    // Register a simple tool so affordances have something to list
+    _ = r.Register(ToolDefinition{
+        StableName:  "alpha_tool",
+        SemVer:      "v1.2.3",
+        Description: "Do alpha thing",
+        JSONSchema:  jsonObj(map[string]any{"type": "object"}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) { return jsonObj(map[string]any{"ok": true}), nil },
+    })
+
+    orch := &Orchestrator{Client: client, Registry: r}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "system preface", "user q", nil)
+    if err != nil { t.Fatalf("Run error: %v", err) }
+    if final != "Done" { t.Fatalf("unexpected final: %q", final) }
+    if len(transcript) == 0 || transcript[0].Role != openai.ChatMessageRoleSystem {
+        t.Fatalf("expected first message to be system: %+v", transcript)
+    }
+    sys := transcript[0].Content
+    // Must contain original system text
+    if !strings.Contains(sys, "system preface") {
+        t.Fatalf("system message lost original content: %q", sys)
+    }
+    // Must include affordances header and the registered tool name and version
+    if !strings.Contains(sys, "Tools available:") || !strings.Contains(sys, "alpha_tool") || !strings.Contains(sys, "v1.2.3") {
+        t.Fatalf("system message missing affordances: %q", sys)
+    }
+    // Should document error codes briefly
+    if !strings.Contains(sys, "E_ARGS") || !strings.Contains(sys, "E_TIMEOUT") || !strings.Contains(sys, "E_POLICY") {
+        t.Fatalf("system message missing error codes: %q", sys)
+    }
+}
+
 // The fallback path should be used when no tools are registered or when the
 // model returns no tool_calls. In both cases, the orchestrator should invoke
 // the provided Fallback function and return its result.

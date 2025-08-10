@@ -76,10 +76,16 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
         return "", nil, fmt.Errorf("orchestrator: Registry is nil")
     }
 
-    // Seed conversation
+    // Seed conversation (system message will be augmented with prompt affordances)
     messages := make([]openai.ChatCompletionMessage, 0, 2+len(extra))
     if system != "" {
-        messages = append(messages, openai.ChatCompletionMessage{Role: openai.ChatMessageRoleSystem, Content: system})
+        // Build concise prompt affordances describing available tools and error codes
+        afford := buildPromptAffordances(o.Registry)
+        sys := system
+        if afford != "" {
+            sys = sys + "\n\n" + afford
+        }
+        messages = append(messages, openai.ChatCompletionMessage{Role: openai.ChatMessageRoleSystem, Content: sys})
     }
     messages = append(messages, openai.ChatCompletionMessage{Role: openai.ChatMessageRoleUser, Content: user})
     if len(extra) > 0 {
@@ -287,6 +293,48 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
         }
         // Next iteration uses the augmented messages
     }
+}
+
+// buildPromptAffordances renders a short, token-efficient note describing the
+// available tools (name, version, and one-line description), basic usage, limits,
+// and common error codes that handlers may return. This guides the model to use
+// tools correctly without verbose manuals.
+//
+// Requirement: FEATURE_CHECKLIST.md — Prompt affordances
+// Source: https://github.com/hyperifyio/goresearch/blob/main/FEATURE_CHECKLIST.md
+func buildPromptAffordances(r *Registry) string {
+    if r == nil {
+        return ""
+    }
+    specs := r.Specs()
+    if len(specs) == 0 {
+        return ""
+    }
+    // Map spec name -> version and description from registry defs
+    // Registry.Specs already includes version in description tail, but we want
+    // a stable, concise listing.
+    lines := make([]string, 0, 8+len(specs))
+    lines = append(lines, "Tools available:")
+    // Retrieve full definitions to get SemVer and Description without the suffix.
+    for _, s := range specs {
+        def, ok := r.Get(s.Name)
+        if !ok {
+            continue
+        }
+        // Format: - name (vX.Y.Z): description. Args: JSON object per schema.
+        ver := def.SemVer
+        if ver == "" {
+            ver = "v0.0.0"
+        }
+        // Keep each tool line short.
+        lines = append(lines, fmt.Sprintf("- %s (%s): %s", def.StableName, ver, def.Description))
+    }
+    // Generic usage and limits
+    lines = append(lines,
+        "Use tools via tool_calls only. Provide minimal, valid JSON args.",
+        "Respect result size budgets: large bodies may return truncated previews and an id to load full content.",
+        "Errors are structured: {'ok':false,'error':{'code','message'}}. Common codes: E_ARGS (bad/missing args), E_TIMEOUT (handler timed out), E_POLICY (robots/opt-out/deny), E_NOT_FOUND, E_RESULT_SCHEMA, E_TOOL.")
+    return strings.Join(lines, "\n")
 }
 
 // classifyToolError maps common error strings to stable error codes so models
