@@ -83,3 +83,59 @@ func ApplyEnvToConfig(cfg *Config) {
     setBool(&cfg.CacheClear, "CACHE_CLEAR")
     setBool(&cfg.CacheStrictPerms, "CACHE_STRICT_PERMS")
 }
+
+// ApplyEnvOverrides forcefully overrides cfg fields with environment variables
+// when the corresponding env vars are set. This is used to let env take
+// precedence over values coming from a config file while still allowing flags
+// to remain highest precedence.
+func ApplyEnvOverrides(cfg *Config) {
+    if cfg == nil { return }
+
+    if v := os.Getenv("LLM_BASE_URL"); v != "" { cfg.LLMBaseURL = v }
+    if v := os.Getenv("LLM_MODEL"); v != "" { cfg.LLMModel = v }
+    if v := os.Getenv("LLM_API_KEY"); v != "" { cfg.LLMAPIKey = v }
+
+    if v := os.Getenv("SEARX_URL"); v != "" { cfg.SearxURL = v }
+    if v := os.Getenv("SEARXNG_URL"); v != "" { cfg.SearxURL = v }
+    if v := os.Getenv("SEARX_KEY"); v != "" { cfg.SearxKey = v }
+    if v := os.Getenv("SEARXNG_KEY"); v != "" { cfg.SearxKey = v }
+
+    if v := os.Getenv("CACHE_DIR"); v != "" { cfg.CacheDir = v }
+    if v := os.Getenv("LANGUAGE"); v != "" { cfg.LanguageHint = v }
+
+    if v := strings.TrimSpace(os.Getenv("SOURCE_CAPS")); v != "" {
+        parts := strings.Split(v, ",")
+        if len(parts) >= 1 {
+            if n, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil && n > 0 {
+                cfg.MaxSources = n
+            }
+        }
+        if len(parts) >= 2 {
+            if n, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil && n > 0 {
+                cfg.PerDomainCap = n
+            }
+        }
+    }
+
+    if s := os.Getenv("CACHE_MAX_AGE"); s != "" {
+        if d, err := time.ParseDuration(s); err == nil {
+            cfg.CacheMaxAge = d
+        }
+    }
+
+    // Booleans override when env present and truthy/falsey
+    setBool := func(dst *bool, envKey string) {
+        if s := strings.ToLower(strings.TrimSpace(os.Getenv(envKey))); s != "" {
+            switch s {
+            case "1", "true", "yes", "on":
+                *dst = true
+            case "0", "false", "no", "off":
+                *dst = false
+            }
+        }
+    }
+    setBool(&cfg.DryRun, "DRY_RUN")
+    setBool(&cfg.Verbose, "VERBOSE")
+    setBool(&cfg.CacheClear, "CACHE_CLEAR")
+    setBool(&cfg.CacheStrictPerms, "CACHE_STRICT_PERMS")
+}

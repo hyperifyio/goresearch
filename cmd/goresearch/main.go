@@ -7,6 +7,8 @@ import (
     "flag"
     "time"
     "strings"
+    "path/filepath"
+    "errors"
 
     "github.com/rs/zerolog"
     "github.com/rs/zerolog/log"
@@ -24,13 +26,42 @@ func main() {
     // Non-fatal if files are missing.
     _ = app.LoadEnvFiles(".env", ".env.local")
 
+    // Subcommand: goresearch init
+    if len(os.Args) > 1 && os.Args[1] == "init" {
+        if err := initScaffold("."); err != nil {
+            log.Error().Err(err).Msg("init scaffold failed")
+            os.Exit(2)
+        }
+        log.Info().Msg("created goresearch.yaml and .env.example")
+        return
+    }
+
     cfg, verbose, err := parseConfig(os.Args[1:], os.Getenv)
     if err != nil {
         log.Error().Err(err).Msg("parse flags failed")
         os.Exit(2)
     }
-    // Populate unset fields from environment (after flags), so explicit flags win.
+    // Single-file config discovery: prefer goresearch.yaml then goresearch.json in cwd
+    if _, statErr := os.Stat("goresearch.yaml"); statErr == nil {
+        if fc, err := app.LoadConfigFile("goresearch.yaml"); err == nil {
+            app.ApplyFileConfig(&cfg, fc)
+        } else {
+            log.Error().Err(err).Msg("failed to parse goresearch.yaml")
+            os.Exit(2)
+        }
+    } else if _, statErr := os.Stat("goresearch.json"); statErr == nil {
+        if fc, err := app.LoadConfigFile("goresearch.json"); err == nil {
+            app.ApplyFileConfig(&cfg, fc)
+        } else {
+            log.Error().Err(err).Msg("failed to parse goresearch.json")
+            os.Exit(2)
+        }
+    }
+
+    // Populate unset fields from environment (after flags and file), so explicit flags win.
     app.ApplyEnvToConfig(&cfg)
+    // Then apply env overrides to force env > file when explicitly set
+    app.ApplyEnvOverrides(&cfg)
     if verbose {
         zerolog.SetGlobalLevel(zerolog.DebugLevel)
     } else {
@@ -47,6 +78,62 @@ func main() {
 		// For other errors, treat as warnings and exit 0 to allow completion with warnings.
 		os.Exit(0)
 	}
+}
+
+// initScaffold writes a starter goresearch.yaml and .env.example if they don't exist.
+func initScaffold(dir string) error {
+    // Create goresearch.yaml if missing
+    cfgPath := filepath.Join(dir, "goresearch.yaml")
+    if _, err := os.Stat(cfgPath); errors.Is(err, os.ErrNotExist) {
+        sample := []byte(`# goresearch configuration
+input: request.md
+output: report.md
+
+llm:
+  base: ${LLM_BASE_URL}
+  model: ${LLM_MODEL}
+  key: ${LLM_API_KEY}
+
+searx:
+  url: ${SEARX_URL}
+  key: ${SEARX_KEY}
+  ua: goresearch/1.0 (+https://github.com/hyperifyio/goresearch)
+
+max:
+  sources: 12
+  perDomain: 3
+  perSourceChars: 12000
+
+cache:
+  dir: .goresearch-cache
+  maxAge: 0s
+  clear: false
+  strictPerms: false
+`)
+        if err := os.WriteFile(cfgPath, sample, 0o644); err != nil {
+            return fmt.Errorf("write goresearch.yaml: %w", err)
+        }
+    }
+    // Create .env.example if missing
+    envExample := filepath.Join(dir, ".env.example")
+    if _, err := os.Stat(envExample); errors.Is(err, os.ErrNotExist) {
+        sampleEnv := []byte(`LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=gpt-oss
+LLM_API_KEY=changeme
+
+SEARX_URL=http://localhost:8888
+SEARX_KEY=
+
+CACHE_DIR=.goresearch-cache
+LANGUAGE=
+# SOURCE_CAPS format: <max>[,<perDomain>]
+SOURCE_CAPS=12,3
+`)
+        if err := os.WriteFile(envExample, sampleEnv, 0o644); err != nil {
+            return fmt.Errorf("write .env.example: %w", err)
+        }
+    }
+    return nil
 }
 
 // parseConfig parses CLI flags and environment variables into app.Config.
@@ -223,6 +310,11 @@ func isNoSubstantiveBody(err error) bool {
 
 func run(cfg app.Config) error {
 	ctx := context.Background()
+
+    // Validate final config before starting
+    if err := app.ValidateConfig(cfg); err != nil {
+        return fmt.Errorf("invalid configuration: %w", err)
+    }
 
 	a, err := app.New(ctx, cfg)
 	if err != nil {

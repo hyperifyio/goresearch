@@ -141,3 +141,47 @@ func TestIsNoSubstantiveBody(t *testing.T) {
         t.Fatalf("expected true for ErrNoSubstantiveBody")
     }
 }
+
+// Ensure single-file config is discovered and env vars override file values.
+func TestConfigFile_DiscoveryAndEnvOverride(t *testing.T) {
+    dir := t.TempDir()
+    // Write a config file with model=A
+    cfgPath := filepath.Join(dir, "goresearch.yaml")
+    if err := os.WriteFile(cfgPath, []byte("llm:\n  model: A\ninput: i.md\noutput: o.md\n"), 0o644); err != nil {
+        t.Fatalf("write cfg: %v", err)
+    }
+    // No flags; env sets model=B to override file, and provide required paths
+    if err := os.WriteFile(filepath.Join(dir, "i.md"), []byte("# t"), 0o644); err != nil { t.Fatal(err) }
+    oldWd, _ := os.Getwd()
+    defer os.Chdir(oldWd)
+    if err := os.Chdir(dir); err != nil { t.Fatal(err) }
+    os.Setenv("LLM_MODEL", "B")
+    defer os.Unsetenv("LLM_MODEL")
+    // Parse with no args; parseConfig sees no flags; file loader will fill input/output
+    cfg, _, err := parseConfig([]string{}, os.Getenv)
+    if err != nil { t.Fatalf("parse: %v", err) }
+    // Manually emulate main() sequencing for file discovery and overrides
+    if fc, err := apppkg.LoadConfigFile("goresearch.yaml"); err == nil {
+        apppkg.ApplyFileConfig(&cfg, fc)
+    } else {
+        t.Fatalf("load cfg: %v", err)
+    }
+    apppkg.ApplyEnvToConfig(&cfg)
+    apppkg.ApplyEnvOverrides(&cfg)
+    if got, want := cfg.LLMModel, "B"; got != want {
+        t.Fatalf("env override failed: model=%q want %q", got, want)
+    }
+    if cfg.InputPath != "i.md" || cfg.OutputPath != "o.md" {
+        t.Fatalf("file config not applied: %+v", cfg)
+    }
+}
+
+// Ensure `goresearch init` scaffolds files idempotently.
+func TestInitScaffold(t *testing.T) {
+    dir := t.TempDir()
+    if err := initScaffold(dir); err != nil { t.Fatalf("init: %v", err) }
+    // Second call should not error and should keep files
+    if err := initScaffold(dir); err != nil { t.Fatalf("init 2: %v", err) }
+    if _, err := os.Stat(filepath.Join(dir, "goresearch.yaml")); err != nil { t.Fatalf("missing goresearch.yaml: %v", err) }
+    if _, err := os.Stat(filepath.Join(dir, ".env.example")); err != nil { t.Fatalf("missing .env.example: %v", err) }
+}
