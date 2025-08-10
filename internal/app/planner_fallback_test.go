@@ -21,8 +21,8 @@ func TestPlanQueries_FallsBackOnPlannerFailure(t *testing.T) {
 
     b := brief.Brief{Topic: "Cursor MDC format"}
     got := a.planQueries(context.Background(), b)
-    if len(got.Queries) != 8 {
-        t.Fatalf("expected 8 fallback queries, got %d", len(got.Queries))
+    if lq := len(got.Queries); lq < 6 || lq > 10 {
+        t.Fatalf("expected 6..10 fallback queries, got %d", lq)
     }
     if len(got.Outline) < 5 {
         t.Fatalf("expected fallback outline length >= 5, got %d", len(got.Outline))

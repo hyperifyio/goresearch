@@ -147,6 +147,8 @@ func buildUserMessage(in Input) string {
             sb.WriteString(h)
         }
     }
+    // Explicitly require a short section analyzing alternatives and conflicting evidence
+    sb.WriteString("\n- An 'Alternatives & conflicting evidence' section that briefly summarizes viable alternatives, known limitations, and any contrary findings from the provided sources")
     sb.WriteString("\n- A 'Risks and limitations' section")
     sb.WriteString("\n- A 'References' section listing all sources as a numbered list with titles and full URLs")
     sb.WriteString("\n- An 'Evidence check' appendix summarizing key claims with supporting source indices and confidence")

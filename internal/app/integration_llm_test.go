@@ -59,9 +59,9 @@ func stubLLM(t *testing.T, model string) *httptest.Server {
                     "Test Topic best practices",
                     "Test Topic faq",
                     "Test Topic examples",
-                    "Test Topic comparison",
+                    "Test Topic limitations",
                 },
-                "outline": []string{"Executive summary", "Background", "Core concepts", "Implementation guidance", "Examples", "Risks and limitations"},
+                "outline": []string{"Executive summary", "Background", "Core concepts", "Implementation guidance", "Alternatives & conflicting evidence", "Examples", "Risks and limitations"},
             }
             b, _ := json.Marshal(plan)
             content = string(b)
@@ -88,7 +88,7 @@ func stubLLM(t *testing.T, model string) *httptest.Server {
             ref1, ref2 := "https://example.com/a", "https://example.com/b"
             if len(urls) >= 1 { ref1 = urls[0] }
             if len(urls) >= 2 { ref2 = urls[1] }
-            content = "# Test Report\n2025-01-01\n\n## Executive summary\nA short summary citing [1].\n\n## Background\nBackground text with refs [1][2].\n\n## Risks and limitations\nSome cautions.\n\n## References\n1. Alpha — " + ref1 + "\n2. Beta — " + ref2 + "\n\n## Evidence check\nKey claims mapped."
+            content = "# Test Report\n2025-01-01\n\n## Executive summary\nA short summary citing [1].\n\n## Background\nBackground text with refs [1][2].\n\n## Alternatives & conflicting evidence\nBrief note on alternatives and contrary findings [1].\n\n## Risks and limitations\nSome cautions.\n\n## References\n1. Alpha — " + ref1 + "\n2. Beta — " + ref2 + "\n\n## Evidence check\nKey claims mapped."
         case verifySystem:
             // Return a minimal verification result JSON
             res := map[string]any{

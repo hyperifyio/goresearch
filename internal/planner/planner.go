@@ -36,7 +36,7 @@ type LLMPlanner struct {
     CacheOnly    bool
 }
 
-const systemMessage = "You are a planning assistant. Respond with strict JSON only, no narration. The JSON schema is {\"queries\": string[6..10], \"outline\": string[5..8]}. Queries must be diverse and concise. Outline contains section headings only."
+const systemMessage = "You are a planning assistant. Respond with strict JSON only, no narration. The JSON schema is {\"queries\": string[6..10], \"outline\": string[5..8]}. Queries must be diverse and concise, and MUST include at least two that explicitly seek counter-evidence or alternatives, e.g., 'limitations of <topic>', 'contrary findings about <topic>', or 'alternatives to <topic>'. The outline must contain a heading 'Alternatives & conflicting evidence'. Outline contains section headings only."
 
 // Plan implements Planner using the chat completions API. If the model returns
 // non-JSON or the payload cannot be parsed, an error is returned so callers can
@@ -84,8 +84,8 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
 		return Plan{}, fmt.Errorf("parse planner json: %w", err)
 	}
-	plan.Queries = sanitizeQueries(plan.Queries)
-	plan.Outline = sanitizeOutline(plan.Outline)
+    plan.Queries = ensureCounterEvidenceQueries(b.Topic, sanitizeQueries(plan.Queries), p.LanguageHint)
+    plan.Outline = ensureAlternativesHeading(sanitizeOutline(plan.Outline))
 	if len(plan.Queries) < 3 || len(plan.Outline) < 3 {
 		return Plan{}, errors.New("insufficient planner output")
 	}
@@ -108,18 +108,21 @@ func (p *FallbackPlanner) Plan(_ context.Context, b brief.Brief) (Plan, error) {
 	if topic == "" {
 		topic = "research topic"
 	}
-	// Deterministic set of 8 queries
-	words := []string{"specification", "documentation", "reference", "tutorial", "best practices", "faq", "examples", "comparison"}
-	queries := make([]string, 0, len(words))
+    // Deterministic set of queries including counter-evidence/alternatives
+    words := []string{"specification", "documentation", "reference", "tutorial", "best practices", "faq", "examples", "comparison", "limitations", "contrary findings", "alternatives"}
+    queries := make([]string, 0, 10)
 	for _, w := range words {
 		q := topic + " " + w
 		if p.LanguageHint != "" {
 			q = q + " (" + p.LanguageHint + ")"
 		}
-		queries = append(queries, q)
+        queries = append(queries, q)
+        if len(queries) == 10 { // cap to schema range
+            break
+        }
 	}
-	outline := []string{"Executive summary", "Background", "Core concepts", "Implementation guidance", "Examples", "Risks and limitations", "References"}
-	return Plan{Queries: queries, Outline: outline}, nil
+    outline := []string{"Executive summary", "Background", "Core concepts", "Implementation guidance", "Examples", "Alternatives & conflicting evidence", "Risks and limitations", "References"}
+    return Plan{Queries: queries, Outline: outline}, nil
 }
 
 func buildUserPrompt(b brief.Brief, lang string) string {
@@ -177,4 +180,79 @@ func sanitizeOutline(in []string) []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+// ensureCounterEvidenceQueries appends counter-evidence/alternatives queries
+// when missing, capping the list at 10 entries.
+func ensureCounterEvidenceQueries(topic string, in []string, lang string) []string {
+    have := map[string]bool{}
+    out := make([]string, 0, len(in))
+    for _, q := range in {
+        out = append(out, q)
+        have[strings.ToLower(strings.TrimSpace(q))] = true
+    }
+    mk := func(suffix string) string {
+        q := strings.TrimSpace(topic + " " + suffix)
+        if strings.TrimSpace(lang) != "" {
+            q += " (" + lang + ")"
+        }
+        return q
+    }
+    candidates := []string{
+        mk("limitations"),
+        mk("contrary findings"),
+        mk("alternatives"),
+        mk("criticisms"),
+    }
+    for _, c := range candidates {
+        if len(out) >= 10 {
+            break
+        }
+        key := strings.ToLower(strings.TrimSpace(c))
+        if !have[key] {
+            out = append(out, c)
+            have[key] = true
+        }
+    }
+    if len(out) > 10 {
+        out = out[:10]
+    }
+    return out
+}
+
+// ensureAlternativesHeading guarantees the outline contains the required
+// heading 'Alternatives & conflicting evidence'.
+func ensureAlternativesHeading(in []string) []string {
+    wanted := "Alternatives & conflicting evidence"
+    for _, h := range in {
+        if strings.EqualFold(strings.TrimSpace(h), wanted) {
+            return in
+        }
+    }
+    // Insert before Risks and limitations if present; else append before References if present; else append at end.
+    out := make([]string, 0, len(in)+1)
+    inserted := false
+    for i := 0; i < len(in); i++ {
+        if !inserted && strings.EqualFold(strings.TrimSpace(in[i]), "Risks and limitations") {
+            out = append(out, wanted)
+            inserted = true
+        }
+        out = append(out, in[i])
+    }
+    if !inserted {
+        // Try before References
+        out2 := make([]string, 0, len(out)+1)
+        for i := 0; i < len(out); i++ {
+            if !inserted && strings.EqualFold(strings.TrimSpace(out[i]), "References") {
+                out2 = append(out2, wanted)
+                inserted = true
+            }
+            out2 = append(out2, out[i])
+        }
+        out = out2
+    }
+    if !inserted {
+        out = append(out, wanted)
+    }
+    return out
 }

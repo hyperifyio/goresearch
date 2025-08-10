@@ -69,6 +69,9 @@ Some text.
 ## Background
 Info.
 
+## Alternatives & conflicting evidence
+Short counter-evidence summary.
+
 ## Risks and limitations
 Notes.
 
@@ -108,10 +111,30 @@ func TestValidateStructure_MissingRisks(t *testing.T) {
 ## Executive summary
 Text.
 
+## Alternatives & conflicting evidence
+Short.
+
 ## References
 1. Example — https://example.com`
     if err := ValidateStructure(md, []string{"Executive summary"}); err == nil {
         t.Fatalf("expected missing risks section to be an error")
+    }
+}
+
+func TestValidateStructure_MissingAlternativesConflicting(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+## Executive summary
+Text.
+
+## Risks and limitations
+Notes.
+
+## References
+1. Example — https://example.com`
+    if err := ValidateStructure(md, []string{"Executive summary"}); err == nil {
+        t.Fatalf("expected missing Alternatives & conflicting evidence section to be an error")
     }
 }
 

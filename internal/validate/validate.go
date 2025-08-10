@@ -604,12 +604,16 @@ func ValidateStructure(markdown string, outline []string) error {
         }
     }
 
-    // Ensure Risks and limitations section exists
+    // Ensure required sections exist
     hasRisks := false
+    hasAltConf := false
     hasRefs := false
     for _, h := range heads {
         if equalsIgnoreCase(trimSpace(h.text), "risks and limitations") {
             hasRisks = true
+        }
+        if equalsIgnoreCase(trimSpace(h.text), "alternatives & conflicting evidence") {
+            hasAltConf = true
         }
         if equalsIgnoreCase(trimSpace(h.text), "references") {
             hasRefs = true
@@ -617,6 +621,9 @@ func ValidateStructure(markdown string, outline []string) error {
     }
     if !hasRisks {
         return fmt.Errorf("missing 'Risks and limitations' section")
+    }
+    if !hasAltConf {
+        return fmt.Errorf("missing 'Alternatives & conflicting evidence' section")
     }
     if !hasRefs {
         return fmt.Errorf("missing 'References' section heading")

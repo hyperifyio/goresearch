@@ -7,6 +7,9 @@ A short summary citing [1].
 ## Background
 Background text with refs [1][2].
 
+## Alternatives & conflicting evidence
+Brief note on alternatives and contrary findings [1].
+
 ## Risks and limitations
 Some cautions.
 
