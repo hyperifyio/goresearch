@@ -262,7 +262,7 @@
 
 * [x] Troubleshooting & FAQ — Document common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug.&#x20;
 
-* [ ] LLM backend interface — Extract a provider interface so different OpenAI-compatible or local backends can be swapped without touching core logic.&#x20;
+* [x] LLM backend interface — Extract a provider interface so different OpenAI-compatible or local backends can be swapped without touching core logic.&#x20;
 
 * [ ] Report-type templates & section profiles — selectable IMRaD, decision/tech report, and literature-review profiles that enforce the right sections per type.&#x20;
 
