@@ -240,7 +240,7 @@
 
 * [x] Feature guides for verification & manifest — Explain how the evidence appendix is produced/read and how to use the embedded/sidecar manifest for audit.&#x20;
 
-* [ ] Architecture overview & diagram — Document Search → Fetch → Extract → Select → Synthesize → Validate → Verify data flow with package boundaries.&#x20;
+* [x] Architecture overview & diagram — Document Search → Fetch → Extract → Select → Synthesize → Validate → Verify data flow with package boundaries.&#x20;
 
 * [x] Quiet default + log levels — Make concise progress output the default; route detailed structured logs to file and gate with `--log-level`. Document how to enable verbose.&#x20;
 
