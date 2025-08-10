@@ -142,7 +142,7 @@
 
 * [x] Tests for robots evaluation — Add unit tests covering UA-specific vs wildcard sections, longest-match precedence, Allow overriding Disallow, wildcard and anchor behavior, Crawl-delay enforcement, and header/meta opt-outs.
 
-* [ ] Documentation of policy — Document default-on compliance, the override mechanism, and the exact decision policy for 404 vs 401/403/5xx outcomes, making clear that the tool is intended for public web pages and polite use.
+* [x] Documentation of policy — Document default-on compliance, the override mechanism, and the exact decision policy for 404 vs 401/403/5xx outcomes, making clear that the tool is intended for public web pages and polite use. (README section added with flags and behavior)
 
 * [ ] Tool protocol adapter — Add an OpenAI-compatible “tools/functions” encoder and response parser (name, description, JSON Schema args; detect and read `tool_calls` in assistant messages). 
 * [ ] Harmony response handling — Support Harmony-style channels (analysis/commentary/final) so the loop can safely ignore raw CoT except for explicit tool calls and final answers.

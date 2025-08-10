@@ -9,6 +9,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Caching and reproducibility](#caching-and-reproducibility)
+- [Robots, opt-out, and politeness policy](#robots-opt-out-and-politeness-policy)
 - [Tests](#tests)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -115,6 +116,9 @@ Primary flags (with defaults):
 - `-cache.maxAge` (default: 0): purge cache entries older than this duration (e.g. `24h`, `7d`); 0 disables
 - `-cache.clear` (default: false): clear entire cache before run
 - `-cache.topicHash`: optional topic hash to scope cache (accepted for traceability)
+- `-cache.strictPerms` (default: false): restrict cache at rest (0700 dirs, 0600 files)
+- `-robots.overrideDomains` (default from env `ROBOTS_OVERRIDE_DOMAINS`): comma-separated domain allowlist to ignore robots.txt, requires `-robots.overrideConfirm`
+- `-robots.overrideConfirm` (default: false): second confirmation flag required to activate robots override allowlist
 
 ## Usage
 
@@ -188,6 +192,27 @@ goresearch -search.file ./fixtures/search.json -llm.base "$LLM_BASE_URL" -llm.mo
   - `-cache.clear` to clear the cache dir before a run (bypasses reads for that run)
   - `-cache.strictPerms` to restrict cache at rest (0700 dirs, 0600 files)
 - **Manifest**: `report.md` includes a Manifest section and a `report.md.manifest.json` sidecar listing URLs and SHA-256 digests of the excerpts used.
+
+## Robots, opt-out, and politeness policy
+
+goresearch is designed for the public web and behaves politely by default. The following rules are enforced:
+
+- **Robots.txt compliance (default on)**: Before fetching a URL, the tool evaluates cached `/robots.txt` rules for the host using the configured User-Agent. It enforces Allow/Disallow with longest-path precedence and respects per-agent sections and wildcards. Redirects that would land on a disallowed path are short-circuited.
+- **Crawl-delay**: If the matched agent section declares `Crawl-delay`, requests to that host are spaced accordingly, in addition to global concurrency limits.
+- **Missing robots policy**: If `/robots.txt` returns 404, the tool proceeds as allowed. If it returns 401/403/5xx or times out, the host is treated as temporarily disallowed for this run and retried on a subsequent run or after cache expiry.
+- **Opt-out signals for AI/TDM reuse**: The fetcher denies reuse when any of these signals are present:
+  - `X-Robots-Tag` headers containing `noai` or `notrain` (scoped or unscoped)
+  - HTML `<meta name="robots|googlebot|x-robots-tag">` with `noai`/`notrain`
+  - HTTP `Link` headers with `rel="tdm-reservation"`
+  - HTML `<link rel="tdm-reservation">` in the document head
+  Skipped URLs and the specific reason are recorded in logs and the run manifest under “skipped due to robots/opt-out”.
+- **Public web only**: Localhost and private IP address targets are blocked by default.
+
+Override mechanism for controlled environments:
+
+- `-robots.overrideDomains example.com,docs.internal`: Ignore robots.txt for the listed domains. This is only activated when `-robots.overrideConfirm` is also provided. The override affects robots.txt evaluation only; AI/TDM opt-out signals (`noai`, `notrain`, TDM reservation) remain enforced.
+
+These safeguards exist to keep usage respectful of site operators and content owners. If you need to test against mirrors or internal docs, prefer adding those hosts to the explicit override allowlist for the duration of your run.
 
 ## Tests
 
