@@ -24,6 +24,12 @@ type MinimalDeps struct {
     Extractor      extract.Extractor
     // EnablePDF controls whether extract_main_text may attempt minimal PDF text extraction.
     EnablePDF      bool
+    // MaxResultChars, when > 0, caps the size of result payloads returned by tools.
+    // Large blobs are truncated to this many UTF-8 characters, and responses
+    // include metadata (truncated=true, bytes=<original length>) and, when applicable,
+    // a stable ID so callers can retrieve the full cached content via a loader tool.
+    // Requirement: FEATURE_CHECKLIST.md — Result size budgeting
+    MaxResultChars int
 }
 
 // inMemoryExcerptStore stores extracted documents keyed by deterministic ID.
@@ -60,6 +66,29 @@ func sha256Hex(s string) string {
     return hex.EncodeToString(sum[:])
 }
 
+// inMemoryBodyStore stores fetched bodies (e.g., HTML) keyed by deterministic ID.
+type inMemoryBodyStore struct {
+    mu   sync.RWMutex
+    data map[string]struct{
+        ContentType string
+        Body        []byte
+    }
+}
+
+func newBodyStore() *inMemoryBodyStore { return &inMemoryBodyStore{data: make(map[string]struct{ContentType string; Body []byte})} }
+func (s *inMemoryBodyStore) put(id string, ct string, body []byte) {
+    s.mu.Lock()
+    s.data[id] = struct{ContentType string; Body []byte}{ContentType: ct, Body: append([]byte(nil), body...)}
+    s.mu.Unlock()
+}
+func (s *inMemoryBodyStore) get(id string) (ct string, body []byte, ok bool) {
+    s.mu.RLock()
+    v, ok := s.data[id]
+    s.mu.RUnlock()
+    if !ok { return "", nil, false }
+    return v.ContentType, append([]byte(nil), v.Body...), true
+}
+
 // NewMinimalRegistry registers the initial minimal tool surface:
 // - web_search
 // - fetch_url
@@ -71,6 +100,7 @@ func sha256Hex(s string) string {
 func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
     r := NewRegistry()
     store := newExcerptStore()
+    bodies := newBodyStore()
 
     // Default extractor
     extractor := deps.Extractor
@@ -149,6 +179,20 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
             if u == "" { return nil, fmt.Errorf("missing url") }
             body, ct, err := deps.FetchClient.Get(ctx, u)
             if err != nil { return nil, err }
+            // Apply result size budgeting if configured
+            max := deps.MaxResultChars
+            if max > 0 && len(body) > max {
+                id := sha256Hex(string(body))
+                bodies.put(id, ct, body)
+                out := struct{
+                    ContentType string `json:"content_type"`
+                    Body        string `json:"body"`
+                    Truncated   bool   `json:"truncated"`
+                    Bytes       int    `json:"bytes"`
+                    ID          string `json:"id"`
+                }{ContentType: ct, Body: string(body[:max]), Truncated: true, Bytes: len(body), ID: id}
+                return json.Marshal(out)
+            }
             out := struct{
                 ContentType string `json:"content_type"`
                 Body        string `json:"body"`
@@ -191,10 +235,24 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
             } else {
                 doc = extractor.Extract([]byte(html))
             }
-            id := sha256Hex(doc.Title + "\n" + doc.Text)
-            stored := extractedDoc{ID: id, Title: strings.TrimSpace(doc.Title), Text: strings.TrimSpace(doc.Text)}
-            store.put(stored)
-            return json.Marshal(stored)
+            // Compute ID and store the full extracted document
+            fullTitle := strings.TrimSpace(doc.Title)
+            fullText := strings.TrimSpace(doc.Text)
+            id := sha256Hex(fullTitle + "\n" + fullText)
+            store.put(extractedDoc{ID: id, Title: fullTitle, Text: fullText})
+            // Apply result size budgeting if configured. Return a truncated view but keep full in cache.
+            max := deps.MaxResultChars
+            if max > 0 && len(fullText) > max {
+                out := struct{
+                    ID        string `json:"id"`
+                    Title     string `json:"title"`
+                    Text      string `json:"text"`
+                    Truncated bool   `json:"truncated"`
+                    Bytes     int    `json:"bytes"`
+                }{ID: id, Title: fullTitle, Text: fullText[:max], Truncated: true, Bytes: len(fullText)}
+                return json.Marshal(out)
+            }
+            return json.Marshal(extractedDoc{ID: id, Title: fullTitle, Text: fullText})
         },
     }); err != nil { return nil, err }
 
@@ -219,6 +277,36 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
             if id == "" { return nil, fmt.Errorf("missing id") }
             if d, ok := store.get(id); ok {
                 return json.Marshal(d)
+            }
+            return nil, fmt.Errorf("not found: %s", id)
+        },
+    }); err != nil { return nil, err }
+
+    // load_cached_body — retrieve a previously fetched large body by ID
+    loadBodySchema := json.RawMessage(`{
+        "type":"object",
+        "properties":{ "id": {"type":"string"} },
+        "required":["id"]
+    }`)
+    if err := r.Register(ToolDefinition{
+        StableName:  "load_cached_body",
+        SemVer:      "v1.0.0",
+        Description: "Load a previously fetched raw body by ID",
+        JSONSchema:  loadBodySchema,
+        Capabilities: []string{"cache","body"},
+        Handler: func(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+            var in struct{ ID string `json:"id"` }
+            if err := json.Unmarshal(args, &in); err != nil {
+                return nil, fmt.Errorf("invalid args: %w", err)
+            }
+            id := strings.TrimSpace(in.ID)
+            if id == "" { return nil, fmt.Errorf("missing id") }
+            if ct, body, ok := bodies.get(id); ok {
+                out := struct{
+                    ContentType string `json:"content_type"`
+                    Body        string `json:"body"`
+                }{ContentType: ct, Body: string(body)}
+                return json.Marshal(out)
             }
             return nil, fmt.Errorf("not found: %s", id)
         },

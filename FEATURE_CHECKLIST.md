@@ -157,7 +157,7 @@
 
 * [x] Minimal tool surface — Expose just what the model needs: `web_search`, `fetch_url`, `extract_main_text`, and `load_cached_excerpt` (IDs) to start; expand later.
 
-* [ ] Result size budgeting — Cap tool result payloads (chars/tokens); auto-summarize or return cache IDs for large blobs instead of inlining full text.
+* [x] Result size budgeting — Cap tool result payloads (chars/tokens); auto-summarize or return cache IDs for large blobs instead of inlining full text.
 
 * [ ] Tool-output schemas — Define strict JSON result shapes per tool (including typed errors) and validate before feeding back to the model.
 

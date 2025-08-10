@@ -3,6 +3,9 @@ package llmtools
 import (
     "context"
     "encoding/json"
+    "net/http"
+    "net/http/httptest"
+    "strings"
     "testing"
 
     "github.com/hyperifyio/goresearch/internal/fetch"
@@ -72,6 +75,73 @@ func TestNewMinimalRegistry_FetchURL_ErrorSurface(t *testing.T) {
     // Use a client with unsupported scheme error via URL
     _, err = def.Handler(context.Background(), mustRaw(t, map[string]any{"url": "file:///etc/hosts"}))
     if err == nil { t.Fatalf("expected error for unsupported scheme") }
+}
+
+func TestResultSizeBudgeting_TruncatesAndCachesBodiesAndExtracts(t *testing.T) {
+    t.Parallel()
+    // Serve a large HTML body
+    large := strings.Repeat("A", 5000)
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        _, _ = w.Write([]byte(large))
+    }))
+    defer srv.Close()
+
+    deps := MinimalDeps{
+        SearchProvider: stubSearch{},
+        FetchClient:    &fetch.Client{AllowPrivateHosts: true},
+        MaxResultChars: 1000,
+    }
+    r, err := NewMinimalRegistry(deps)
+    if err != nil { t.Fatalf("NewMinimalRegistry: %v", err) }
+
+    // Execute fetch and verify truncation metadata
+    fetchDef, ok := r.Get("fetch_url")
+    if !ok { t.Fatalf("fetch_url not registered") }
+    raw, err := fetchDef.Handler(context.Background(), mustRaw(t, map[string]any{"url": srv.URL}))
+    if err != nil { t.Fatalf("fetch handler: %v", err) }
+    var fetched struct{
+        ContentType string `json:"content_type"`
+        Body        string `json:"body"`
+        Truncated   bool   `json:"truncated"`
+        Bytes       int    `json:"bytes"`
+        ID          string `json:"id"`
+    }
+    if err := json.Unmarshal(raw, &fetched); err != nil { t.Fatalf("unmarshal: %v", err) }
+    if !fetched.Truncated || fetched.Bytes != 5000 || fetched.ID == "" || len(fetched.Body) != 1000 {
+        t.Fatalf("unexpected truncation result: %+v", fetched)
+    }
+
+    // Retrieve full body via load_cached_body
+    bodyDef, ok := r.Get("load_cached_body")
+    if !ok { t.Fatalf("load_cached_body not registered") }
+    raw, err = bodyDef.Handler(context.Background(), mustRaw(t, map[string]any{"id": fetched.ID}))
+    if err != nil { t.Fatalf("load_cached_body: %v", err) }
+    var full struct{ ContentType, Body string }
+    if err := json.Unmarshal(raw, &full); err != nil { t.Fatalf("unmarshal: %v", err) }
+    if full.Body != large {
+        t.Fatalf("expected full body of length %d, got %d", len(large), len(full.Body))
+    }
+
+    // Test extract_main_text truncation path and recovery via load_cached_excerpt
+    extractDef, _ := r.Get("extract_main_text")
+    html := "<html><head><title>T</title></head><body><main><p>" + strings.Repeat("x", 6000) + "</p></main></body></html>"
+    raw, err = extractDef.Handler(context.Background(), mustRaw(t, map[string]any{"html": html, "content_type":"text/html"}))
+    if err != nil { t.Fatalf("extract handler: %v", err) }
+    var doc struct{ ID, Title, Text string; Truncated bool; Bytes int }
+    if err := json.Unmarshal(raw, &doc); err != nil { t.Fatalf("unmarshal: %v", err) }
+    if !doc.Truncated || doc.Bytes <= 1000 || len(doc.Text) != 1000 {
+        t.Fatalf("expected truncated extract, got %+v", doc)
+    }
+    // Load full excerpt
+    loadDef, _ := r.Get("load_cached_excerpt")
+    raw, err = loadDef.Handler(context.Background(), mustRaw(t, map[string]any{"id": doc.ID}))
+    if err != nil { t.Fatalf("load_cached_excerpt: %v", err) }
+    var fullDoc struct{ ID, Title, Text string }
+    if err := json.Unmarshal(raw, &fullDoc); err != nil { t.Fatalf("unmarshal: %v", err) }
+    if len(fullDoc.Text) <= 1000 || !strings.Contains(fullDoc.Text, strings.Repeat("x", 1000)) {
+        t.Fatalf("expected full excerpt text, got length=%d", len(fullDoc.Text))
+    }
 }
 
 func TestNewMinimalRegistry_MissingDeps(t *testing.T) {
