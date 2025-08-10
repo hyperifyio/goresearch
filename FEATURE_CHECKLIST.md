@@ -274,7 +274,7 @@
 
 * [ ] Plain-language & readability lint — active-voice preference, acronym defined on first use, average sentence length \~15–20 words, target reading level with metrics.&#x20;
 
-* [ ] Audience fit check — per-brief audience/tone settings and a pass that flags jargon or sections mismatched to the intended reader.&#x20;
+* [x] Audience fit check — per-brief audience/tone settings and a pass that flags jargon or sections mismatched to the intended reader.&#x20;
 
 * [ ] Glossary & acronym list — auto-extract key terms and acronyms; add optional “Glossary” appendix.&#x20;
 
