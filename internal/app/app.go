@@ -350,6 +350,9 @@ func (a *App) Run(ctx context.Context) error {
     // 7b) Glossary & acronym list — auto-extract key terms and append optional appendix
     md = appendGlossaryAppendix(md)
 
+    // 7c) Table of contents — auto-generate for long documents
+    md = appendAutoToC(md, 12)
+
 	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
 	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
