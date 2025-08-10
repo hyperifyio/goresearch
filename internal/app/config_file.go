@@ -7,6 +7,7 @@ import (
     "os"
     "path/filepath"
     "time"
+    "strings"
 
     yaml "gopkg.in/yaml.v3"
 )
@@ -21,6 +22,11 @@ type FileConfig struct {
         Dir string `yaml:"dir" json:"dir"`
         Tar bool   `yaml:"tar" json:"tar"`
     } `yaml:"reports" json:"reports"`
+
+    Logging struct {
+        Level string `yaml:"level" json:"level"`
+        File  string `yaml:"file" json:"file"`
+    } `yaml:"logging" json:"logging"`
 
     LLM struct {
         BaseURL string `yaml:"base" json:"base"`
@@ -208,6 +214,14 @@ func ApplyFileConfig(cfg *Config, fc FileConfig) {
     if cfg.ToolsMaxWallClock == 0 && fc.Tools.MaxWallClock > 0 { cfg.ToolsMaxWallClock = fc.Tools.MaxWallClock }
     if (cfg.ToolsPerToolTimeout == 0 || cfg.ToolsPerToolTimeout == toolsPerToolTimeoutSecs*time.Second) && fc.Tools.PerToolTimeout > 0 { cfg.ToolsPerToolTimeout = fc.Tools.PerToolTimeout }
     if (cfg.ToolsMode == "" || cfg.ToolsMode == toolsModeDefault) && fc.Tools.Mode != "" { cfg.ToolsMode = fc.Tools.Mode }
+
+    // Logging
+    if strings.TrimSpace(cfg.LogLevel) == "" && strings.TrimSpace(fc.Logging.Level) != "" {
+        cfg.LogLevel = fc.Logging.Level
+    }
+    if strings.TrimSpace(cfg.LogFilePath) == "" && strings.TrimSpace(fc.Logging.File) != "" {
+        cfg.LogFilePath = fc.Logging.File
+    }
 }
 
 // ValidateConfig performs minimal schema validation for required settings.

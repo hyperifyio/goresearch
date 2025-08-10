@@ -114,7 +114,9 @@ Primary flags (with defaults):
 - `-min.snippetChars` (default: 0): minimum snippet chars to keep a search result
 - `-lang` (default: empty): language hint, e.g. `en` or `fi`
 - `-dry-run` (default: false): plan/select without calling the LLM
-  - `-v` (default: false): verbose logging (prompts summarized; CoT redacted)
+  - `-v` (default: false): verbose console output (progress). Detailed logs are controlled via `-log.level`.
+  - `-log.level` (default: info): structured log level for the log file: trace|debug|info|warn|error|fatal|panic
+  - `-log.file` (default: goresearch.log): path to write structured JSON logs
   - `-debug-verbose` (default: false): allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay. Off by default.
 - `-cache.dir` (default: `.goresearch-cache`): cache directory
 - `-cache.maxAge` (default: 0): purge cache entries older than this duration (e.g. `24h`, `7d`); 0 disables
@@ -184,7 +186,7 @@ goresearch -input request.md -output report.md -llm.base "$LLM_BASE_URL" -llm.mo
 Verbose with language hint and tighter domain cap:
 
 ```bash
-goresearch -v -lang en -max.perDomain 2 -input request.md -output report.md \
+goresearch -v -log.level debug -lang en -max.perDomain 2 -input request.md -output report.md \
   -llm.base "$LLM_BASE_URL" -llm.model "$LLM_MODEL" -llm.key "$LLM_API_KEY" \
   -searx.url "$SEARX_URL" -searx.key "$SEARX_KEY"
 ```
@@ -440,12 +442,10 @@ determinism. The final report embeds a compact manifest that lists the
 canonical URLs and their content digests used in synthesis so downstream users 
 can audit what was read.
 
-Observability and logging. The tool emits structured logs to standard error 
-with timestamps and levels. It logs planned queries, chosen sources, fetch 
+Observability and logging. The tool emits concise progress to standard error 
+by default and writes detailed structured JSON logs to a file (`goresearch.log` by default). It logs planned queries, chosen sources, fetch 
 durations, extraction sizes, token budget estimates, and LLM latency. Sensitive 
-values such as API keys are never logged. A verbose mode prints the exact 
-system and user messages sent to the model, but only when explicitly enabled, 
-and can redact long excerpts to avoid clutter.
+values such as API keys are never logged. Increase detail by setting `-log.level debug` (or `LOG_LEVEL=debug`) and optionally `-v` to print more progress to the console. An additional `-debug-verbose` mode can print raw prompts for deep troubleshooting.
 
 Error handling and resilience. Network errors, search outages, and extraction 
 failures are isolated per source, allowing the run to proceed with remaining 

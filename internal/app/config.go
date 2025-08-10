@@ -128,4 +128,12 @@ type Config struct {
     // ReportsTar, when true, also produces a tar.gz archive of the bundle and
     // a SHA256SUMS file listing digests for offline audit.
     ReportsTar bool
+
+    // Logging
+    // LogLevel controls the verbosity of structured logs written to the log file.
+    // Accepted values: trace, debug, info, warn, error, fatal, panic. Defaults to info.
+    LogLevel string
+    // LogFilePath is the destination file path for structured JSON logs.
+    // When empty, logs are written to goresearch.log in the current directory.
+    LogFilePath string
 }

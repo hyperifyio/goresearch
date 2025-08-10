@@ -242,7 +242,7 @@
 
 * [ ] Architecture overview & diagram — Document Search → Fetch → Extract → Select → Synthesize → Validate → Verify data flow with package boundaries.&#x20;
 
-* [ ] Quiet default + log levels — Make concise progress output the default; route detailed structured logs to file and gate with `--log-level`. Document how to enable verbose.&#x20;
+* [x] Quiet default + log levels — Make concise progress output the default; route detailed structured logs to file and gate with `--log-level`. Document how to enable verbose.&#x20;
 
 * [x] Cache size limits & eviction — Add max bytes/count with LRU eviction for HTTP and LLM caches, alongside existing age-based invalidation.&#x20;
 

@@ -6,6 +6,7 @@ import (
     "errors"
     "flag"
     "fmt"
+    "io"
     "os"
     "path/filepath"
     "reflect"
@@ -73,10 +74,35 @@ func main() {
     app.ApplyEnvToConfig(&cfg)
     // Then apply env overrides to force env > file when explicitly set
     app.ApplyEnvOverrides(&cfg)
-    if verbose {
-        zerolog.SetGlobalLevel(zerolog.DebugLevel)
+    // Configure logging: concise console output to stderr; structured JSON to file.
+    // Level precedence: --log.level > -v (debug) > info default.
+    level := zerolog.InfoLevel
+    if strings.TrimSpace(cfg.LogLevel) != "" {
+        if lv, err := zerolog.ParseLevel(strings.ToLower(strings.TrimSpace(cfg.LogLevel))); err == nil {
+            level = lv
+        } else {
+            log.Warn().Str("log.level", cfg.LogLevel).Msg("unknown log level; defaulting to info")
+        }
+    } else if verbose {
+        level = zerolog.DebugLevel
+    }
+    zerolog.SetGlobalLevel(level)
+
+    // Open log file for structured logs (JSON). Default path when unset.
+    logPath := strings.TrimSpace(cfg.LogFilePath)
+    if logPath == "" { logPath = "goresearch.log" }
+    var file io.Writer
+    if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+        file = f
     } else {
-        zerolog.SetGlobalLevel(zerolog.InfoLevel)
+        log.Warn().Err(err).Str("log_file", logPath).Msg("cannot open log file; continuing without file logs")
+    }
+    console := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+    if file != nil {
+        mw := io.MultiWriter(console, file)
+        log.Logger = zerolog.New(mw).With().Timestamp().Logger()
+    } else {
+        log.Logger = zerolog.New(console).With().Timestamp().Logger()
     }
 
     if err := run(cfg); err != nil {
@@ -184,6 +210,8 @@ type boundVars struct {
     noVerify                               *bool
     reportsDir                              *string
     reportsTar                              *bool
+    logLevel                                *string
+    logFile                                 *string
 }
 
 // flagMeta holds the FlagSet and the pointers to bound variables for later use.
@@ -243,6 +271,9 @@ func newFlagSet(getenv func(string) string) (*flag.FlagSet, flagMeta) {
     // Artifacts bundle
     bv.reportsDir = fs.String("reports.dir", "reports", "Root directory to persist artifacts bundles (reports)")
     bv.reportsTar = fs.Bool("reports.tar", false, "Also produce a tar.gz of the bundle with digests for offline audit")
+    // Logging controls
+    bv.logLevel = fs.String("log.level", strings.TrimSpace(getenv("LOG_LEVEL")), "Structured log level for file output: trace|debug|info|warn|error|fatal|panic (default info)")
+    bv.logFile = fs.String("log.file", strings.TrimSpace(getenv("LOG_FILE")), "Path to write structured JSON logs (default goresearch.log)")
 
     return fs, flagMeta{fs: fs, bound: bv}
 }
@@ -269,7 +300,7 @@ func renderCLIReferenceMarkdown(fs *flag.FlagSet) string {
 
     // Collect flags for stable ordering by name
     type row struct{ name, def, usage string }
-    rows := make([]row, 0, 64)
+    rows := make([]row, 0, 96)
     fs.VisitAll(func(f *flag.Flag) {
         rows = append(rows, row{name: f.Name, def: f.DefValue, usage: f.Usage})
     })
@@ -309,6 +340,8 @@ func renderCLIReferenceMarkdown(fs *flag.FlagSet) string {
         {"TOPIC_HASH", "Optional topic hash to scope cache"},
         {"VERIFY", "Set to truthy to force enable verification (overrides NO_VERIFY)"},
         {"NO_VERIFY", "Set to truthy to disable verification"},
+        {"LOG_LEVEL", "Structured log level for file output (trace|debug|info|warn|error|fatal|panic)"},
+        {"LOG_FILE", "Path to write structured JSON logs (default goresearch.log)"},
     }
     for _, e := range envs {
         b.WriteString(fmt.Sprintf("- `%s`: %s\n", e.key, e.desc))
@@ -369,6 +402,9 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         noVerify           bool
         reportsDir         string
         reportsTar         bool
+        // Logging flags
+        logLevel           string
+        logFile            string
     )
 
     fs.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -418,6 +454,9 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
     // Artifacts bundle flags
     fs.StringVar(&reportsDir, "reports.dir", "reports", "Root directory to persist artifacts bundles (reports)")
     fs.BoolVar(&reportsTar, "reports.tar", false, "Also produce a tar.gz of the bundle with digests for offline audit")
+    // Logging flags
+    fs.StringVar(&logLevel, "log.level", strings.TrimSpace(getenv("LOG_LEVEL")), "Structured log level for file output: trace|debug|info|warn|error|fatal|panic (default info)")
+    fs.StringVar(&logFile, "log.file", strings.TrimSpace(getenv("LOG_FILE")), "Path to write structured JSON logs (default goresearch.log)")
 
     if err := fs.Parse(args); err != nil {
         return app.Config{}, false, err
@@ -469,6 +508,8 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         ToolsMode:       toolsMode,
         ReportsDir:      reportsDir,
         ReportsTar:      reportsTar,
+        LogLevel:        logLevel,
+        LogFilePath:     logFile,
     }
 
     // Parse robots override domains into slice

@@ -42,6 +42,14 @@ func ApplyEnvToConfig(cfg *Config) {
         cfg.LanguageHint = os.Getenv("LANGUAGE")
     }
 
+    // Logging defaults from env if unset
+    if strings.TrimSpace(cfg.LogLevel) == "" {
+        cfg.LogLevel = os.Getenv("LOG_LEVEL")
+    }
+    if strings.TrimSpace(cfg.LogFilePath) == "" {
+        cfg.LogFilePath = os.Getenv("LOG_FILE")
+    }
+
     // SOURCE_CAPS can be "<max>" or "<max>,<perDomain>"
     if cfg.MaxSources == 0 || cfg.PerDomainCap == 0 {
         caps := strings.TrimSpace(os.Getenv("SOURCE_CAPS"))
@@ -120,6 +128,8 @@ func ApplyEnvOverrides(cfg *Config) {
 
     if v := os.Getenv("CACHE_DIR"); v != "" { cfg.CacheDir = v }
     if v := os.Getenv("LANGUAGE"); v != "" { cfg.LanguageHint = v }
+    if v := strings.TrimSpace(os.Getenv("LOG_LEVEL")); v != "" { cfg.LogLevel = v }
+    if v := strings.TrimSpace(os.Getenv("LOG_FILE")); v != "" { cfg.LogFilePath = v }
 
     if v := strings.TrimSpace(os.Getenv("SOURCE_CAPS")); v != "" {
         parts := strings.Split(v, ",")

@@ -21,7 +21,7 @@ import (
 func TestOperationalLogs_Stages(t *testing.T) {
     t.Parallel()
 
-    // Capture logs to a buffer
+    // Capture logs to a buffer (console path). File logs are handled separately by main.
     var buf bytes.Buffer
     oldLogger := log.Logger
     log.Logger = zerolog.New(&buf).With().Timestamp().Logger()

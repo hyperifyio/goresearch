@@ -220,10 +220,14 @@ func TestDoc_RenderIncludesKnownFlagsAndEnvs(t *testing.T) {
         "- `-searx.url`",
         "- `-cache.dir`",
         "- `-tools.enable`",
+        "- `-log.level`",
+        "- `-log.file`",
         "## Environment variables",
         "`LLM_BASE_URL`",
         "`SEARX_URL`",
         "`SOURCE_CAPS`",
+        "`LOG_LEVEL`",
+        "`LOG_FILE`",
     }
     for _, s := range mustContain {
         if !contains(md, s) {
