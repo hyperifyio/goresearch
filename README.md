@@ -163,6 +163,16 @@ make test
 make clean
 ```
 
+### Network isolation and optional port exposure
+
+By default, the Compose stack runs on a private internal network and does not publish any ports to the host. The `research-tool` reaches `llm-openai` and `searxng` by service name on the internal network only. To temporarily expose ports for local troubleshooting, use the provided override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
+```
+
+This maps `llm-openai` to `localhost:8080` and `searxng` to `localhost:8888`. Remove the override file from the command to restore the default private-only behavior.
+
 ## Usage
 
 Basic:
