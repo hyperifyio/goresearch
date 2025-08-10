@@ -168,6 +168,7 @@ make up
 - dev: `research-tool`, `searxng`, `llm-openai` (default local stack)
 - test: `research-tool`, `stub-llm` (deterministic testing)
 - offline: `research-tool-offline`, `llm-openai` (cache-only; no SearxNG)
+- secure-cache: `research-tool-secure`, `searxng`, `llm-openai` (dedicated cache volume with restricted at-rest permissions via `CACHE_STRICT_PERMS=1`)
 
 Examples:
 
@@ -180,6 +181,9 @@ docker compose --profile test up -d stub-llm
 
 # Offline stack (HTTP/LLM cache only)
 docker compose --profile offline up -d
+
+# Secure-at-rest cache profile (dedicated cache volume + strict perms)
+docker compose --profile secure-cache up -d research-tool-secure
 ```
 
 ### Environment variables
