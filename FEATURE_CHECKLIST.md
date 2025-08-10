@@ -163,7 +163,7 @@
 
 * [x] Error recovery for tools — On invalid args or failures, return structured error objects; allow the model to retry with corrected parameters.
 
-* [ ] Deterministic IDs — Assign stable content IDs/digests for fetched pages and extracts so the model can request slices by ID instead of re-pulling text.
+* [x] Deterministic IDs — Assign stable content IDs/digests for fetched pages and extracts so the model can request slices by ID instead of re-pulling text.
 
 * [ ] Policy enforcement in tools — Apply existing robots/opt-out/host politeness rules inside tool execution so the model cannot bypass them (deny-on-disallow).
 
