@@ -193,7 +193,7 @@
 
 * [x] Docker Compose local stack — Provide docker-compose.yml with services: research-tool, searxng (default search), llm-openai (local OpenAI-compatible LLM server), and stub-llm (for tests). Use a dedicated bridge network, named volumes for http\_cache, llm\_cache, and reports, and Compose profiles: dev (tool+searxng+llm), test (tool+stub-llm), and offline (tool only, cache-only mode).
 
-* [ ] Research tool container — Add a minimal Dockerfile for the CLI with a non-root user, pinned base image, labels (org.opencontainers), build args for version/commit, and an entrypoint that reads config from env/flags. Mount ./reports and ./cache as writable volumes. Include healthcheck that runs a quick “--dry-run” and exits 0 on success.
+* [x] Research tool container — Add a minimal Dockerfile for the CLI with a non-root user, pinned base image, labels (org.opencontainers), build args for version/commit, and an entrypoint that reads config from env/flags. Mount ./reports and ./cache as writable volumes. Include healthcheck that runs a quick “--dry-run” and exits 0 on success. (added `Dockerfile` with distroless non-root runtime, healthcheck, volumes; added `internal/app/buildinfo.go` for ldflags)
 
 * [ ] OpenAI-compatible LLM server container — Include a generic llm service (image pinned by digest) exposing an OpenAI-compatible /v1 API. Allow model path/ID and quantization via env, mount a models volume, and add a readiness healthcheck on /v1/models. Make the tool depend\_on this service becoming healthy.
 
