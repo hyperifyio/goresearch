@@ -328,6 +328,9 @@ func (a *App) Run(ctx context.Context) error {
 	md = appendEvidenceAppendix(md, vres, verr)
     log.Info().Str("stage", "verify").Bool("ok", verr == nil).Dur("elapsed", time.Since(stageStart)).Msg("verification completed")
 
+    // 7b) Glossary & acronym list — auto-extract key terms and append optional appendix
+    md = appendGlossaryAppendix(md)
+
 	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
 	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
