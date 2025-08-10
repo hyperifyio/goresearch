@@ -1,4 +1,4 @@
-.PHONY: wait up down logs rebuild test clean image
+.PHONY: wait up down logs rebuild test clean image image-archives builder-create
 
 # Wait for local dependencies (LLM and SearxNG) to become healthy.
 # Uses environment variables LLM_BASE_URL and SEARX_URL when set.
@@ -46,12 +46,40 @@ clean:
 VERSION ?= 0.0.0-dev
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo dev)
 DATE    ?= $(shell date -u +%FT%TZ)
+PLATFORMS ?= linux/amd64,linux/arm64
 
 image:
-	@echo "Building goresearch image with SBOM and provenance"
+	@echo "Building multi-arch goresearch image ($(PLATFORMS)) with SBOM and provenance"
 	@docker buildx build \
+		--platform=$(PLATFORMS) \
 		--sbom=true --provenance=mode=max \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
 		--build-arg DATE=$(DATE) \
 		-t ghcr.io/hyperifyio/goresearch:dev . || true
+
+# Build and export local image archives for both architectures so developers on
+# Intel and Apple Silicon can load and run without pushing to a registry.
+image-archives:
+	@mkdir -p dist
+	@echo "Exporting per-arch image archives for linux/amd64 and linux/arm64"
+	@docker buildx build \
+		--platform=linux/amd64 \
+		--sbom=true --provenance=mode=max \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t ghcr.io/hyperifyio/goresearch:dev \
+		--output type=oci,dest=dist/goresearch_linux-amd64_$(VERSION).tar . || true
+	@docker buildx build \
+		--platform=linux/arm64 \
+		--sbom=true --provenance=mode=max \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t ghcr.io/hyperifyio/goresearch:dev \
+		--output type=oci,dest=dist/goresearch_linux-arm64_$(VERSION).tar . || true
+
+# Convenience target to create a named builder with QEMU emulation locally
+builder-create:
+	@docker buildx create --use --name goresearch-builder >/dev/null 2>&1 || docker buildx use goresearch-builder

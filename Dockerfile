@@ -2,7 +2,7 @@
 
 # Build stage: compile goresearch as a static binary
 # Pinned base image for reproducibility (update digest deliberately when upgrading)
-FROM golang:1.24-bookworm@sha256:6a0409c7c2dc6c9a31f41a13f5a3f6e1f2b0d8d44a4b8a3c7c5b4d2a8a7e1f0a AS build
+FROM --platform=$BUILDPLATFORM golang:1.24-bookworm@sha256:6a0409c7c2dc6c9a31f41a13f5a3f6e1f2b0d8d44a4b8a3c7c5b4d2a8a7e1f0a AS build
 
 ARG VERSION=0.0.0
 ARG COMMIT=dev
@@ -18,10 +18,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Copy the rest of the source
 COPY . .
 
-# Build the CLI
+# Build the CLI (multi-arch via TARGETOS/TARGETARCH)
+# TARGETOS/TARGETARCH are provided by BuildKit automatically
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags "-s -w -X 'github.com/hyperifyio/goresearch/internal/app.BuildVersion=${VERSION}' -X 'github.com/hyperifyio/goresearch/internal/app.BuildCommit=${COMMIT}' -X 'github.com/hyperifyio/goresearch/internal/app.BuildDate=${DATE}'" \
     -o /out/goresearch ./cmd/goresearch
 
