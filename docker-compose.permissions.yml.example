@@ -1,0 +1,18 @@
+# Helper override to fix host directory ownership to match container user.
+# Usage:
+#   export APP_UID=$(id -u)
+#   export APP_GID=$(id -g)
+#   docker compose -f docker-compose.yml -f docker-compose.permissions.yml.example run --rm fix-perms
+# Then re-run your stack normally. This will chown common bind mount dirs.
+
+services:
+  fix-perms:
+    image: alpine:3.20
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    working_dir: /host
+    volumes:
+      - ./:/host
+    command: ["sh", "-lc", "chown -R ${APP_UID:-1000}:${APP_GID:-1000} /host/.goresearch-cache /host/reports || true"]
+    networks:
+      - goresearch_net
+    profiles: ["dev", "test", "offline"]

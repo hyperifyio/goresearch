@@ -14,6 +14,19 @@ volumes:
   reports:
 
 services:
+  # One-shot init to align ownership of named volumes with APP_UID:APP_GID
+  perms-init:
+    image: alpine:3.20
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    command: ["sh", "-lc", "chown -R ${APP_UID:-1000}:${APP_GID:-1000} /app/.goresearch-cache /app/reports || true"]
+    volumes:
+      - http_cache:/app/.goresearch-cache/http
+      - llm_cache:/app/.goresearch-cache/llm
+      - reports:/app/reports
+    networks:
+      - goresearch_net
+    restart: "no"
+    profiles: ["dev", "test", "offline"]
   research-tool:
     # Runs the CLI from source using the official Go image.
     # A dedicated Dockerfile will be added in a later checklist item.
@@ -31,11 +44,15 @@ services:
       # Note: LLM_API_KEY and SEARX_KEY must be provided via environment/.env
       # and are intentionally not defaulted here to avoid baking secrets.
       - SEARX_URL=http://searxng:8080
+    # Run as the invoking host user's UID:GID to avoid permission issues on bind mounts
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     command: ["sleep", "infinity"]
     networks:
       - goresearch_net
     profiles: ["dev", "test"]
     depends_on:
+      perms-init:
+        condition: service_completed_successfully
       models-init:
         condition: service_completed_successfully
       llm-openai:
@@ -58,11 +75,15 @@ services:
       - HTTP_CACHE_ONLY=1
       - LLM_CACHE_ONLY=1
       # Intentionally omit SEARX_URL to disable SearxNG usage in app config
+    # Run as the invoking host user's UID:GID to avoid permission issues on bind mounts
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     command: ["sleep", "infinity"]
     networks:
       - goresearch_net
     profiles: ["offline"]
     depends_on:
+      perms-init:
+        condition: service_completed_successfully
       models-init:
         condition: service_completed_successfully
       llm-openai:
