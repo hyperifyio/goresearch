@@ -33,9 +33,11 @@ func appendAutoToC(markdown string, minHeadings int) string {
             continue // Do not include H1 in ToC
         }
         if level >= 2 && level <= 4 {
-            // Exclude common appendix/meta sections from ToC
+            // Exclude common appendix/meta sections from ToC. After appendix
+            // labeling, headings may be prefixed with "Appendix X. ", so we
+            // also exclude when the terms appear anywhere in the heading.
             tl := strings.ToLower(t)
-            if tl == "references" || tl == "glossary" || strings.HasPrefix(tl, "evidence") || strings.Contains(tl, "manifest") {
+            if tl == "references" || strings.Contains(tl, "glossary") || strings.HasPrefix(tl, "evidence") || strings.Contains(tl, "evidence check") || strings.Contains(tl, "manifest") {
                 continue
             }
             items = append(items, item{level: level, text: t})

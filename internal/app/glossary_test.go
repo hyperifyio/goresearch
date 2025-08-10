@@ -36,6 +36,7 @@ A Convolutional Neural Network (CNN) is widely used. CNN training differs from V
     if !contains(out, "- Convolutional Neural Network") {
         t.Fatalf("expected key term 'Convolutional Neural Network'")
     }
+    // Expect labeled glossary heading after appendix management if run in pipeline
 }
 
 func TestAppendGlossaryAppendix_NoFindings_NoChange(t *testing.T) {

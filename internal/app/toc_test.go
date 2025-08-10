@@ -39,3 +39,31 @@ func TestAppendAutoToC_InsertionAfterHeader(t *testing.T) {
         t.Fatalf("toc insertion position unexpected")
     }
 }
+
+func TestManageAppendices_LabelAndReference(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+## Body
+Text.
+
+## References
+1. A — https://a.example
+
+## Evidence check
+Summary.
+
+## Glossary
+- Term — Definition
+`
+    out := manageAppendices(md)
+    if !strings.Contains(strings.ToLower(out), "## appendix a. evidence check") {
+        t.Fatalf("expected Appendix A label for Evidence check; got:\n%s", out)
+    }
+    if !strings.Contains(strings.ToLower(out), "## appendix b. glossary") {
+        t.Fatalf("expected Appendix B label for Glossary; got:\n%s", out)
+    }
+    if !strings.Contains(strings.ToLower(out), "see appendices:") {
+        t.Fatalf("expected body reference to appendices; got:\n%s", out)
+    }
+}

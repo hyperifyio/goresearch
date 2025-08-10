@@ -30,6 +30,7 @@ func appendGlossaryAppendix(markdown string) string {
     // Build appendix content
     var b strings.Builder
     b.WriteString(markdown)
+    // Title will be prefixed with an Appendix label by the appendix manager.
     b.WriteString("\n\n## Glossary\n\n")
 
     // Acronyms first, sorted by key

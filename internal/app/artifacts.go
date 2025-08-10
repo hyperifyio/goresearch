@@ -129,7 +129,18 @@ func extractEvidenceAppendix(md string) string {
     lines := strings.Split(md, "\n")
     start := -1
     for i, ln := range lines {
-        if strings.HasPrefix(strings.TrimSpace(strings.ToLower(ln)), "## evidence check") {
+        s := strings.TrimSpace(ln)
+        if !strings.HasPrefix(s, "## ") { continue }
+        // Normalize heading text: strip leading '## ' and lowercase
+        ht := strings.ToLower(strings.TrimSpace(s[3:]))
+        // Allow optional "appendix X. " prefix before the title
+        if strings.HasPrefix(ht, "appendix ") && len(ht) > len("appendix ")+2 {
+            // drop up to the first '.' following the appendix label
+            if dot := strings.Index(ht, ". "); dot != -1 {
+                ht = strings.TrimSpace(ht[dot+2:])
+            }
+        }
+        if strings.HasPrefix(ht, "evidence check") || strings.HasPrefix(ht, "evidence") {
             start = i
             break
         }

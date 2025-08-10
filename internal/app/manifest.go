@@ -65,7 +65,7 @@ func buildManifestEntriesFromSynth(excerpts []synth.SourceExcerpt) []manifestEnt
 func appendEmbeddedManifest(markdown string, meta manifestMeta, entries []manifestEntry) string {
 	var b strings.Builder
 	b.WriteString(markdown)
-	b.WriteString("\n\n## Manifest\n\n")
+    b.WriteString("\n\n## Manifest\n\n")
 	// Minimal, readable header
 	b.WriteString("- Model: ")
 	b.WriteString(strings.TrimSpace(meta.Model))

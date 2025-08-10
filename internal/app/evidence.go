@@ -16,6 +16,7 @@ func appendEvidenceAppendix(markdown string, res verify.Result, verifyErr error)
     }
     var b strings.Builder
     b.WriteString(markdown)
+    // Heading will be labeled by appendix manager later; keep base title here.
     b.WriteString("\n\n## Evidence check\n\n")
     if strings.TrimSpace(res.Summary) != "" {
         b.WriteString(res.Summary)

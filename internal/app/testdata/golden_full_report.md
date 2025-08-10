@@ -14,13 +14,15 @@ Some cautions.
 1. Alpha — ALPHA_URL
 2. Beta — BETA_URL
 
-## Evidence check
+See appendices: [Appendix A. Evidence check](#appendix-a-evidence-check)
+
+## Appendix A. Evidence check
 Key claims mapped.
 
 > WARNING: Structure issues: missing or out-of-order outline section: "Core concepts" (index 2)
 
 
-## Evidence check
+## Appendix A. Evidence check
 
 2 claims extracted; all supported.
 
@@ -32,7 +34,7 @@ Key claims mapped.
 Reproducibility: model=test-model; llm_base_url=LLM_BASE_URL; sources_used=2; http_cache=true; llm_cache=true
 
 
-## Manifest
+## Appendix B. Manifest
 
 - Model: test-model
 - LLM base URL: LLM_BASE_URL

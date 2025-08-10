@@ -366,6 +366,8 @@ func (a *App) Run(ctx context.Context) error {
     // 7c) Table of contents — auto-generate for long documents
     md = appendAutoToC(md, 12)
 
+    // 7d) Appendix management — defer until all appendices are appended
+
 	// 8) Append reproducibility footer capturing model/base URL, source count, and cache status
 	md = appendReproFooter(md, a.cfg.LLMModel, a.cfg.LLMBaseURL, len(excerpts), a.httpCache != nil, true)
 
@@ -392,6 +394,9 @@ func (a *App) Run(ctx context.Context) error {
 		_ = os.WriteFile(deriveManifestSidecarPath(a.cfg.OutputPath), data, 0o644)
 	}
     log.Info().Str("stage", "manifest").Int("sources", len(manEntries)).Dur("elapsed", time.Since(stageStart)).Msg("manifest written")
+
+    // 9b) Appendix management — auto-label appendices and ensure body references
+    md = manageAppendices(md)
 
     // 10) Optionally render a PDF copy with basic clickable links
     if strings.TrimSpace(a.cfg.OutputPDFPath) != "" {

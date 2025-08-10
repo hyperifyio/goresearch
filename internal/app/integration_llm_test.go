@@ -185,6 +185,10 @@ func TestIntegration_FullPipeline_StubLLM(t *testing.T) {
     if !strings.Contains(content, "Evidence check") {
         t.Fatalf("missing Evidence check appendix")
     }
+    // Appendix labeling should prefix with "Appendix A." for the first appendix
+    if !strings.Contains(strings.ToLower(content), "## appendix a. evidence check") {
+        t.Fatalf("expected labeled appendix heading for Evidence check; got:\n%s", content)
+    }
     // Basic inline citation presence
     if !strings.Contains(content, "[1]") {
         t.Fatalf("expected inline citation [1]")
