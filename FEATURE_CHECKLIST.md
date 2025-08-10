@@ -183,7 +183,7 @@
 
 * [x] Token/context budgeting for tool chat — Heuristics to prune earlier loop turns and compress older tool outputs so the running conversation stays within context.
 
-* [ ] Tests: tool loop — Deterministic integration tests with a stub model that requests specific tool calls in order; assert call sequencing and final answer assembly.
+* [x] Tests: tool loop — Deterministic integration tests with a stub model that requests specific tool calls in order; assert call sequencing and final answer assembly.
 
 * [ ] Tests: schema & fuzz — Unit tests that validate tool arg/result schemas and fuzz malformed inputs to ensure graceful errors.
 
