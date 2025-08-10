@@ -15,6 +15,8 @@ type Brief struct {
 	ToneHint     string
 	// TargetLengthWords is a soft target. Zero means unspecified.
 	TargetLengthWords int
+    // ReportType selects a section profile (e.g., "imrad", "decision", "literature").
+    ReportType string
 	// Raw is the original input for traceability if needed downstream.
 	Raw string
 }
@@ -25,6 +27,8 @@ var (
 	toneLineRe     = regexp.MustCompile(`(?i)^\s*tone\s*[:\-]\s*(.+?)\s*$`)
 	// Examples: "target length: 1200 words", "~800 words", "max 1500 words"
 	wordsRe = regexp.MustCompile(`(?i)(?:target\s*length|~|about|approx\.?|max)?\s*([0-9]{2,5})\s*(?:word|words)\b`)
+    // Report type indicators: "Type: IMRaD", "Report type: literature review", "Profile: decision report"
+    reportTypeLineRe = regexp.MustCompile(`(?i)^\s*(?:type|report\s*type|profile)\s*[:\-]\s*(.+?)\s*$`)
 )
 
 // ParseBrief parses a Markdown string into a Brief. The parser is deliberately
@@ -65,6 +69,12 @@ func ParseBrief(input string) Brief {
 			}
 		}
 
+        if brief.ReportType == "" {
+            if m := reportTypeLineRe.FindStringSubmatch(trimmed); len(m) == 2 {
+                brief.ReportType = normalizeReportType(strings.TrimSpace(m[1]))
+            }
+        }
+
 		if brief.TargetLengthWords == 0 {
 			if m := wordsRe.FindStringSubmatch(trimmed); len(m) == 2 {
 				brief.TargetLengthWords = parseIntSafe(m[1])
@@ -83,6 +93,30 @@ func ParseBrief(input string) Brief {
 	}
 
 	return brief
+}
+
+func normalizeReportType(s string) string {
+    v := strings.ToLower(strings.TrimSpace(s))
+    switch v {
+    case "imrad", "i.m.r.a.d", "i m r a d", "introduction, methods, results, discussion":
+        return "imrad"
+    case "decision", "decision report", "tech", "technical", "technical report", "technical decision", "decision/tech", "decision tech":
+        return "decision"
+    case "literature", "literature review", "lit review", "systematic review", "review":
+        return "literature"
+    default:
+        // Try to map substrings conservatively
+        if strings.Contains(v, "imrad") {
+            return "imrad"
+        }
+        if strings.Contains(v, "decision") || strings.Contains(v, "technical") || strings.Contains(v, "tech") {
+            return "decision"
+        }
+        if strings.Contains(v, "review") || strings.Contains(v, "literature") {
+            return "literature"
+        }
+        return ""
+    }
 }
 
 func deriveTopicFromLine(line string) string {
