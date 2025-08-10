@@ -185,7 +185,7 @@
 
 * [x] Tests: tool loop — Deterministic integration tests with a stub model that requests specific tool calls in order; assert call sequencing and final answer assembly.
 
-* [ ] Tests: schema & fuzz — Unit tests that validate tool arg/result schemas and fuzz malformed inputs to ensure graceful errors.
+* [x] Tests: schema & fuzz — Unit tests that validate tool arg/result schemas and fuzz malformed inputs to ensure graceful errors. (arg schema enforced in orchestrator; result/arg schema tests + fuzz added)
 
 * [ ] Config flags — CLI/env switches to enable tools, set loop caps/time budgets, and toggle Harmony/legacy function-calling modes.
 

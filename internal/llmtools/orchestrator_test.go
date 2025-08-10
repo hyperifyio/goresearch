@@ -291,6 +291,105 @@ func TestOrchestrator_ScrubsErrorMessages(t *testing.T) {
     if !found { t.Fatalf("tool message not found") }
 }
 
+// Validates that tool argument schema is enforced before handler execution and
+// that invalid arguments produce E_ARGS without invoking the handler.
+func TestOrchestrator_ArgSchemaValidation_EARGS(t *testing.T) {
+    // Assistant requests a tool with invalid args (missing required field)
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"echo","arguments":"{\"x\":123}"}}]
+            }
+        }]
+    }`
+    rawResp2 := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>OK</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+
+    // Tool requires {"msg": string}
+    r := NewRegistry()
+    called := 0
+    _ = r.Register(ToolDefinition{
+        StableName:  "echo",
+        SemVer:      "v1.0.0",
+        Description: "echo msg",
+        JSONSchema:  jsonObj(map[string]any{"type":"object","properties": map[string]any{"msg": map[string]any{"type":"string"}}, "required": []string{"msg"}}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            called++
+            return args, nil
+        },
+    })
+
+    orch := &Orchestrator{Client: client, Registry: r}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil { t.Fatalf("unexpected error: %v", err) }
+    if final != "OK" { t.Fatalf("unexpected final: %q", final) }
+    if called != 0 { t.Fatalf("handler should not be invoked on arg schema error; called=%d", called) }
+    // Find tool message and expect E_ARGS
+    found := false
+    for _, m := range transcript {
+        if m.Role == openai.ChatMessageRoleTool && m.Name == "echo" {
+            var env map[string]any
+            if e := json.Unmarshal([]byte(m.Content), &env); e != nil { t.Fatalf("tool content not JSON: %v", e) }
+            if ok, _ := env["ok"].(bool); ok { t.Fatalf("expected ok=false: %v", env) }
+            errObj, _ := env["error"].(map[string]any)
+            if errObj == nil || errObj["code"] != "E_ARGS" {
+                t.Fatalf("expected E_ARGS, got %v", errObj)
+            }
+            found = true
+        }
+    }
+    if !found { t.Fatalf("expected tool message with E_ARGS not found") }
+}
+
+// Validates that result schema is enforced; invalid handler results are wrapped
+// into E_RESULT_SCHEMA and not surfaced as data.
+func TestOrchestrator_ResultSchemaValidation_Enforced(t *testing.T) {
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"produce","arguments":"{}"}}]
+            }
+        }]
+    }`
+    rawResp2 := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>OK</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+
+    r := NewRegistry()
+    _ = r.Register(ToolDefinition{
+        StableName:  "produce",
+        SemVer:      "v1.0.0",
+        Description: "produce bad result",
+        JSONSchema:  jsonObj(map[string]any{"type":"object"}),
+        ResultSchema: jsonObj(map[string]any{"type":"object","properties": map[string]any{"msg": map[string]any{"type":"string"}}, "required": []string{"msg"}}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            // Return a result that violates schema (missing required field)
+            return jsonObj(map[string]any{"ok": true}), nil
+        },
+    })
+
+    orch := &Orchestrator{Client: client, Registry: r}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil { t.Fatalf("unexpected error: %v", err) }
+    if final != "OK" { t.Fatalf("unexpected final: %q", final) }
+    // Find tool message and expect E_RESULT_SCHEMA
+    found := false
+    for _, m := range transcript {
+        if m.Role == openai.ChatMessageRoleTool && m.Name == "produce" {
+            var env map[string]any
+            if e := json.Unmarshal([]byte(m.Content), &env); e != nil { t.Fatalf("tool content not JSON: %v", e) }
+            if ok, _ := env["ok"].(bool); ok { t.Fatalf("expected ok=false: %v", env) }
+            errObj, _ := env["error"].(map[string]any)
+            if errObj == nil || errObj["code"] != "E_RESULT_SCHEMA" {
+                t.Fatalf("expected E_RESULT_SCHEMA, got %v", errObj)
+            }
+            found = true
+        }
+    }
+    if !found { t.Fatalf("expected tool message with E_RESULT_SCHEMA not found") }
+}
+
 func TestOrchestrator_WallClockBudgetExceeded(t *testing.T) {
     // Single tool call that blocks for a while; set a tiny wall-clock budget so the
     // next model turn should fail with wall-clock exceeded.

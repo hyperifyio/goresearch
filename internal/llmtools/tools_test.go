@@ -111,3 +111,18 @@ func TestValidateAgainstSchema_MinimalSubset(t *testing.T) {
         t.Fatalf("unexpected array validate error: %v", err)
     }
 }
+
+// Lightweight fuzz test for validateAgainstSchema to ensure it doesn't panic
+// on random JSON values and simple schemas, and returns either nil or error.
+func FuzzValidateAgainstSchema_ObjectAndArray(f *testing.F) {
+    // seed with a few simple cases
+    f.Add(`{"type":"object","properties":{"a":{"type":"string"}},"required":["a"],"additionalProperties":false}`, `{"a":"x"}`)
+    f.Add(`{"type":"array","items":{"type":"integer"}}`, `[1,2,3]`)
+    f.Add(`{"type":"string"}`, `"hello"`)
+    f.Fuzz(func(t *testing.T, schemaJSON string, valueJSON string) {
+        var sch json.RawMessage = json.RawMessage(schemaJSON)
+        var val any
+        _ = json.Unmarshal([]byte(valueJSON), &val)
+        _ = validateAgainstSchema(val, sch) // must not panic
+    })
+}

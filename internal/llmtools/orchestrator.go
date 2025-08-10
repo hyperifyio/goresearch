@@ -208,6 +208,35 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                         eff = remain
                     }
                 }
+                // Validate tool arguments against JSON schema before invoking handler.
+                // If invalid, surface a structured E_ARGS error without calling the handler.
+                var argVal any
+                _ = json.Unmarshal(call.Arguments, &argVal)
+                if def.JSONSchema != nil && len(def.JSONSchema) > 0 {
+                    if vErr := validateAgainstSchema(argVal, def.JSONSchema); vErr != nil {
+                        env := map[string]any{
+                            "ok":   false,
+                            "tool": call.Name,
+                            "error": map[string]any{
+                                "code":    "E_ARGS",
+                                "message": "invalid args: " + scrubString(vErr.Error()),
+                            },
+                        }
+                        b, _ := json.Marshal(env)
+                        resultContent = string(b)
+                        // Append tool message below as usual
+                        messages = append(messages, openai.ChatCompletionMessage{
+                            Role:       openai.ChatMessageRoleTool,
+                            Name:       call.Name,
+                            ToolCallID: call.ID,
+                            Content:    resultContent,
+                        })
+                        toolCallsUsed++
+                        // Continue to the next tool call without executing handler
+                        continue
+                    }
+                }
+
                 toolCtx, cancelTool := context.WithTimeout(ctx, eff)
                 raw, err := def.Handler(toolCtx, call.Arguments)
                 cancelTool()
