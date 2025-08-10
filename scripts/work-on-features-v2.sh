@@ -62,7 +62,7 @@ while grep -q '\* \[ \]' FEATURE_CHECKLIST.md; do
     echo
 
     if ! run_with_timeout "$TIMEOUT_SEC" cursor-agent -p --output-format text -f -m gpt-5 \
-        "Follow these rules .cursor/rules/go-implement.mdc .cursor/rules/go-dod.mdc .cursor/rules/go-diverse-tests.mdc .cursor/rules/go-work.mdc"; then
+        "Follow these rules .cursor/rules/go-implement.mdc .cursor/rules/go-dod.mdc .cursor/rules/go-diverse-tests.mdc .cursor/rules/go-work.mdc .cursor/rules/go-no-docker.mdc"; then
         echo "cursor-agent work step timed out or failed." >&2
     fi
 

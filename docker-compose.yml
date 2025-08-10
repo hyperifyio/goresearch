@@ -24,12 +24,13 @@ services:
       - http_cache:/app/.goresearch-cache/http
       - llm_cache:/app/.goresearch-cache/llm
       - reports:/app/reports
+    # Load environment from .env (Compose default) and avoid in-file secrets.
     environment:
       - LLM_BASE_URL=http://llm-openai:8080/v1
       - LLM_MODEL=${LLM_MODEL:-gpt-neo}
-      - LLM_API_KEY=${LLM_API_KEY:-sk-local}
+      # Note: LLM_API_KEY and SEARX_KEY must be provided via environment/.env
+      # and are intentionally not defaulted here to avoid baking secrets.
       - SEARX_URL=http://searxng:8080
-      - SEARX_KEY=${SEARX_KEY:-}
     command: ["sleep", "infinity"]
     networks:
       - goresearch_net

@@ -59,10 +59,10 @@ EOF
 # Writable volumes for reports and cache
 VOLUME ["/app/reports", "/app/.goresearch-cache"]
 
-# Default environment can be overridden at runtime
+# Default non-secret environment can be overridden at runtime. Do not bake
+# secrets like API keys into the image.
 ENV LLM_BASE_URL="http://llm-openai:8080/v1" \
     LLM_MODEL="gpt-neo" \
-    LLM_API_KEY="sk-local" \
     SEARX_URL="http://searxng:8080"
 
 # Healthcheck: quick dry-run that must exit 0 on success
