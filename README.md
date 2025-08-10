@@ -9,6 +9,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Caching and reproducibility](#caching-and-reproducibility)
+- [Verification & manifest guide](#verification--manifest-guide)
 - [Robots, opt-out, and politeness policy](#robots-opt-out-and-politeness-policy)
 - [Tests](#tests)
 - [Roadmap](#roadmap)
@@ -201,6 +202,10 @@ goresearch -search.file ./fixtures/search.json -llm.base "$LLM_BASE_URL" -llm.mo
   - `-cache.clear` to clear the cache dir before a run (bypasses reads for that run)
   - `-cache.strictPerms` to restrict cache at rest (0700 dirs, 0600 files)
 - **Manifest**: `report.md` includes a Manifest section and a `report.md.manifest.json` sidecar listing URLs and SHA-256 digests of the excerpts used.
+
+## Verification & manifest guide
+
+See the dedicated guide for how to read the Evidence check appendix and use the embedded and sidecar manifest during audit: [docs/verification-and-manifest.md](docs/verification-and-manifest.md).
 
 ## Robots, opt-out, and politeness policy
 
