@@ -450,3 +450,55 @@ func TestOrchestrator_FallbackPath_NoToolsOrNoCalls(t *testing.T) {
     if err != nil { t.Fatalf("fallback B error: %v", err) }
     if finalB != "FB2" || calledB != 1 { t.Fatalf("fallback B not used: final=%q called=%d", finalB, calledB) }
 }
+
+// Token/context budgeting for tool chat — ensure older tool messages are
+// compressed and, if necessary, older turns are pruned to fit within budget.
+func TestOrchestrator_Budgeting_CompressAndPrune(t *testing.T) {
+    // Build a long conversation with multiple tool calls so that without
+    // budgeting it would exceed a small model context.
+    var responses []openai.ChatCompletionResponse
+    // 4 assistant turns that each request a tool call
+    for i := 0; i < 4; i++ {
+        raw := fmt.Sprintf(`{"choices":[{"message":{"role":"assistant","content":"analysis %d","tool_calls":[{"id":"t%d","type":"function","function":{"name":"dump","arguments":"{\"n\":%d}"}}]}}]}`, i, i, i)
+        responses = append(responses, mustUnmarshalResp(t, raw))
+        // After tool result, the model returns another tool call until the last, then final
+    }
+    // Final response
+    responses = append(responses, mustUnmarshalResp(t, "{\n  \"choices\": [{\n    \"message\": {\n      \"role\": \"assistant\",\n      \"content\": \"<final>OK</final>\"\n    }\n  }]\n}"))
+
+    client := &stubClient{responses: responses}
+    r := NewRegistry()
+    // dump tool returns a very large payload to trigger compression
+    _ = r.Register(ToolDefinition{
+        StableName:  "dump",
+        SemVer:      "v1.0.0",
+        Description: "dump large content",
+        JSONSchema:  jsonObj(map[string]any{"type": "object", "properties": map[string]any{"n": map[string]any{"type": "integer"}}}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            // produce a large string field
+            big := strings.Repeat("A", 5000)
+            out := map[string]any{"result": map[string]any{"id": "X", "text": big}}
+            b, _ := json.Marshal(out)
+            return b, nil
+        },
+    })
+
+    orch := &Orchestrator{Client: client, Registry: r}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-4o-mini", MaxTokens: 256}, "sys", "user question", nil)
+    if err != nil { t.Fatalf("Run error: %v", err) }
+    if final != "OK" { t.Fatalf("unexpected final: %q", final) }
+    // Ensure there is at least one compressed tool message content
+    compressedSeen := false
+    for _, m := range transcript {
+        if m.Role == openai.ChatMessageRoleTool {
+            // Older tool messages should be compressed; detect marker
+            if strings.Contains(m.Content, "\"compressed\":true") || strings.Contains(m.Content, "compressed\":true") {
+                compressedSeen = true
+                break
+            }
+        }
+    }
+    if !compressedSeen {
+        t.Fatalf("expected compressed tool messages in transcript")
+    }
+}

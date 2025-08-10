@@ -10,6 +10,7 @@ import (
     "strings"
     "time"
 
+    "github.com/hyperifyio/goresearch/internal/budget"
     "github.com/rs/zerolog/log"
     openai "github.com/sashabaranov/go-openai"
 )
@@ -121,7 +122,9 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
         }
 
         req := baseReq
-        req.Messages = append([]openai.ChatCompletionMessage(nil), messages...)
+        // Apply token/context budgeting: prune or compress earlier turns so the
+        // running conversation stays within the model's context window.
+        req.Messages = budgetMessagesForRequest(messages, baseReq)
         req.Tools = tools
 
         // Respect remaining wall-clock time for the request if set
@@ -291,6 +294,9 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
             })
             toolCallsUsed++
         }
+        // Apply in-transcript compression of older tool messages to keep the
+        // transcript lean over time. Keep the latest 2 tool messages verbatim.
+        messages = compressOlderToolMessages(messages, 2)
         // Next iteration uses the augmented messages
     }
 }
@@ -405,6 +411,172 @@ func scrubString(s string) string {
         return sanitizeURLForSafety(u)
     }
     return s
+}
+
+// budgetMessagesForRequest returns a copy of messages pruned and/or compressed
+// to fit into the model's context window with conservative headroom and output
+// reservation. Heuristics:
+// - Always keep the first system message if present
+// - Prefer keeping the most recent turns; start pruning from the oldest
+// - Compress older tool messages by truncating large string fields and marking
+//   the envelope with {"compressed":true}
+// - If still over budget, drop oldest non-system messages until it fits
+func budgetMessagesForRequest(messages []openai.ChatCompletionMessage, baseReq openai.ChatCompletionRequest) []openai.ChatCompletionMessage {
+    if len(messages) == 0 {
+        return nil
+    }
+    // Work on a copy
+    out := append([]openai.ChatCompletionMessage(nil), messages...)
+
+    model := strings.TrimSpace(baseReq.Model)
+    if model == "" {
+        model = "gpt-4o-mini" // reasonable default for budgeting
+    }
+    // Reserve output tokens conservatively if MaxTokens is not set
+    reserved := baseReq.MaxTokens
+    if reserved <= 0 {
+        reserved = 1024
+    }
+
+    // Helper to estimate total tokens of current message slice
+    estimateTotal := func(msgs []openai.ChatCompletionMessage) int {
+        total := 0
+        for _, m := range msgs {
+            total += budget.EstimateTokens(m.Content)
+        }
+        return total
+    }
+
+    // First pass: if it already fits, return as-is
+    maxPrompt := budget.RemainingContextWithHeadroom(model, reserved, 0)
+    if maxPrompt <= 0 {
+        // Degenerate; keep only the last few messages
+        if len(out) > 8 {
+            return out[len(out)-8:]
+        }
+        return out
+    }
+
+    // Attempt to compress older tool messages (keep the latest 2 as-is)
+    // We scan from the beginning to the penultimate tool messages.
+    toolCount := 0
+    for _, m := range out {
+        if m.Role == openai.ChatMessageRoleTool {
+            toolCount++
+        }
+    }
+    toolsToKeep := 2
+    toCompress := toolCount - toolsToKeep
+    if toCompress < 0 { toCompress = 0 }
+    if toCompress > 0 {
+        for i := 0; i < len(out) && toCompress > 0; i++ {
+            if out[i].Role != openai.ChatMessageRoleTool {
+                continue
+            }
+            // Compress content
+            out[i].Content = compressToolContent(out[i].Content)
+            toCompress--
+        }
+    }
+
+    // Check fit; if over, prune from the oldest non-system message
+    for estimateTotal(out) > maxPrompt {
+        if len(out) <= 1 {
+            break
+        }
+        // Preserve the first system message if present.
+        if out[0].Role == openai.ChatMessageRoleSystem {
+            // Remove out[1]
+            out = append(out[:1], out[2:]...)
+        } else {
+            out = out[1:]
+        }
+    }
+    return out
+}
+
+// compressToolContent tries to parse a tool envelope JSON and produce a
+// compact representation that preserves keys and IDs while truncating large
+// strings. If parsing fails, it returns a safe truncated text.
+func compressToolContent(content string) string {
+    var anyVal any
+    if err := json.Unmarshal([]byte(content), &anyVal); err != nil {
+        // Fallback: truncate plain text
+        if len(content) > 256 {
+            return content[:200] + "… (compressed)"
+        }
+        return content
+    }
+    comp := compressJSONNode(anyVal, 256)
+    // Mark compressed at top-level if it is an object
+    if m, ok := comp.(map[string]any); ok {
+        m["compressed"] = true
+        comp = m
+    }
+    b, err := json.Marshal(comp)
+    if err != nil {
+        if len(content) > 256 { return content[:200] + "… (compressed)" }
+        return content
+    }
+    return string(b)
+}
+
+// compressOlderToolMessages compresses the content of older tool messages in
+// the transcript, keeping the latest keepLast tool messages unmodified. It
+// returns a new slice with compressed content for older tool entries.
+func compressOlderToolMessages(messages []openai.ChatCompletionMessage, keepLast int) []openai.ChatCompletionMessage {
+    if keepLast < 0 { keepLast = 0 }
+    // Find indexes of tool messages
+    toolIdx := make([]int, 0, 8)
+    for i, m := range messages {
+        if m.Role == openai.ChatMessageRoleTool {
+            toolIdx = append(toolIdx, i)
+        }
+    }
+    toCompress := len(toolIdx) - keepLast
+    if toCompress <= 0 {
+        return messages
+    }
+    out := append([]openai.ChatCompletionMessage(nil), messages...)
+    for i := 0; i < toCompress; i++ {
+        idx := toolIdx[i]
+        out[idx].Content = compressToolContent(out[idx].Content)
+    }
+    return out
+}
+
+// compressJSONNode walks a JSON-like value and truncates large strings.
+// maxLen applies per string value. It preserves id fields verbatim.
+func compressJSONNode(v any, maxLen int) any {
+    switch t := v.(type) {
+    case string:
+        if len(t) > maxLen {
+            // Keep prefix to retain hint of content
+            keep := maxLen - 56
+            if keep < 0 { keep = maxLen }
+            if keep > len(t) { keep = len(t) }
+            return t[:keep] + fmt.Sprintf("… (%d chars, truncated)", len(t))
+        }
+        return t
+    case map[string]any:
+        out := make(map[string]any, len(t))
+        for k, vv := range t {
+            if strings.EqualFold(k, "id") {
+                out[k] = vv
+                continue
+            }
+            out[k] = compressJSONNode(vv, maxLen)
+        }
+        return out
+    case []any:
+        out := make([]any, len(t))
+        for i, vv := range t {
+            out[i] = compressJSONNode(vv, maxLen)
+        }
+        return out
+    default:
+        return v
+    }
 }
 
 // urlParseMaybe parses a string as URL if it appears to be a URL.
