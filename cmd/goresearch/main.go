@@ -50,6 +50,12 @@ func main() {
         return
     }
 
+    // Subcommand: goresearch version — print version/build information
+    if len(os.Args) > 1 && os.Args[1] == "version" {
+        fmt.Print(renderVersion())
+        return
+    }
+
     cfg, verbose, err := parseConfig(os.Args[1:], os.Getenv)
     if err != nil {
         log.Error().Err(err).Msg("parse flags failed")

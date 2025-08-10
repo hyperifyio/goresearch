@@ -250,3 +250,14 @@ func stringIndex(s, substr string) int {
     }
     return -1
 }
+
+// Test version renderer includes fields and sane defaults
+func TestRenderVersion_IncludesDefaults(t *testing.T) {
+    out := renderVersion()
+    must := []string{"goresearch", "commit:", "built:", "go:"}
+    for _, m := range must {
+        if !contains(out, m) {
+            t.Fatalf("version output missing %q: %s", m, out)
+        }
+    }
+}
