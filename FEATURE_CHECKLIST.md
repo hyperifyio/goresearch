@@ -208,7 +208,7 @@
 
 * [ ] Resource limits — Set conservative cpu/memory limits and reservations per service; document how to override (e.g., COMPOSE\_PROFILES=dev LLM\_MEMORY\_GB=8). Ensure the tool fails gracefully when limits are hit.
 
-* [ ] Non-root volumes & permissions — Create volumes with matching UID\:GID for the app user in containers; provide a helper script/compose override to chown existing host directories to avoid permission errors.
+* [x] Non-root volumes & permissions — Create volumes with matching UID\:GID for the app user in containers; provide a helper script/compose override to chown existing host directories to avoid permission errors.
 
 * [ ] Logs & artifacts mapping — Map structured JSON logs to ./logs and final Markdown reports to ./reports. Ensure timestamps are in UTC and file names are stable (topic hash or timestamp).
 
