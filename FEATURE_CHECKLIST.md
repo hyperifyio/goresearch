@@ -238,7 +238,7 @@
 
 * [ ] Full flag & config reference — Auto-generate a comprehensive CLI/options page and link it from README.&#x20;
 
-* [ ] Feature guides for verification & manifest — Explain how the evidence appendix is produced/read and how to use the embedded/sidecar manifest for audit.&#x20;
+* [x] Feature guides for verification & manifest — Explain how the evidence appendix is produced/read and how to use the embedded/sidecar manifest for audit.&#x20;
 
 * [ ] Architecture overview & diagram — Document Search → Fetch → Extract → Select → Synthesize → Validate → Verify data flow with package boundaries.&#x20;
 
