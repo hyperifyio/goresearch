@@ -70,3 +70,41 @@ func TestOperationalLogs_Stages(t *testing.T) {
         t.Fatalf("expected elapsed field in logs; got:\n%s", logs)
     }
 }
+
+// TestOfflineCacheOnly_FailsFastOnHTTPCacheMiss verifies that when
+// HTTPCacheOnly is enabled, the app fails fast without attempting network
+// when a selected URL is not present in the HTTP cache. This protects the
+// offline/airgapped profile requirement.
+// Traceability: FEATURE_CHECKLIST.md — Offline/airgapped profile
+func TestOfflineCacheOnly_FailsFastOnHTTPCacheMiss(t *testing.T) {
+    t.Parallel()
+
+    tmp := t.TempDir()
+    briefPath := filepath.Join(tmp, "brief.md")
+    if err := os.WriteFile(briefPath, []byte("# Topic\n"), 0o644); err != nil {
+        t.Fatalf("write brief: %v", err)
+    }
+    // Provide one fake selected URL via file-based search
+    resultsPath := filepath.Join(tmp, "results.json")
+    results := `[{"Title":"X","URL":"https://example.com/x","Snippet":"s","Source":"file"}]`
+    if err := os.WriteFile(resultsPath, []byte(results), 0o644); err != nil {
+        t.Fatalf("write results: %v", err)
+    }
+    outPath := filepath.Join(tmp, "out.md")
+
+    app, err := New(context.Background(), Config{
+        InputPath:      briefPath,
+        OutputPath:     outPath,
+        FileSearchPath: resultsPath,
+        CacheDir:       filepath.Join(tmp, ".cache"),
+        HTTPCacheOnly:  true,
+        // Use fallback planner to avoid LLM dependency
+        LLMModel:       "",
+    })
+    if err != nil { t.Fatalf("new app: %v", err) }
+    defer app.Close()
+
+    if err := app.Run(context.Background()); err == nil {
+        t.Fatalf("expected failure due to HTTP cache miss in cache-only mode")
+    }
+}

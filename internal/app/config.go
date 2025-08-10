@@ -33,6 +33,14 @@ type Config struct {
 	DryRun   bool
 	CacheDir string
 	Verbose  bool
+    // HTTPCacheOnly, when true, serves HTTP bodies exclusively from the
+    // on-disk HTTP cache and fails fast on a cache miss. No network requests
+    // are attempted. Intended for offline/airgapped operation.
+    HTTPCacheOnly bool
+    // LLMCacheOnly, when true, serves planner/synthesizer/verifier results
+    // exclusively from the LLM cache and fails fast on a cache miss. No LLM
+    // requests are attempted. Intended for offline/airgapped operation.
+    LLMCacheOnly bool
     // DebugVerbose, when true, allows logging of raw chain-of-thought (CoT)
     // content for debugging Harmony/tool-call interplay. Default is false and
     // CoT is redacted from logs. Use sparingly.

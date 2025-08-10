@@ -48,6 +48,8 @@ type Synthesizer struct {
     // AllowCOTLogging enables logging of raw assistant content (CoT) for
     // debugging Harmony/tool-call interplay. Default is false and CoT is redacted.
     AllowCOTLogging bool
+    // CacheOnly, when true, returns from cache and fails fast if missing.
+    CacheOnly bool
 }
 
 // ErrNoSubstantiveBody indicates the model produced no usable Markdown body.
@@ -74,6 +76,9 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
                 return out.Markdown, nil
             }
         }
+    }
+    if s.CacheOnly {
+        return "", ErrNoSubstantiveBody
     }
 
     req := openai.ChatCompletionRequest{

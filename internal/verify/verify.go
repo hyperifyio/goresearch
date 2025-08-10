@@ -39,6 +39,9 @@ type Verifier struct {
     Cache  *cache.LLMCache
     // SystemPrompt, when non-empty, overrides the default verifier system message.
     SystemPrompt string
+    // CacheOnly, when true, returns from cache and skips network; on miss,
+    // falls back to deterministic verifier rather than calling the LLM.
+    CacheOnly bool
 }
 
 // Verify analyzes the provided Markdown report and returns a verification
@@ -61,6 +64,10 @@ func (v *Verifier) Verify(ctx context.Context, markdown string, model string, la
                     return normalizeResult(res), nil
                 }
             }
+        }
+        if v.CacheOnly {
+            // In offline mode, do not attempt a live LLM call; use fallback.
+            return fallbackVerify(markdown), nil
         }
         req := openai.ChatCompletionRequest{
             Model: model,

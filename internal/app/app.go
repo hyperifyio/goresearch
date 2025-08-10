@@ -107,23 +107,25 @@ func New(ctx context.Context, cfg Config) (*App, error) {
         a.httpCache = &cache.HTTPCache{Dir: cfg.CacheDir, StrictPerms: cfg.CacheStrictPerms}
 	}
 
-	// Quick connectivity check to local LLM by listing models
-	// Do not fail hard if unreachable in dry-run; warn instead.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-    models, err := a.ai.ListModels(ctx)
-    if err != nil {
-        // Preflight is best-effort: do not fail hard here. We continue and let
-        // downstream synthesis surface errors as needed so the CLI can apply
-        // its exit code policy.
-        log.Warn().Err(err).Msg("LLM model list failed; continuing")
-    } else {
-		if len(models.Models) > 0 {
-			log.Info().Int("count", len(models.Models)).Msg("LLM models available")
-		} else {
-			log.Warn().Msg("LLM returned zero models")
-		}
-	}
+    // Quick connectivity check to local LLM by listing models. Skip when
+    // operating in cache-only mode to avoid any network attempts.
+    if !cfg.LLMCacheOnly {
+        ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+        defer cancel()
+        models, err := a.ai.ListModels(ctx)
+        if err != nil {
+            // Preflight is best-effort: do not fail hard here. We continue and let
+            // downstream synthesis surface errors as needed so the CLI can apply
+            // its exit code policy.
+            log.Warn().Err(err).Msg("LLM model list failed; continuing")
+        } else {
+            if len(models.Models) > 0 {
+                log.Info().Int("count", len(models.Models)).Msg("LLM models available")
+            } else {
+                log.Warn().Msg("LLM returned zero models")
+            }
+        }
+    }
 
 	return a, nil
 }
@@ -267,7 +269,7 @@ func (a *App) Run(ctx context.Context) error {
         Robots:            rb,
         DomainAllowlist:   a.cfg.DomainAllowlist,
         DomainDenylist:    a.cfg.DomainDenylist,
-	}}
+    }, cacheOnly: a.cfg.HTTPCacheOnly, httpCache: a.httpCache}
     // Use adapter-based extractor to enable swap of readability tactics
     excerpts, skipped := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
@@ -282,7 +284,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 5) Synthesize report
     stageStart = time.Now()
-    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt, AllowCOTLogging: a.cfg.DebugVerbose}
+    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt, AllowCOTLogging: a.cfg.DebugVerbose, CacheOnly: a.cfg.LLMCacheOnly}
     md, err := syn.Synthesize(ctx, synth.Input{
 		Brief:                b,
 		Outline:              plan.Outline,
@@ -320,7 +322,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 7) Verification pass: extract claims and append an evidence map appendix.
     stageStart = time.Now()
-    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, SystemPrompt: a.cfg.VerifySystemPrompt}
+    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, SystemPrompt: a.cfg.VerifySystemPrompt, CacheOnly: a.cfg.LLMCacheOnly}
 	vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
 	if verr != nil {
 		log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
@@ -374,7 +376,7 @@ type PlannerFacade struct {
 func (a *App) planQueries(ctx context.Context, b brief.Brief) planner.Plan {
 	// Build facade on first use
     if a.planner.llm == nil && a.ai != nil && a.cfg.LLMModel != "" {
-        a.planner.llm = &planner.LLMPlanner{Client: a.ai, Model: a.cfg.LLMModel, LanguageHint: a.cfg.LanguageHint, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}}
+        a.planner.llm = &planner.LLMPlanner{Client: a.ai, Model: a.cfg.LLMModel, LanguageHint: a.cfg.LanguageHint, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, CacheOnly: a.cfg.LLMCacheOnly}
 	}
 	if a.planner.fb == nil {
 		a.planner.fb = &planner.FallbackPlanner{LanguageHint: a.cfg.LanguageHint}
@@ -394,13 +396,33 @@ func (a *App) planQueries(ctx context.Context, b brief.Brief) planner.Plan {
 // from the exact fetcher API shape and simplify testing.
 type fetchClient struct {
 	client *fetch.Client
+    cacheOnly bool
+    httpCache *cache.HTTPCache
 }
 
 func (f *fetchClient) get(ctx context.Context, url string) ([]byte, string, error) {
-	if f == nil || f.client == nil {
-		return nil, "", fmt.Errorf("fetch client not configured")
-	}
-	return f.client.Get(ctx, url)
+    if f == nil {
+        return nil, "", fmt.Errorf("fetch client not configured")
+    }
+    if f.cacheOnly {
+        if f.httpCache == nil {
+            return nil, "", fmt.Errorf("http cache-only mode but no cache configured")
+        }
+        // Load without network; fail fast on miss
+        body, err := f.httpCache.LoadBody(ctx, url)
+        if err != nil {
+            return nil, "", fmt.Errorf("http cache-only: not found")
+        }
+        meta, err := f.httpCache.LoadMeta(ctx, url)
+        if err != nil || meta == nil {
+            return nil, "", fmt.Errorf("http cache-only: not found meta")
+        }
+        return body, meta.ContentType, nil
+    }
+    if f.client == nil {
+        return nil, "", fmt.Errorf("fetch client not configured")
+    }
+    return f.client.Get(ctx, url)
 }
 
 func pickNonEmpty(a, b string) string {

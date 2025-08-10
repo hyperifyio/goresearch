@@ -82,6 +82,8 @@ func ApplyEnvToConfig(cfg *Config) {
     setBool(&cfg.Verbose, "VERBOSE")
     setBool(&cfg.CacheClear, "CACHE_CLEAR")
     setBool(&cfg.CacheStrictPerms, "CACHE_STRICT_PERMS")
+    setBool(&cfg.HTTPCacheOnly, "HTTP_CACHE_ONLY")
+    setBool(&cfg.LLMCacheOnly, "LLM_CACHE_ONLY")
 }
 
 // ApplyEnvOverrides forcefully overrides cfg fields with environment variables
@@ -138,4 +140,6 @@ func ApplyEnvOverrides(cfg *Config) {
     setBool(&cfg.Verbose, "VERBOSE")
     setBool(&cfg.CacheClear, "CACHE_CLEAR")
     setBool(&cfg.CacheStrictPerms, "CACHE_STRICT_PERMS")
+    setBool(&cfg.HTTPCacheOnly, "HTTP_CACHE_ONLY")
+    setBool(&cfg.LLMCacheOnly, "LLM_CACHE_ONLY")
 }

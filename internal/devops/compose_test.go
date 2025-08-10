@@ -97,6 +97,43 @@ func TestCompose_LLMServiceConfiguration(t *testing.T) {
     }
 }
 
+// TestCompose_OfflineProfile asserts that the offline profile uses the
+// research-tool-offline service, does not include searxng in its dependencies,
+// and that the LLM service participates in offline (so cached LLM can be used).
+func TestCompose_OfflineProfile(t *testing.T) {
+    root := findRepoRoot(t)
+    composePath := filepath.Join(root, "docker-compose.yml")
+    b, err := os.ReadFile(composePath)
+    if err != nil { t.Fatalf("read compose: %v", err) }
+    var doc map[string]any
+    if err := yaml.Unmarshal(b, &doc); err != nil { t.Fatalf("yaml: %v", err) }
+    services, _ := doc["services"].(map[string]any)
+    off, ok := services["research-tool-offline"].(map[string]any)
+    if !ok { t.Fatalf("research-tool-offline missing") }
+    // Profiles should include offline
+    if profs, _ := off["profiles"].([]any); profs == nil {
+        t.Fatalf("offline service missing profiles")
+    }
+    // Environment should set HTTP_CACHE_ONLY and LLM_CACHE_ONLY
+    env, _ := off["environment"].([]any)
+    envStr := make([]string, 0, len(env))
+    for _, v := range env { if s, ok := v.(string); ok { envStr = append(envStr, s) } }
+    hasHTTP := false; hasLLM := false
+    for _, e := range envStr {
+        if strings.HasPrefix(e, "HTTP_CACHE_ONLY=") { hasHTTP = true }
+        if strings.HasPrefix(e, "LLM_CACHE_ONLY=") { hasLLM = true }
+    }
+    if !hasHTTP || !hasLLM { t.Fatalf("offline env must set HTTP_CACHE_ONLY and LLM_CACHE_ONLY; got %v", envStr) }
+
+    // llm-openai should include offline profile
+    llm, ok := services["llm-openai"].(map[string]any)
+    if !ok { t.Fatalf("llm-openai missing") }
+    profs, _ := llm["profiles"].([]any)
+    found := false
+    for _, p := range profs { if s, ok := p.(string); ok && s == "offline" { found = true; break } }
+    if !found { t.Fatalf("llm-openai should participate in offline profile") }
+}
+
 func findRepoRoot(t *testing.T) string {
     t.Helper()
     dir, err := os.Getwd()

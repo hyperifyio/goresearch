@@ -218,7 +218,7 @@
 
 * [ ] CI compose smoke test — GitHub Actions workflow that builds the tool image, brings up the test profile (tool+stub-llm), runs a canned brief, asserts a report file exists, and uploads it as an artifact.
 
-* [ ] Offline/airgapped profile — Provide an offline Compose profile that disables searxng and runs the tool in cache-only mode (both HTTP and LLM caches), failing fast if a cache miss occurs.
+* [x] Offline/airgapped profile — Provide an offline Compose profile that disables searxng and runs the tool in cache-only mode (both HTTP and LLM caches), failing fast if a cache miss occurs. (2025-08-10)
 
 * [ ] Local TLS (optional) — Optional caddy/nginx reverse-proxy service for local HTTPS termination to llm and searxng with self-signed certs; disabled by default and isolated to the Compose network.
 

@@ -34,13 +34,38 @@ services:
     command: ["sleep", "infinity"]
     networks:
       - goresearch_net
-    profiles: ["dev", "test", "offline"]
+    profiles: ["dev", "test"]
     depends_on:
       models-init:
         condition: service_completed_successfully
       llm-openai:
         condition: service_healthy
       searxng:
+        condition: service_healthy
+
+  # Offline variant: runs in cache-only mode and does not depend on SearxNG.
+  research-tool-offline:
+    image: golang:1.24-bookworm
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - http_cache:/app/.goresearch-cache/http
+      - llm_cache:/app/.goresearch-cache/llm
+      - reports:/app/reports
+    environment:
+      - LLM_BASE_URL=http://llm-openai:8080/v1
+      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
+      - HTTP_CACHE_ONLY=1
+      - LLM_CACHE_ONLY=1
+      # Intentionally omit SEARX_URL to disable SearxNG usage in app config
+    command: ["sleep", "infinity"]
+    networks:
+      - goresearch_net
+    profiles: ["offline"]
+    depends_on:
+      models-init:
+        condition: service_completed_successfully
+      llm-openai:
         condition: service_healthy
 
   # OpenAI-compatible LLM server
@@ -59,7 +84,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    profiles: ["dev", "test"]
+    profiles: ["dev", "test", "offline"]
     depends_on:
       models-init:
         condition: service_completed_successfully

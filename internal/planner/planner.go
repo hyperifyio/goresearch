@@ -32,6 +32,8 @@ type LLMPlanner struct {
 	LanguageHint string
 	Cache        *cache.LLMCache
 	Verbose      bool
+    // CacheOnly, when true, returns from cache and fails fast if missing.
+    CacheOnly    bool
 }
 
 const systemMessage = "You are a planning assistant. Respond with strict JSON only, no narration. The JSON schema is {\"queries\": string[6..10], \"outline\": string[5..8]}. Queries must be diverse and concise. Outline contains section headings only."
@@ -45,8 +47,8 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 	}
 
 	user := buildUserPrompt(b, p.LanguageHint)
-	// Cache lookup
-	if p.Cache != nil {
+    // Cache lookup
+    if p.Cache != nil {
 		key := cache.KeyFrom(p.Model, systemMessage+"\n\n"+user)
 		if raw, ok, _ := p.Cache.Get(ctx, key); ok {
 			var plan Plan
@@ -55,6 +57,9 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 			}
 		}
 	}
+    if p.CacheOnly {
+        return Plan{}, errors.New("planner cache-only: not found")
+    }
     if p.Verbose {
         // Log prompt skeleton only; avoid logging raw excerpts or sensitive data
         log.Debug().Str("stage", "planner").Str("model", p.Model).Int("system_len", len(systemMessage)).Int("user_len", len(user)).Msg("planner prompt")
