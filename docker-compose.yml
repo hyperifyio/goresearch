@@ -12,6 +12,8 @@ volumes:
   llm_cache:
   models:
   reports:
+  # Dedicated volume for secure-at-rest cache profile
+  secure_cache:
 
 services:
   # One-shot init to align ownership of named volumes with APP_UID:APP_GID
@@ -27,6 +29,19 @@ services:
       - goresearch_net
     restart: "no"
     profiles: ["dev", "test", "offline"]
+
+  # One-shot init for secure cache volume; aligns ownership for /app/.goresearch-cache
+  perms-init-secure:
+    image: alpine:3.20@sha256:1111111111111111111111111111111111111111111111111111111111111111
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    command: ["sh", "-lc", "chown -R ${APP_UID:-1000}:${APP_GID:-1000} /app/.goresearch-cache /app/reports || true"]
+    volumes:
+      - secure_cache:/app/.goresearch-cache
+      - reports:/app/reports
+    networks:
+      - goresearch_net
+    restart: "no"
+    profiles: ["secure-cache"]
   research-tool:
     # Runs the CLI from source using the official Go image.
     # A dedicated Dockerfile will be added in a later checklist item.
@@ -52,6 +67,34 @@ services:
     profiles: ["dev", "test"]
     depends_on:
       perms-init:
+        condition: service_completed_successfully
+      models-init:
+        condition: service_completed_successfully
+      llm-openai:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+
+  # Secure-at-rest variant: mounts a dedicated cache volume and enables strict perms
+  research-tool-secure:
+    image: golang:1.24-bookworm@sha256:1111111111111111111111111111111111111111111111111111111111111111
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - secure_cache:/app/.goresearch-cache
+      - reports:/app/reports
+    environment:
+      - LLM_BASE_URL=http://llm-openai:8080/v1
+      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
+      - SEARX_URL=http://searxng:8080
+      - CACHE_STRICT_PERMS=1
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    command: ["sleep", "infinity"]
+    networks:
+      - goresearch_net
+    profiles: ["secure-cache"]
+    depends_on:
+      perms-init-secure:
         condition: service_completed_successfully
       models-init:
         condition: service_completed_successfully
@@ -105,7 +148,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    profiles: ["dev", "test", "offline"]
+    profiles: ["dev", "test", "offline", "secure-cache"]
     depends_on:
       models-init:
         condition: service_completed_successfully
@@ -119,7 +162,7 @@ services:
     networks:
       - goresearch_net
     restart: "no"
-    profiles: ["dev", "test"]
+    profiles: ["dev", "test", "secure-cache"]
 
   # SearxNG meta-search engine (default search provider)
   searxng:
@@ -136,7 +179,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    profiles: ["dev"]
+    profiles: ["dev", "secure-cache"]
 
   # Stub LLM for deterministic tests (placeholder image; refined later)
   stub-llm:
