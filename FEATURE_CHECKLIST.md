@@ -169,7 +169,7 @@
 
 * [x] Domain allow/deny lists — Centralized allowlist/denylist evaluated before any networked tool runs; log blocked attempts.
 
-* [ ] Safety redaction — Strip secrets, cookies, and tracking params from tool outputs; scrub headers before echoing anything into the transcript.
+* [x] Safety redaction — Strip secrets, cookies, and tracking params from tool outputs; scrub headers before echoing anything into the transcript.
 
 * [ ] Structured tracing — Log every tool call with tool name, args hash, duration, byte counts, and outcome; correlate to the final report for auditability.
 
