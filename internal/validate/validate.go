@@ -635,3 +635,279 @@ func ValidateStructure(markdown string, outline []string) error {
 }
 
 
+// ValidateVisuals enforces visuals quality rules for figures and tables in a Markdown document:
+// - Figures and tables must be numbered sequentially starting at 1 per-kind (Fig. 1, Fig. 2; Table 1, Table 2)
+// - Each visual must have a non-empty caption (for figures: either in alt text containing the caption alongside the number, or an adjacent caption line like "Figure 1: ...")
+// - Images must include non-empty alt text
+// - Each numbered visual must be referenced in text (e.g., "See Fig. 1" or "Table 1")
+// - Placement heuristic: a textual reference for a visual should appear within a small window of lines (default ±8) from the visual's location
+// If no figures or tables are present, this validator returns nil.
+func ValidateVisuals(markdown string) error {
+    type visualKind int
+    const (
+        kindFigure visualKind = iota
+        kindTable
+    )
+    type visual struct{
+        kind visualKind
+        number int
+        caption string
+        line int
+        // for figures
+        hasAlt bool
+    }
+
+    lines := splitLines(markdown)
+
+    // Regexes for detection
+    // Image: ![alt](src)
+    imgAltStart := "!["
+    // Caption lines: Figure/Fig. N: ...  or  Table N: ...
+    figCaptionRe := regexp.MustCompile(`^(?i)\s*(figure|fig\.)\s+(\d+)\s*[:\-—]\s*(.+\S)\s*$`)
+    tblCaptionRe := regexp.MustCompile(`^(?i)\s*table\s+(\d+)\s*[:\-—]\s*(.+\S)\s*$`)
+    // In-text mentions
+    figMentionRe := regexp.MustCompile(`(?i)\b(see\s+)?(fig\.|figure)\s+(\d+)\b`)
+    tblMentionRe := regexp.MustCompile(`(?i)\b(see\s+)?table\s+(\d+)\b`)
+
+    // Detect tables using a simple two-line header + separator heuristic
+    isTableHeader := func(s string) bool {
+        s = trimSpace(s)
+        return strings.HasPrefix(s, "|") && strings.HasSuffix(s, "|") && strings.Count(s, "|") >= 2
+    }
+    isTableSeparator := func(s string) bool {
+        s = trimSpace(s)
+        if !strings.HasPrefix(s, "|") || !strings.HasSuffix(s, "|") {
+            return false
+        }
+        // require at least one segment like :---: or ---
+        segs := strings.Split(s, "|")
+        found := 0
+        for _, seg := range segs {
+            seg = trimSpace(seg)
+            if seg == "" { continue }
+            ok := true
+            for _, r := range seg {
+                if !(r == ':' || r == '-' ) {
+                    ok = false
+                    break
+                }
+            }
+            if ok { found++ }
+        }
+        return found >= 1
+    }
+
+    // Collect visuals
+    visuals := make([]visual, 0)
+    // Track mentions per line index
+    figMentionsByNum := map[int][]int{}
+    tblMentionsByNum := map[int][]int{}
+
+    // Precompute which lines are captions or image lines to avoid counting them as in-text mentions
+    isFigCaptionLine := make([]bool, len(lines))
+    isTblCaptionLine := make([]bool, len(lines))
+    isImageLine := make([]bool, len(lines))
+    for i, line := range lines {
+        s := trimSpace(line)
+        if figCaptionRe.MatchString(s) { isFigCaptionLine[i] = true }
+        if tblCaptionRe.MatchString(s) { isTblCaptionLine[i] = true }
+        if strings.Contains(line, imgAltStart) { isImageLine[i] = true }
+    }
+
+    // Pass 1: collect mentions across all lines (excluding captions and image lines)
+    for i, line := range lines {
+        if isFigCaptionLine[i] || isTblCaptionLine[i] || isImageLine[i] { continue }
+        for _, m := range figMentionRe.FindAllStringSubmatch(line, -1) {
+            if len(m) >= 4 {
+                // m[3] is number
+                n := 0
+                for _, ch := range m[3] { n = n*10 + int(ch-'0') }
+                figMentionsByNum[n] = append(figMentionsByNum[n], i)
+            }
+        }
+        for _, m := range tblMentionRe.FindAllStringSubmatch(line, -1) {
+            if len(m) >= 3 {
+                n := 0
+                // last group is number
+                last := m[len(m)-1]
+                for _, ch := range last { n = n*10 + int(ch-'0') }
+                tblMentionsByNum[n] = append(tblMentionsByNum[n], i)
+            }
+        }
+    }
+
+    // Helper: try parse int from string
+    parseNum := func(s string) int { n:=0; for _, ch := range s { if ch<'0'||ch>'9' { continue }; n = n*10 + int(ch-'0') }; return n }
+
+    // Pass 2: detect figures and captions
+    for i := 0; i < len(lines); i++ {
+        line := lines[i]
+        // Figures via images
+        if idx := strings.Index(line, imgAltStart); idx != -1 {
+            // Extract alt
+            alt := ""
+            // find closing ](
+            rb := strings.Index(line[idx+2:], "](")
+            if rb != -1 {
+                alt = line[idx+2 : idx+2+rb]
+            }
+            hasAlt := trimSpace(alt) != ""
+            // Determine number+caption
+            num := 0
+            cap := ""
+            // Option A: number embedded in alt: Figure/ Fig. N ...
+            if m := figCaptionRe.FindStringSubmatch(alt); m != nil {
+                num = parseNum(m[2])
+                cap = trimSpace(m[3])
+            }
+            // Option B: adjacent caption line (next non-empty or previous non-empty)
+            if num == 0 {
+                // next non-empty
+                for j:=i+1; j < len(lines) && j <= i+2; j++ { // look within 2 lines
+                    if c := trimSpace(lines[j]); c != "" {
+                        if m := figCaptionRe.FindStringSubmatch(c); m != nil {
+                            num = parseNum(m[2])
+                            cap = trimSpace(m[3])
+                        }
+                        break
+                    }
+                }
+            }
+            if num == 0 {
+                // previous non-empty
+                for j:=i-1; j >= 0 && j >= i-2; j-- {
+                    if c := trimSpace(lines[j]); c != "" {
+                        if m := figCaptionRe.FindStringSubmatch(c); m != nil {
+                            num = parseNum(m[2])
+                            cap = trimSpace(m[3])
+                        }
+                        break
+                    }
+                }
+            }
+            visuals = append(visuals, visual{kind: kindFigure, number: num, caption: cap, line: i, hasAlt: hasAlt})
+        }
+
+        // Tables: header + separator heuristic; caption adjacent
+        if i+1 < len(lines) && isTableHeader(lines[i]) && isTableSeparator(lines[i+1]) {
+            // Find caption adjacent (prev non-empty or next non-empty beyond table)
+            // First, skip table body to find the next non-table line
+            end := i+2
+            for end < len(lines) {
+                s := trimSpace(lines[end])
+                if s == "" { end++; continue }
+                if strings.HasPrefix(s, "|") && strings.HasSuffix(s, "|") { end++; continue }
+                break
+            }
+            // Try previous non-empty
+            num := 0
+            cap := ""
+            for j:=i-1; j>=0 && j>=i-2; j-- {
+                c := trimSpace(lines[j])
+                if c == "" { continue }
+                if m := tblCaptionRe.FindStringSubmatch(c); m != nil {
+                    num = parseNum(m[1])
+                    cap = trimSpace(m[2])
+                }
+                break
+            }
+            if num == 0 {
+                // next non-empty after the table
+                if end < len(lines) {
+                    c := trimSpace(lines[end])
+                    if m := tblCaptionRe.FindStringSubmatch(c); m != nil {
+                        num = parseNum(m[1])
+                        cap = trimSpace(m[2])
+                    }
+                }
+            }
+            visuals = append(visuals, visual{kind: kindTable, number: num, caption: cap, line: i, hasAlt: false})
+            // advance i to end-1 so loop continues after table
+            i = end-1
+        }
+    }
+
+    if len(visuals) == 0 {
+        return nil
+    }
+
+    // Validate per rules and accumulate issues
+    var issues []string
+
+    // Alt text and captions, numbering present
+    figNums := make([]int, 0)
+    tblNums := make([]int, 0)
+    for _, v := range visuals {
+        switch v.kind {
+        case kindFigure:
+            if !v.hasAlt {
+                issues = append(issues, fmt.Sprintf("figure at line %d has empty alt text", v.line+1))
+            }
+            if v.number == 0 || trimSpace(v.caption) == "" {
+                issues = append(issues, fmt.Sprintf("figure at line %d missing number and/or caption (expect 'Figure N: ...')", v.line+1))
+            } else {
+                figNums = append(figNums, v.number)
+                // Placement: within ±8 lines of a mention
+                if refs := figMentionsByNum[v.number]; len(refs) == 0 {
+                    issues = append(issues, fmt.Sprintf("Figure %d is never referenced in text (e.g., 'See Fig. %d')", v.number, v.number))
+                } else {
+                    near := false
+                    for _, rl := range refs {
+                        if rl < 0 { continue }
+                        if absInt(rl - v.line) <= 8 { near = true; break }
+                    }
+                    if !near {
+                        issues = append(issues, fmt.Sprintf("Figure %d: nearest reference is too far from figure (require within ±8 lines)", v.number))
+                    }
+                }
+            }
+        case kindTable:
+            if v.number == 0 || trimSpace(v.caption) == "" {
+                issues = append(issues, fmt.Sprintf("table near line %d missing number and/or caption (expect 'Table N: ...')", v.line+1))
+            } else {
+                tblNums = append(tblNums, v.number)
+                if refs := tblMentionsByNum[v.number]; len(refs) == 0 {
+                    issues = append(issues, fmt.Sprintf("Table %d is never referenced in text", v.number))
+                } else {
+                    near := false
+                    for _, rl := range refs {
+                        if absInt(rl - v.line) <= 8 { near = true; break }
+                    }
+                    if !near {
+                        issues = append(issues, fmt.Sprintf("Table %d: nearest reference is too far from table (require within ±8 lines)", v.number))
+                    }
+                }
+            }
+        }
+    }
+
+    // Numbering sequentiality per kind
+    if len(figNums) > 0 {
+        sort.Ints(figNums)
+        for i, n := range figNums {
+            if n != i+1 {
+                issues = append(issues, fmt.Sprintf("figure numbering must be sequential starting at 1 (found %v)", figNums))
+                break
+            }
+        }
+    }
+    if len(tblNums) > 0 {
+        sort.Ints(tblNums)
+        for i, n := range tblNums {
+            if n != i+1 {
+                issues = append(issues, fmt.Sprintf("table numbering must be sequential starting at 1 (found %v)", tblNums))
+                break
+            }
+        }
+    }
+
+    if len(issues) == 0 {
+        return nil
+    }
+    // Join issues; keep message short but informative
+    return fmt.Errorf("visuals QA issues: %s", strings.Join(issues, "; "))
+}
+
+func absInt(x int) int { if x<0 { return -x }; return x }
+
+

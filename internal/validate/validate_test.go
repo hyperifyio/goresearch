@@ -284,3 +284,106 @@ func TestValidateReferenceQuality_RecencyAllExemptVacuousPass(t *testing.T) {
 }
 
 
+// Tests for FEATURE_CHECKLIST item 281: Visuals QA — numbered figures/tables with captions,
+// required in-text references ("See Fig. X"), alt text, and placement near discussion.
+func TestValidateVisuals_NoVisuals_OK(t *testing.T) {
+    md := `# Title
+2025-01-01
+
+Some text.
+`
+    if err := ValidateVisuals(md); err != nil {
+        t.Fatalf("expected no error when no visuals present, got %v", err)
+    }
+}
+
+func TestValidateVisuals_Figure_OK(t *testing.T) {
+    md := `# T
+2025-01-01
+
+See Fig. 1 for an overview.
+
+![Figure 1: Overview of the system](image.png)
+
+Figure 1: Overview of the system`
+    if err := ValidateVisuals(md); err != nil {
+        t.Fatalf("expected figure to pass visuals validation, got %v", err)
+    }
+}
+
+func TestValidateVisuals_Figure_MissingAlt_Fails(t *testing.T) {
+    md := `# T
+2025-01-01
+
+See Fig. 1 for context.
+
+![](image.png)
+
+Figure 1: Caption`
+    if err := ValidateVisuals(md); err == nil {
+        t.Fatalf("expected error for missing alt text on figure")
+    }
+}
+
+func TestValidateVisuals_Figure_NoMention_Fails(t *testing.T) {
+    md := `# T
+2025-01-01
+
+Some text without referencing the figure.
+
+![Figure 1: Caption](img.png)
+
+Figure 1: Caption`
+    if err := ValidateVisuals(md); err == nil {
+        t.Fatalf("expected error when figure is never referenced in text")
+    }
+}
+
+func TestValidateVisuals_Figure_NumberingGap_Fails(t *testing.T) {
+    md := `# T
+2025-01-01
+
+See Fig. 1 and Fig. 3.
+
+![Figure 1: One](a.png)
+Figure 1: One
+
+![Figure 3: Three](c.png)
+Figure 3: Three`
+    if err := ValidateVisuals(md); err == nil {
+        t.Fatalf("expected error for non-sequential figure numbering")
+    }
+}
+
+func TestValidateVisuals_Table_OK(t *testing.T) {
+    md := `# T
+2025-01-01
+
+See Table 1 for metrics.
+
+Table 1: Metrics by category
+
+| Col A | Col B |
+| ----- | ----- |
+| 1     | 2     |`
+    if err := ValidateVisuals(md); err != nil {
+        t.Fatalf("expected table to pass visuals validation, got %v", err)
+    }
+}
+
+func TestValidateVisuals_Table_ReferenceTooFar_Fails(t *testing.T) {
+    var sb strings.Builder
+    sb.WriteString("# T\n2025-01-01\n\n")
+    // Mention at top
+    sb.WriteString("See Table 1 for details.\n\n")
+    // Add many spacer lines to exceed ±8 window
+    for i := 0; i < 15; i++ { sb.WriteString("Spacer line\n") }
+    // Table at bottom with caption
+    sb.WriteString("\n| A | B |\n|---|---|\n| x | y |\n\n")
+    sb.WriteString("Table 1: Details caption\n")
+    if err := ValidateVisuals(sb.String()); err == nil {
+        t.Fatalf("expected error for table reference too far from table")
+    }
+}
+
+
