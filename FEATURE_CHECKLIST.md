@@ -153,7 +153,7 @@
 
 * [x] Orchestration loop — Iterate: send messages + tool schema, execute any returned tool calls, append tool results as `tool` messages, stop on final assistant text. (implemented in `internal/llmtools/orchestrator.go` with tests)
 
-* [ ] Loop guards — Enforce max tool-calls per run, wall-clock budget, and per-tool timeouts to prevent runaway loops.
+* [x] Loop guards — Enforce max tool-calls per run, wall-clock budget, and per-tool timeouts to prevent runaway loops.
 
 * [ ] Minimal tool surface — Expose just what the model needs: `web_search`, `fetch_url`, `extract_main_text`, and `load_cached_excerpt` (IDs) to start; expand later.
 

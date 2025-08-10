@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+    "time"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -129,4 +130,122 @@ func TestOrchestrator_UnknownToolProducesStructuredError(t *testing.T) {
 	if !strings.Contains(toolMsg.Content, "unknown tool") {
 		t.Fatalf("expected unknown tool error in content: %q", toolMsg.Content)
 	}
+}
+
+func TestOrchestrator_MaxToolCallsExceeded(t *testing.T) {
+    // First assistant turn requests a tool; second also requests a tool.
+    // With MaxToolCalls=1, the second turn should trigger an error before executing.
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"noop","arguments":"{}"}}]
+            }
+        }]
+    }`
+    rawResp2 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t2","type":"function","function":{"name":"noop","arguments":"{}"}}]
+            }
+        }]
+    }`
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+    r := NewRegistry()
+    _ = r.Register(ToolDefinition{
+        StableName:  "noop",
+        SemVer:      "v1.0.0",
+        Description: "no operation",
+        JSONSchema:  jsonObj(map[string]any{"type": "object"}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            return jsonObj(map[string]any{"ok": true}), nil
+        },
+    })
+    orch := &Orchestrator{Client: client, Registry: r, MaxToolCalls: 1}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err == nil || !strings.Contains(err.Error(), "max tool calls exceeded") {
+        t.Fatalf("expected max tool calls exceeded error, got final=%q err=%v", final, err)
+    }
+    if len(transcript) < 3 { // system, user, assistant(tool call)
+        t.Fatalf("unexpected transcript length: %d", len(transcript))
+    }
+}
+
+func TestOrchestrator_PerToolTimeoutEnforced(t *testing.T) {
+    // Assistant requests one tool, then final. Tool handler blocks until ctx timeout.
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"block","arguments":"{}"}}]
+            }
+        }]
+    }`
+    rawResp2 := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>Done</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+    r := NewRegistry()
+    _ = r.Register(ToolDefinition{
+        StableName:  "block",
+        SemVer:      "v1.0.0",
+        Description: "block until ctx done",
+        JSONSchema:  jsonObj(map[string]any{"type": "object"}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            <-ctx.Done()
+            return nil, ctx.Err()
+        },
+    })
+    orch := &Orchestrator{Client: client, Registry: r, PerToolTimeout: 10 * time.Millisecond}
+    final, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if final != "Done" {
+        t.Fatalf("unexpected final: %q", final)
+    }
+    // Tool message content should contain a structured error string
+    found := false
+    for _, m := range transcript {
+        if m.Role == openai.ChatMessageRoleTool && m.Name == "block" {
+            if !strings.Contains(m.Content, "deadline exceeded") {
+                t.Fatalf("expected timeout error in tool content, got %q", m.Content)
+            }
+            found = true
+        }
+    }
+    if !found {
+        t.Fatalf("expected tool message not found")
+    }
+}
+
+func TestOrchestrator_WallClockBudgetExceeded(t *testing.T) {
+    // Single tool call that blocks for a while; set a tiny wall-clock budget so the
+    // next model turn should fail with wall-clock exceeded.
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"block","arguments":"{}"}}]
+            }
+        }]
+    }`
+    // Second response would be final, but we should error before reaching it.
+    rawResp2 := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>Too late</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+    r := NewRegistry()
+    _ = r.Register(ToolDefinition{
+        StableName:  "block",
+        SemVer:      "v1.0.0",
+        Description: "block until ctx done",
+        JSONSchema:  jsonObj(map[string]any{"type": "object"}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            <-ctx.Done()
+            return nil, ctx.Err()
+        },
+    })
+    orch := &Orchestrator{Client: client, Registry: r, MaxWallClock: 15 * time.Millisecond, PerToolTimeout: 20 * time.Millisecond}
+    final, _, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err == nil || !strings.Contains(err.Error(), "wall-clock budget exceeded") {
+        t.Fatalf("expected wall-clock budget error, got final=%q err=%v", final, err)
+    }
 }
