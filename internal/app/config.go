@@ -54,4 +54,10 @@ type Config struct {
     // localhost and private IPs can be used during tests and local fixtures.
     // Defaults to false in production.
     AllowPrivateHosts bool
+
+    // Robots override: when enabled via confirmation, ignore robots.txt for
+    // hosts listed in RobotsOverrideAllowlist. Intended for bounded internal
+    // mirrors or explicitly permitted domains.
+    RobotsOverrideAllowlist []string
+    RobotsOverrideConfirm   bool
 }

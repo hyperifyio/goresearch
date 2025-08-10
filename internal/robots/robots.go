@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/rs/zerolog/log"
 )
 
 type Source int
@@ -41,6 +42,13 @@ type Manager struct {
 	UserAgent         string
 	EntryExpiry       time.Duration
 	AllowPrivateHosts bool
+    // OverrideAllowlist lists domains for which robots.txt should be ignored
+    // when OverrideConfirm is true. Entries are case-insensitive domain names.
+    // A match applies to the exact domain or any subdomain (suffix match).
+    OverrideAllowlist []string
+    // OverrideConfirm must be true to activate OverrideAllowlist. This serves
+    // as a second confirmation flag to avoid accidental policy bypass.
+    OverrideConfirm   bool
 
 	mu  sync.Mutex
 	mem map[string]memEntry
@@ -70,6 +78,16 @@ func (m *Manager) Get(ctx context.Context, robotsURL string) (Rules, Source, err
 	if !m.AllowPrivateHosts && isLocalOrPrivateHost(host) {
 		return Rules{}, SourceNetwork, fmt.Errorf("private host not allowed: %s", host)
 	}
+
+    // Respect explicit override allowlist (requires confirmation). When active,
+    // we ignore robots.txt for the host by returning empty rules (default-allow)
+    // and avoid any network fetch. Emit a prominent warning for auditability.
+    if m.overrideApplies(host) {
+        log.Warn().Str("host", host).Msg("robots override allowlist active; ignoring robots.txt for host")
+        rules := Rules{}
+        m.storeMem(robotsURL, rules)
+        return rules, SourceMemory, nil
+    }
 
 	m.mu.Lock()
 	if ent, ok := m.mem[robotsURL]; ok && m.now().Before(ent.expiry) {
@@ -147,6 +165,22 @@ func (m *Manager) Get(ctx context.Context, robotsURL string) (Rules, Source, err
 	rules := parseRobots(string(data))
 	m.storeMem(robotsURL, rules)
 	return rules, SourceNetwork, nil
+}
+
+// overrideApplies reports whether robots override is active for the given host.
+func (m *Manager) overrideApplies(host string) bool {
+    if !m.OverrideConfirm || len(m.OverrideAllowlist) == 0 {
+        return false
+    }
+    h := strings.ToLower(strings.TrimSpace(host))
+    for _, d := range m.OverrideAllowlist {
+        dd := strings.ToLower(strings.TrimSpace(d))
+        if dd == "" { continue }
+        if h == dd || strings.HasSuffix(h, "."+dd) {
+            return true
+        }
+    }
+    return false
 }
 
 func (m *Manager) storeMem(key string, rules Rules) {

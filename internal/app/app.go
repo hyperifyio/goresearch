@@ -207,7 +207,7 @@ func (a *App) Run(ctx context.Context) error {
     stageStart = time.Now()
 	httpClient := newHighThroughputHTTPClient()
     // Configure robots manager for crawl-delay and polite fetching
-    rb := &robots.Manager{HTTPClient: httpClient, Cache: a.httpCache, UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", EntryExpiry: 30 * time.Minute, AllowPrivateHosts: a.cfg.AllowPrivateHosts}
+    rb := &robots.Manager{HTTPClient: httpClient, Cache: a.httpCache, UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", EntryExpiry: 30 * time.Minute, AllowPrivateHosts: a.cfg.AllowPrivateHosts, OverrideAllowlist: a.cfg.RobotsOverrideAllowlist, OverrideConfirm: a.cfg.RobotsOverrideConfirm}
     f := &fetchClient{client: &fetch.Client{
 		HTTPClient:        httpClient,
 		UserAgent:         "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)",

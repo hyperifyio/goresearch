@@ -134,7 +134,7 @@
 
 * [x] Missing robots policy — When /robots.txt returns 404, proceed as allowed; when it returns 401/403/5xx or times out, treat as temporarily disallowed for that host and retry only on the next run or after cache expiry. (implemented with tests in `internal/robots/robots_test.go` and logic in `internal/robots/robots.go`)
 
-* [ ] Per-host allowlist override — Support an explicit, documented override flag that enables ignoring robots.txt for a bounded allowlist of domains (e.g., internal mirrors); emit a prominent warning and require a second confirmation flag.
+* [x] Per-host allowlist override — Support an explicit, documented override flag that enables ignoring robots.txt for a bounded allowlist of domains (e.g., internal mirrors); emit a prominent warning and require a second confirmation flag.
 
 * [ ] Deny-on-disallow enforcement — Before each fetch, evaluate the URL path against cached rules; skip disallowed URLs, avoid partial reads, and short-circuit redirects that would land on disallowed paths.
 

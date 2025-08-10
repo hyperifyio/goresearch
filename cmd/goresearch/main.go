@@ -47,6 +47,8 @@ func main() {
 	    synthSystemPromptFile string
 	    verifySystemPrompt    string
 	    verifySystemPromptFile string
+	    robotsOverrideAllowlist string
+	    robotsOverrideConfirm   bool
 	)
 
 	flag.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -76,6 +78,9 @@ func main() {
 	flag.StringVar(&synthSystemPromptFile, "synth.systemPromptFile", os.Getenv("SYNTH_SYSTEM_PROMPT_FILE"), "Path to file containing synthesis system prompt")
 	flag.StringVar(&verifySystemPrompt, "verify.systemPrompt", os.Getenv("VERIFY_SYSTEM_PROMPT"), "Override verification system prompt (inline string)")
 	flag.StringVar(&verifySystemPromptFile, "verify.systemPromptFile", os.Getenv("VERIFY_SYSTEM_PROMPT_FILE"), "Path to file containing verification system prompt")
+	// Robots override (bounded allowlist + explicit confirm)
+	flag.StringVar(&robotsOverrideAllowlist, "robots.overrideDomains", os.Getenv("ROBOTS_OVERRIDE_DOMAINS"), "Comma-separated domain allowlist to ignore robots.txt (use with --robots.overrideConfirm)")
+	flag.BoolVar(&robotsOverrideConfirm, "robots.overrideConfirm", false, "Second confirmation flag required to activate robots override allowlist")
 	flag.Parse()
 	// If file-based prompts are provided, they take precedence over inline strings
 	if strings.TrimSpace(synthSystemPromptFile) != "" {
@@ -118,6 +123,17 @@ func main() {
 		EnablePDF:       enablePDF,
 		SynthSystemPrompt:  synthSystemPrompt,
 		VerifySystemPrompt: verifySystemPrompt,
+		RobotsOverrideConfirm: robotsOverrideConfirm,
+	}
+
+	// Parse robots override domains into slice
+	if strings.TrimSpace(robotsOverrideAllowlist) != "" {
+		parts := strings.Split(robotsOverrideAllowlist, ",")
+		list := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if s := strings.TrimSpace(p); s != "" { list = append(list, s) }
+		}
+		cfg.RobotsOverrideAllowlist = list
 	}
 
 	if err := run(cfg); err != nil {

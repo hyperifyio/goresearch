@@ -4,6 +4,7 @@ import (
     "context"
     "net/http"
     "net/http/httptest"
+    neturl "net/url"
     "sync/atomic"
     "testing"
     "time"
@@ -287,6 +288,38 @@ Allow: /private/public
     if allowed := rules2.IsAllowed("goresearch", "/private/else"); allowed {
         t.Fatalf("expected disallow for shorter path under disallow")
     }
+}
+
+// When override allowlist is configured and confirmation is true, Manager
+// must not fetch /robots.txt and should allow by default.
+func TestOverrideAllowlist_SkipsFetch_AndAllows(t *testing.T) {
+    t.Parallel()
+    var hits int32
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path == "/robots.txt" {
+            atomic.AddInt32(&hits, 1)
+        }
+        http.NotFound(w, r)
+    }))
+    t.Cleanup(srv.Close)
+
+    ctx := context.Background()
+    parsed, _ := neturl.Parse(srv.URL)
+    hostOnly := parsed.Hostname()
+    m := &Manager{
+        HTTPClient:        srv.Client(),
+        UserAgent:         "goresearch-test",
+        EntryExpiry:       time.Minute,
+        AllowPrivateHosts: true,
+        OverrideAllowlist: []string{"example.com", hostOnly},
+        OverrideConfirm:   true,
+    }
+    u := srv.URL + "/robots.txt"
+    rules, src, err := m.Get(ctx, u)
+    if err != nil { t.Fatalf("get: %v", err) }
+    if src != SourceMemory { t.Fatalf("expected SourceMemory due to override, got %v", src) }
+    if !rules.IsAllowed("goresearch", "/any") { t.Fatalf("expected allow under override") }
+    if atomic.LoadInt32(&hits) != 0 { t.Fatalf("expected 0 fetches, got %d", hits) }
 }
 
 func TestEvaluate_Wildcards_And_Anchors(t *testing.T) {
