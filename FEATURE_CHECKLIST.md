@@ -136,7 +136,7 @@
 
 * [x] Per-host allowlist override — Support an explicit, documented override flag that enables ignoring robots.txt for a bounded allowlist of domains (e.g., internal mirrors); emit a prominent warning and require a second confirmation flag.
 
-* [ ] Deny-on-disallow enforcement — Before each fetch, evaluate the URL path against cached rules; skip disallowed URLs, avoid partial reads, and short-circuit redirects that would land on disallowed paths.
+* [x] Deny-on-disallow enforcement — Before each fetch, evaluate the URL path against cached rules; skip disallowed URLs, avoid partial reads, and short-circuit redirects that would land on disallowed paths.
 
 * [ ] Robots decision logging — For every skipped URL, log the host, matched directive, agent section used, and rule pattern; include a “skipped due to robots” section in the run manifest.
 

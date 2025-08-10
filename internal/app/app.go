@@ -369,6 +369,11 @@ func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ E
                 skipped = append(skipped, skippedEntry{URL: r.URL, Reason: reason})
                 continue
             }
+            if reason, denied := fetch.IsRobotsDenied(err); denied {
+                log.Info().Str("url", r.URL).Str("reason", reason).Msg("skipping due to robots/disallow")
+                skipped = append(skipped, skippedEntry{URL: r.URL, Reason: reason})
+                continue
+            }
             log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")
             continue
 		}

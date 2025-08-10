@@ -79,6 +79,34 @@ func IsReuseDenied(err error) (string, bool) {
     return "", false
 }
 
+// RobotsDisallowError indicates that fetching a URL is forbidden by robots.txt
+// rules for the effective user agent. Callers should skip using this URL.
+type RobotsDisallowError struct{
+    URL string
+}
+
+func (e RobotsDisallowError) Error() string { return "robots disallow: " + e.URL }
+
+// robotsRedirectDisallowedError is returned from the redirect policy when the
+// redirect target would be disallowed by robots rules. Kept unexported; callers
+// can still detect via IsRobotsDenied.
+type robotsRedirectDisallowedError struct{ URL string }
+func (e robotsRedirectDisallowedError) Error() string { return "redirect disallowed by robots: " + e.URL }
+
+// IsRobotsDenied reports whether the error indicates a robots-based denial and
+// returns a short reason string when true.
+func IsRobotsDenied(err error) (string, bool) {
+    var rd RobotsDisallowError
+    if errors.As(err, &rd) {
+        return "robots:disallow", true
+    }
+    var rr robotsRedirectDisallowedError
+    if errors.As(err, &rr) {
+        return "robots:redirect-disallow", true
+    }
+    return "", false
+}
+
 func (c *Client) getHTTPClient() *http.Client {
 	if c.HTTPClient != nil {
 		// Clone to attach our redirect policy without mutating caller's client
@@ -152,6 +180,24 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
     host := req.URL.Hostname()
     if !c.AllowPrivateHosts && isLocalOrPrivateHost(host) {
         return nil, "", "", "", 0, fmt.Errorf("private host not allowed: %s", host)
+    }
+
+    // Deny-on-disallow enforcement: consult robots rules before any network fetch
+    if c.Robots != nil {
+        scheme := strings.ToLower(req.URL.Scheme)
+        hostWithPort := req.URL.Host // includes port when present
+        robotsURL := scheme + "://" + hostWithPort + "/robots.txt"
+        rules, _, rerr := c.Robots.Get(ctx, robotsURL)
+        if rerr == nil {
+            // Evaluate path including optional query per policy
+            pathWithQuery := req.URL.EscapedPath()
+            if rawQ := req.URL.RawQuery; rawQ != "" {
+                pathWithQuery += "?" + rawQ
+            }
+            if !rules.IsAllowed(c.UserAgent, pathWithQuery) {
+                return nil, "", "", "", 0, RobotsDisallowError{URL: req.URL.String()}
+            }
+        }
     }
 
     // Respect per-host Crawl-delay if robots manager is configured
@@ -504,6 +550,20 @@ func (c *Client) checkRedirectFunc() func(req *http.Request, via []*http.Request
 		if req.URL == nil || !isHTTPScheme(req.URL) {
 			return errors.New("redirect to unsupported scheme")
 		}
+        // Short-circuit redirects that would land on a disallowed path per robots
+        if c.Robots != nil {
+            scheme := strings.ToLower(req.URL.Scheme)
+            hostWithPort := req.URL.Host
+            robotsURL := scheme + "://" + hostWithPort + "/robots.txt"
+            // Best-effort: ignore errors fetching robots here; other policy items govern fallback
+            if rules, _, err := c.Robots.Get(req.Context(), robotsURL); err == nil {
+                pathWithQuery := req.URL.EscapedPath()
+                if rawQ := req.URL.RawQuery; rawQ != "" { pathWithQuery += "?" + rawQ }
+                if !rules.IsAllowed(c.UserAgent, pathWithQuery) {
+                    return robotsRedirectDisallowedError{URL: req.URL.String()}
+                }
+            }
+        }
 		return nil
 	}
 }

@@ -384,3 +384,72 @@ func TestGet_RespectsCrawlDelayPerHost(t *testing.T) {
         t.Fatalf("expected elapsed >= 350ms due to crawl-delay, got %v", elapsed)
     }
 }
+
+func TestGet_DeniesOnRobotsDisallow_BeforeFetch(t *testing.T) {
+    t.Parallel()
+    // Server serves robots.txt disallowing /blocked and content at /blocked and /ok
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        switch r.URL.Path {
+        case "/robots.txt":
+            w.Header().Set("Content-Type", "text/plain")
+            _, _ = w.Write([]byte("User-agent: goresearch-test\nDisallow: /blocked\n"))
+        case "/blocked":
+            w.Header().Set("Content-Type", "text/html")
+            _, _ = io.WriteString(w, "<html>blocked</html>")
+        case "/ok":
+            w.Header().Set("Content-Type", "text/html")
+            _, _ = io.WriteString(w, "<html>ok</html>")
+        default:
+            http.NotFound(w, r)
+        }
+    }))
+    t.Cleanup(srv.Close)
+
+    rb := &robots.Manager{HTTPClient: srv.Client(), Cache: &cache.HTTPCache{Dir: t.TempDir()}, UserAgent: "goresearch-test", AllowPrivateHosts: true, EntryExpiry: time.Minute}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: time.Second, AllowPrivateHosts: true, Robots: rb}
+
+    // Blocked path should be denied without fetching the content body
+    _, _, err := c.Get(context.Background(), srv.URL+"/blocked")
+    if err == nil {
+        t.Fatalf("expected robots denial error for /blocked")
+    }
+    if reason, ok := IsRobotsDenied(err); !ok || reason == "" {
+        t.Fatalf("expected IsRobotsDenied with reason, got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+    // Allowed path should succeed
+    b, ct, err := c.Get(context.Background(), srv.URL+"/ok")
+    if err != nil || !strings.HasPrefix(ct, "text/html") || !strings.Contains(string(b), "ok") {
+        t.Fatalf("expected success for /ok, ct=%q err=%v body=%q", ct, err, string(b))
+    }
+}
+
+func TestRedirect_ShortCircuitOnRobotsDisallow(t *testing.T) {
+    t.Parallel()
+    // Target server disallows /private; origin redirects to /private
+    target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path == "/robots.txt" {
+            w.Header().Set("Content-Type", "text/plain")
+            _, _ = w.Write([]byte("User-agent: goresearch-test\nDisallow: /private\n"))
+            return
+        }
+        w.Header().Set("Content-Type", "text/html")
+        _, _ = io.WriteString(w, "ok")
+    }))
+    t.Cleanup(target.Close)
+
+    origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        http.Redirect(w, r, target.URL+"/private", http.StatusFound)
+    }))
+    t.Cleanup(origin.Close)
+
+    rb := &robots.Manager{HTTPClient: target.Client(), Cache: &cache.HTTPCache{Dir: t.TempDir()}, UserAgent: "goresearch-test", AllowPrivateHosts: true, EntryExpiry: time.Minute}
+    c := &Client{UserAgent: "goresearch-test", MaxAttempts: 1, PerRequestTimeout: time.Second, AllowPrivateHosts: true, Robots: rb, RedirectMaxHops: 5}
+
+    _, _, err := c.Get(context.Background(), origin.URL)
+    if err == nil {
+        t.Fatalf("expected robots redirect denial error")
+    }
+    if reason, ok := IsRobotsDenied(err); !ok || !strings.Contains(reason, "robots:") {
+        t.Fatalf("expected IsRobotsDenied for redirect, got ok=%v reason=%q err=%v", ok, reason, err)
+    }
+}
