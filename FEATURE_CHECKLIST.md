@@ -222,7 +222,7 @@
 
 * [ ] Local TLS (optional) — Optional caddy/nginx reverse-proxy service for local HTTPS termination to llm and searxng with self-signed certs; disabled by default and isolated to the Compose network.
 
-* [ ] Network isolation — Use a private Compose network; do not publish ports by default. The tool reaches only llm-openai and searxng by service name. Document an override file to expose ports when needed.
+* [x] Network isolation — Use a private Compose network; do not publish ports by default. The tool reaches only llm-openai and searxng by service name. Document an override file to expose ports when needed.
 
 * [ ] Integration test runner container — Add a disposable test-runner service that executes deterministic integration tests against stub-llm and recorded HTTP fixtures, producing JUnit/HTML results under ./reports/tests.
 
