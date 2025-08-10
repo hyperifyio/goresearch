@@ -78,3 +78,36 @@ func TestParseToolCalls_NoChoicesSafe(t *testing.T) {
         t.Fatalf("expected 0 tool calls, got %d", len(calls))
     }
 }
+
+func TestValidateAgainstSchema_MinimalSubset(t *testing.T) {
+    // object with required and properties
+    schema := json.RawMessage(`{
+        "type":"object",
+        "properties":{
+            "a":{"type":"string"},
+            "b":{"type":"integer"}
+        },
+        "required":["a"],
+        "additionalProperties": false
+    }`)
+    val := map[string]any{"a": "x", "b": 3.0}
+    if err := validateAgainstSchema(val, schema); err != nil {
+        t.Fatalf("unexpected validate error: %v", err)
+    }
+    // missing required
+    val2 := map[string]any{"b": 1.0}
+    if err := validateAgainstSchema(val2, schema); err == nil {
+        t.Fatalf("expected error for missing required")
+    }
+    // additional property not allowed
+    val3 := map[string]any{"a":"x","c":true}
+    if err := validateAgainstSchema(val3, schema); err == nil {
+        t.Fatalf("expected error for additional property")
+    }
+    // array items schema
+    arrSchema := json.RawMessage(`{"type":"array","items":{"type":"string"}}`)
+    arr := []any{"x","y"}
+    if err := validateAgainstSchema(arr, arrSchema); err != nil {
+        t.Fatalf("unexpected array validate error: %v", err)
+    }
+}

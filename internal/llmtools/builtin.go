@@ -120,11 +120,33 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
         },
         "required":["q"]
     }`)
+    webSearchResult := json.RawMessage(`{
+        "type":"object",
+        "additionalProperties": false,
+        "properties":{
+            "results":{
+                "type":"array",
+                "items":{
+                    "type":"object",
+                    "additionalProperties": false,
+                    "properties":{
+                        "Title":{"type":"string"},
+                        "URL":{"type":"string"},
+                        "Snippet":{"type":"string"},
+                        "Source":{"type":"string"}
+                    },
+                    "required":["Title","URL"]
+                }
+            }
+        },
+        "required":["results"]
+    }`)
     if err := r.Register(ToolDefinition{
         StableName:  "web_search",
         SemVer:      "v1.0.0",
         Description: "Search the public web and return results",
         JSONSchema:  webSearchSchema,
+        ResultSchema: webSearchResult,
         Capabilities: []string{"search"},
         Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
             var in struct{
@@ -164,11 +186,23 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
         "properties":{ "url": {"type":"string","format":"uri"} },
         "required":["url"]
     }`)
+    fetchURLResult := json.RawMessage(`{
+        "type":"object",
+        "properties":{
+            "content_type":{"type":"string"},
+            "body":{"type":"string"},
+            "truncated":{"type":"boolean"},
+            "bytes":{"type":"integer"},
+            "id":{"type":"string"}
+        },
+        "required":["content_type","body"]
+    }`)
     if err := r.Register(ToolDefinition{
         StableName:  "fetch_url",
         SemVer:      "v1.0.0",
         Description: "Fetch a URL with polite headers and return body",
         JSONSchema:  fetchURLSchema,
+        ResultSchema: fetchURLResult,
         Capabilities: []string{"fetch"},
         Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
             var in struct{ URL string `json:"url"` }
@@ -210,11 +244,24 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
         },
         "required":["html"]
     }`)
+    extractResult := json.RawMessage(`{
+        "type":"object",
+        "additionalProperties": false,
+        "properties":{
+            "id":{"type":"string"},
+            "title":{"type":"string"},
+            "text":{"type":"string"},
+            "truncated":{"type":"boolean"},
+            "bytes":{"type":"integer"}
+        },
+        "required":["id","title","text"]
+    }`)
     if err := r.Register(ToolDefinition{
         StableName:  "extract_main_text",
         SemVer:      "v1.0.0",
         Description: "Extract readable title and text from HTML (or PDF when enabled)",
         JSONSchema:  extractSchema,
+        ResultSchema: extractResult,
         Capabilities: []string{"extract"},
         Handler: func(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
             var in struct{
@@ -262,11 +309,22 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
         "properties":{ "id": {"type":"string"} },
         "required":["id"]
     }`)
+    loadExcerptResult := json.RawMessage(`{
+        "type":"object",
+        "additionalProperties": false,
+        "properties":{
+            "id":{"type":"string"},
+            "title":{"type":"string"},
+            "text":{"type":"string"}
+        },
+        "required":["id","title","text"]
+    }`)
     if err := r.Register(ToolDefinition{
         StableName:  "load_cached_excerpt",
         SemVer:      "v1.0.0",
         Description: "Load a previously extracted excerpt by ID",
         JSONSchema:  loadSchema,
+        ResultSchema: loadExcerptResult,
         Capabilities: []string{"cache","excerpt"},
         Handler: func(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
             var in struct{ ID string `json:"id"` }
@@ -288,11 +346,21 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
         "properties":{ "id": {"type":"string"} },
         "required":["id"]
     }`)
+    loadBodyResult := json.RawMessage(`{
+        "type":"object",
+        "additionalProperties": false,
+        "properties":{
+            "content_type":{"type":"string"},
+            "body":{"type":"string"}
+        },
+        "required":["content_type","body"]
+    }`)
     if err := r.Register(ToolDefinition{
         StableName:  "load_cached_body",
         SemVer:      "v1.0.0",
         Description: "Load a previously fetched raw body by ID",
         JSONSchema:  loadBodySchema,
+        ResultSchema: loadBodyResult,
         Capabilities: []string{"cache","body"},
         Handler: func(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
             var in struct{ ID string `json:"id"` }

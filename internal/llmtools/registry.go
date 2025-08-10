@@ -26,6 +26,12 @@ type ToolDefinition struct {
     SemVer       string          // semantic version (e.g., v1.2.3)
     Description  string          // concise, imperative description
     JSONSchema   json.RawMessage // JSON Schema for arguments
+    // ResultSchema is an internal contract describing the JSON shape of
+    // successful results returned by the tool handler. It is validated in the
+    // orchestration loop before feeding content back to the model. Only a
+    // minimal subset of JSON Schema is supported: type, properties, required,
+    // items (for arrays), and nested objects.
+    ResultSchema json.RawMessage
     Capabilities []string        // capability tags (e.g., "search", "fetch")
     Handler      ToolHandler     // function implementing the tool
 }

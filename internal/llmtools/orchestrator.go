@@ -4,6 +4,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "strings"
     "time"
 
     openai "github.com/sashabaranov/go-openai"
@@ -146,22 +147,61 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                 raw, err := def.Handler(toolCtx, call.Arguments)
                 cancelTool()
                 if err != nil {
-                    // Surface structured error object as JSON in tool content
-                    obj := map[string]any{"error": err.Error(), "tool": call.Name}
-                    b, _ := json.Marshal(obj)
+                    // Map error to typed envelope
+                    code := classifyToolError(err)
+                    env := map[string]any{
+                        "ok":   false,
+                        "tool": call.Name,
+                        "error": map[string]any{
+                            "code":    code,
+                            "message": err.Error(),
+                        },
+                    }
+                    b, _ := json.Marshal(env)
                     resultContent = string(b)
                 } else {
-                    // Ensure tool content is JSON-encoded string (even if empty)
-                    if len(raw) == 0 {
-                        resultContent = "{}"
+                    // Validate successful result against tool ResultSchema when provided
+                    var val any
+                    if len(raw) > 0 {
+                        _ = json.Unmarshal(raw, &val)
+                    }
+                    var vErr error
+                    if def.ResultSchema != nil && len(def.ResultSchema) > 0 {
+                        vErr = validateAgainstSchema(val, def.ResultSchema)
+                    }
+                    if vErr != nil {
+                        env := map[string]any{
+                            "ok":   false,
+                            "tool": call.Name,
+                            "error": map[string]any{
+                                "code":    "E_RESULT_SCHEMA",
+                                "message": "tool result failed schema validation: " + vErr.Error(),
+                            },
+                        }
+                        b, _ := json.Marshal(env)
+                        resultContent = string(b)
                     } else {
-                        resultContent = string(raw)
+                        // Wrap successful result in a typed envelope for consistency
+                        env := map[string]any{
+                            "ok":   true,
+                            "tool": call.Name,
+                            "data": val,
+                        }
+                        b, _ := json.Marshal(env)
+                        resultContent = string(b)
                     }
                 }
             } else {
-                // Unknown tool: return structured error
-                obj := map[string]any{"error": "unknown tool", "tool": call.Name}
-                b, _ := json.Marshal(obj)
+                // Unknown tool
+                env := map[string]any{
+                    "ok":   false,
+                    "tool": call.Name,
+                    "error": map[string]any{
+                        "code":    "E_UNKNOWN_TOOL",
+                        "message": "unknown tool",
+                    },
+                }
+                b, _ := json.Marshal(env)
                 resultContent = string(b)
             }
 
@@ -174,5 +214,28 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
             toolCallsUsed++
         }
         // Next iteration uses the augmented messages
+    }
+}
+
+// classifyToolError maps common error strings to stable error codes so models
+// can implement retries or corrective actions deterministically.
+func classifyToolError(err error) string {
+    if err == nil {
+        return ""
+    }
+    msg := err.Error()
+    switch {
+    case strings.Contains(msg, "invalid args"):
+        return "E_ARGS"
+    case strings.Contains(msg, "missing "):
+        return "E_ARGS"
+    case strings.Contains(msg, "not found"):
+        return "E_NOT_FOUND"
+    case strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded"):
+        return "E_TIMEOUT"
+    case strings.Contains(msg, "forbidden") || strings.Contains(msg, "disallow"):
+        return "E_POLICY"
+    default:
+        return "E_TOOL"
     }
 }

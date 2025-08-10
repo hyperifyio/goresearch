@@ -40,6 +40,7 @@ func TestNewMinimalRegistry_WebSearchAndExtractFlow(t *testing.T) {
     if !ok { t.Fatalf("web_search not registered") }
     raw, err := def.Handler(context.Background(), mustRaw(t, map[string]any{"q":"golang","limit":5}))
     if err != nil { t.Fatalf("web_search handler: %v", err) }
+    // After orchestration change, handler still returns raw "data"; envelope added by orchestrator.
     var out struct{ Results []struct{ Title, URL, Snippet, Source string } }
     if err := json.Unmarshal(raw, &out); err != nil { t.Fatalf("unmarshal: %v", err) }
     if len(out.Results) != 1 || out.Results[0].URL != "https://go.dev" { t.Fatalf("unexpected results: %+v", out.Results) }

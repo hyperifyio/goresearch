@@ -93,9 +93,17 @@ func TestOrchestrator_ToolLoopAndFinal(t *testing.T) {
 	}
 	// Validate tool message fields
 	toolMsg := transcript[3]
-	if toolMsg.Name != "web_search" || toolMsg.ToolCallID != "call1" || toolMsg.Content == "" {
+    if toolMsg.Name != "web_search" || toolMsg.ToolCallID != "call1" || toolMsg.Content == "" {
 		t.Fatalf("unexpected tool message: %+v", toolMsg)
 	}
+    // Tool content is an envelope JSON with ok/tool/data
+    var env map[string]any
+    if err := json.Unmarshal([]byte(toolMsg.Content), &env); err != nil {
+        t.Fatalf("tool content not JSON: %v", err)
+    }
+    if ok, _ := env["ok"].(bool); !ok {
+        t.Fatalf("expected ok=true in tool envelope: %v", env)
+    }
 }
 
 func TestOrchestrator_UnknownToolProducesStructuredError(t *testing.T) {
@@ -127,9 +135,17 @@ func TestOrchestrator_UnknownToolProducesStructuredError(t *testing.T) {
 	if toolMsg.Role != openai.ChatMessageRoleTool {
 		t.Fatalf("expected tool role, got %s", toolMsg.Role)
 	}
-	if !strings.Contains(toolMsg.Content, "unknown tool") {
-		t.Fatalf("expected unknown tool error in content: %q", toolMsg.Content)
-	}
+    var env2 map[string]any
+    if err := json.Unmarshal([]byte(toolMsg.Content), &env2); err != nil {
+        t.Fatalf("tool content not JSON: %v", err)
+    }
+    if ok, _ := env2["ok"].(bool); ok {
+        t.Fatalf("expected ok=false for unknown tool: %v", env2)
+    }
+    errObj, _ := env2["error"].(map[string]any)
+    if errObj["code"] != "E_UNKNOWN_TOOL" {
+        t.Fatalf("expected E_UNKNOWN_TOOL, got %v", errObj)
+    }
 }
 
 func TestOrchestrator_MaxToolCallsExceeded(t *testing.T) {
@@ -203,13 +219,15 @@ func TestOrchestrator_PerToolTimeoutEnforced(t *testing.T) {
     if final != "Done" {
         t.Fatalf("unexpected final: %q", final)
     }
-    // Tool message content should contain a structured error string
+    // Tool message content should contain a structured error envelope
     found := false
     for _, m := range transcript {
         if m.Role == openai.ChatMessageRoleTool && m.Name == "block" {
-            if !strings.Contains(m.Content, "deadline exceeded") {
-                t.Fatalf("expected timeout error in tool content, got %q", m.Content)
-            }
+            var env map[string]any
+            if err := json.Unmarshal([]byte(m.Content), &env); err != nil { t.Fatalf("tool content not JSON: %v", err) }
+            if ok, _ := env["ok"].(bool); ok { t.Fatalf("expected ok=false for timeout: %v", env) }
+            errObj, _ := env["error"].(map[string]any)
+            if errObj["code"] != "E_TIMEOUT" { t.Fatalf("expected E_TIMEOUT, got %v", errObj) }
             found = true
         }
     }

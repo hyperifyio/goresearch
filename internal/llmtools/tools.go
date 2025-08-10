@@ -2,6 +2,8 @@ package llmtools
 
 import (
     "encoding/json"
+    "errors"
+    "strconv"
     "regexp"
     "strings"
 
@@ -143,4 +145,120 @@ func ContentForLogging(resp openai.ChatCompletionResponse, allowCOT bool) string
     }
     // No final markers; redact entirely
     return "(CoT redacted)"
+}
+
+// Minimal JSON Schema validator for a restricted subset of keywords used by our
+// tool arg/result contracts. This is not a full JSON Schema implementation; it
+// supports only: type (object, array, string, integer, number, boolean),
+// properties, required, additionalProperties (boolean), items (single schema),
+// and recursively validates nested objects/arrays.
+// Returns nil when value conforms to schema; otherwise an error describing the
+// first mismatch found.
+func validateAgainstSchema(value any, schema json.RawMessage) error {
+    if len(schema) == 0 {
+        return nil
+    }
+    var s map[string]any
+    if err := json.Unmarshal(schema, &s); err != nil {
+        return err
+    }
+    // helper: get string field
+    getString := func(m map[string]any, k string) string {
+        if v, ok := m[k]; ok {
+            if str, ok := v.(string); ok {
+                return str
+            }
+        }
+        return ""
+    }
+    // helper: normalize number types
+    asFloat := func(v any) (float64, bool) {
+        switch t := v.(type) {
+        case float64:
+            return t, true
+        case int:
+            return float64(t), true
+        default:
+            return 0, false
+        }
+    }
+
+    expectedType := getString(s, "type")
+    switch expectedType {
+    case "object", "":
+        // objects are default if type omitted per our internal use
+        obj, ok := value.(map[string]any)
+        if !ok {
+            return errors.New("schema: expected object")
+        }
+        // required
+        if req, ok := s["required"].([]any); ok {
+            for _, r := range req {
+                if name, ok := r.(string); ok {
+                    if _, present := obj[name]; !present {
+                        return errors.New("schema: missing required field: " + name)
+                    }
+                }
+            }
+        }
+        // properties
+        var props map[string]any
+        if p, ok := s["properties"].(map[string]any); ok {
+            props = p
+        }
+        for k, v := range obj {
+            if props != nil {
+                if raw, ok := props[k]; ok {
+                    // nested schema
+                    b, _ := json.Marshal(raw)
+                    if err := validateAgainstSchema(v, b); err != nil {
+                        return errors.New("schema: property " + k + ": " + err.Error())
+                    }
+                    continue
+                }
+            }
+            // additionalProperties: default true; if explicitly false, reject unknowns
+            if ap, ok := s["additionalProperties"].(bool); ok && !ap {
+                return errors.New("schema: additional property not allowed: " + k)
+            }
+        }
+        return nil
+    case "array":
+        arr, ok := value.([]any)
+        if !ok {
+            return errors.New("schema: expected array")
+        }
+        if items, ok := s["items"]; ok {
+            b, _ := json.Marshal(items)
+            for i, elem := range arr {
+                if err := validateAgainstSchema(elem, b); err != nil {
+                    return errors.New("schema: items[" + strconv.Itoa(i) + "]: " + err.Error())
+                }
+            }
+        }
+        return nil
+    case "string":
+        if _, ok := value.(string); !ok {
+            return errors.New("schema: expected string")
+        }
+        return nil
+    case "integer":
+        if f, ok := asFloat(value); !ok || f != float64(int64(f)) {
+            return errors.New("schema: expected integer")
+        }
+        return nil
+    case "number":
+        if _, ok := asFloat(value); !ok {
+            return errors.New("schema: expected number")
+        }
+        return nil
+    case "boolean":
+        if _, ok := value.(bool); !ok {
+            return errors.New("schema: expected boolean")
+        }
+        return nil
+    default:
+        // unsupported types pass through for now
+        return nil
+    }
 }

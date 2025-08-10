@@ -159,9 +159,9 @@
 
 * [x] Result size budgeting — Cap tool result payloads (chars/tokens); auto-summarize or return cache IDs for large blobs instead of inlining full text.
 
-* [ ] Tool-output schemas — Define strict JSON result shapes per tool (including typed errors) and validate before feeding back to the model.
+* [x] Tool-output schemas — Define strict JSON result shapes per tool (including typed errors) and validate before feeding back to the model.
 
-* [ ] Error recovery for tools — On invalid args or failures, return structured error objects; allow the model to retry with corrected parameters.
+* [x] Error recovery for tools — On invalid args or failures, return structured error objects; allow the model to retry with corrected parameters.
 
 * [ ] Deterministic IDs — Assign stable content IDs/digests for fetched pages and extracts so the model can request slices by ID instead of re-pulling text.
 
