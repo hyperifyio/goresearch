@@ -1,0 +1,39 @@
+# Minimal SearxNG settings for local, internal-only usage in Compose
+# This file is mounted into the searxng container at /etc/searxng/settings.yml
+# Keep concurrency conservative and set a descriptive User-Agent.
+
+server:
+  port: 8080
+  bind_address: 0.0.0.0
+
+ui:
+  default_locale: en
+
+search:
+  safe_search: 1
+  autocomplete: ""
+  formats:
+    - json
+
+outgoing:
+  request_timeout: 5.0
+  pool_maxsize: 10
+  # Lower concurrency to be polite
+  max_connections: 10
+
+searx:
+  # Identify goresearch politely
+  useragent_suffix: "goresearch/compose"
+  # Disable public instance banner features
+  instance_name: "goresearch searxng (local)"
+
+# Disable any engines that require API keys by default
+engines:
+  - name: duckduckgo
+    disabled: true
+  - name: google
+    disabled: true
+  - name: wikipedia
+    disabled: false
+  - name: github
+    disabled: false

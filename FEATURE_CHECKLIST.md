@@ -197,7 +197,7 @@
 
 * [x] OpenAI-compatible LLM server container — Include a generic llm service (image pinned by digest) exposing an OpenAI-compatible /v1 API. Allow model path/ID and quantization via env, mount a models volume, and add a readiness healthcheck on /v1/models. Make the tool depend\_on this service becoming healthy. (pinned image digest, healthcheck, models volume, and healthy dependency added; static config test `internal/devops/compose_test.go` verifies requirements)
 
-* [ ] SearxNG container — Add a searxng service (image pinned by digest) with mounted settings.yml, custom User-Agent, reduced concurrency, and safe rate limits. Expose internal URL to the tool only via the Compose network (no public port by default). Healthcheck /status page.
+* [x] SearxNG container — Add a searxng service (image pinned by digest) with mounted settings.yml, custom User-Agent, reduced concurrency, and safe rate limits. Expose internal URL to the tool only via the Compose network (no public port by default). Healthcheck /status page. (2025-08-10)
     - Also provide non-Docker options: Homebrew and Python venv setup; add file-based provider for offline/no third-party dependency operation.
 
 * [ ] Model weights volume & bootstrap — Define a models named volume and an optional one-shot init container to fetch or copy local weights into the volume, with checksum verification and clear failure on mismatch.

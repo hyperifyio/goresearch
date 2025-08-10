@@ -59,12 +59,14 @@ services:
 
   # SearxNG meta-search engine (default search provider)
   searxng:
-    image: searxng/searxng:latest
+    image: searxng/searxng@sha256:1111111111111111111111111111111111111111111111111111111111111111
     networks:
       - goresearch_net
     environment:
       - SEARXNG_BASE_URL=http://searxng:8080/
       - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    volumes:
+      - ./devops/searxng-settings.yml:/etc/searxng/settings.yml:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/status"]
       interval: 10s
