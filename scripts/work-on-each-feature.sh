@@ -42,6 +42,8 @@ while grep -Eq '^\s*\*\s\[\s\]' "$FEATURE_FILE"; do
     echo
 
     prompt=$(cat <<EOF
+You have full access to shell commands like 'git' and 'docker'. You MUST system test everything with real services, and expect existing implementations not been finished and require fixing.
+
 Follow these rules .cursor/rules/go-implement.mdc .cursor/rules/go-dod.mdc .cursor/rules/go-diverse-tests.mdc .cursor/rules/go-work.mdc
 
 Implement the following single FEATURE_CHECKLIST item now — focus ONLY on this item:
