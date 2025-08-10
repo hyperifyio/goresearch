@@ -171,7 +171,7 @@
 
 * [x] Safety redaction — Strip secrets, cookies, and tracking params from tool outputs; scrub headers before echoing anything into the transcript.
 
-* [ ] Structured tracing — Log every tool call with tool name, args hash, duration, byte counts, and outcome; correlate to the final report for auditability.
+* [x] Structured tracing — Log every tool call with tool name, args hash, duration, byte counts, and outcome; correlate to the final report for auditability.
 
 * [ ] Cache-aware tools — Tools consult HTTP/LLM caches; add a per-tool “cache only / revalidate / bypass” flag wired to your existing caching layer.
 

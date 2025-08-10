@@ -2,6 +2,7 @@ package llmtools
 
 import (
     "context"
+    "crypto/sha256"
     "encoding/json"
     "fmt"
     "regexp"
@@ -9,6 +10,7 @@ import (
     "strings"
     "time"
 
+    "github.com/rs/zerolog/log"
     openai "github.com/sashabaranov/go-openai"
 )
 
@@ -129,6 +131,11 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
         // Execute tool calls in order, append tool results, then continue loop
         for _, call := range calls {
             resultContent := ""
+            startedTool := time.Now()
+            argsHashBytes := sha256.Sum256([]byte(call.Arguments))
+            argsHash := fmt.Sprintf("%x", argsHashBytes[:])
+            argsBytes := len(call.Arguments)
+            okFlag := false
             if def, ok := o.Registry.Get(call.Name); ok && def.Handler != nil {
                 // Compute effective timeout respecting remaining wall-clock and per-tool timeout
                 per := o.PerToolTimeout
@@ -193,6 +200,7 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                         }
                         b, _ := json.Marshal(env)
                         resultContent = string(b)
+                        okFlag = true
                     }
                 }
             } else {
@@ -208,6 +216,18 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                 b, _ := json.Marshal(env)
                 resultContent = string(b)
             }
+
+            // Structured tracing per tool call
+            log.Info().
+                Str("stage", "tool").
+                Str("tool", call.Name).
+                Str("tool_call_id", call.ID).
+                Str("args_hash", argsHash).
+                Int("args_bytes", argsBytes).
+                Int("result_bytes", len(resultContent)).
+                Bool("ok", okFlag).
+                Int64("duration_ms", time.Since(startedTool).Milliseconds()).
+                Msg("tool call")
 
             messages = append(messages, openai.ChatCompletionMessage{
                 Role:       openai.ChatMessageRoleTool,

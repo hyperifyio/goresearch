@@ -50,6 +50,8 @@ func main() {
 	    verifySystemPromptFile string
 	    robotsOverrideAllowlist string
 	    robotsOverrideConfirm   bool
+		domainsAllow            string
+		domainsDeny             string
 	)
 
 	flag.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -83,6 +85,9 @@ func main() {
 	// Robots override (bounded allowlist + explicit confirm)
 	flag.StringVar(&robotsOverrideAllowlist, "robots.overrideDomains", os.Getenv("ROBOTS_OVERRIDE_DOMAINS"), "Comma-separated domain allowlist to ignore robots.txt (use with --robots.overrideConfirm)")
 	flag.BoolVar(&robotsOverrideConfirm, "robots.overrideConfirm", false, "Second confirmation flag required to activate robots override allowlist")
+	// Centralized domain allow/deny lists
+	flag.StringVar(&domainsAllow, "domains.allow", os.Getenv("DOMAINS_ALLOW"), "Comma-separated allowlist of hosts/domains; if set, only these are permitted (subdomains included)")
+	flag.StringVar(&domainsDeny, "domains.deny", os.Getenv("DOMAINS_DENY"), "Comma-separated denylist of hosts/domains; takes precedence over allow")
 	flag.Parse()
 	// If file-based prompts are provided, they take precedence over inline strings
 	if strings.TrimSpace(synthSystemPromptFile) != "" {
@@ -137,6 +142,20 @@ func main() {
 			if s := strings.TrimSpace(p); s != "" { list = append(list, s) }
 		}
 		cfg.RobotsOverrideAllowlist = list
+	}
+
+	// Parse centralized domain allow/deny lists
+	if s := strings.TrimSpace(domainsAllow); s != "" {
+		parts := strings.Split(s, ",")
+		list := make([]string, 0, len(parts))
+		for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
+		cfg.DomainAllowlist = list
+	}
+	if s := strings.TrimSpace(domainsDeny); s != "" {
+		parts := strings.Split(s, ",")
+		list := make([]string, 0, len(parts))
+		for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
+		cfg.DomainDenylist = list
 	}
 
 	if err := run(cfg); err != nil {
