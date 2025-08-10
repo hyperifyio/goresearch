@@ -69,7 +69,8 @@ func (c *HTTPCache) LoadMeta(_ context.Context, url string) (*HTTPEntry, error) 
 		return nil, err
 	}
 	key := c.key(url)
-	f, err := os.Open(c.metaPath(key))
+    p := c.metaPath(key)
+    f, err := os.Open(p)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +79,9 @@ func (c *HTTPCache) LoadMeta(_ context.Context, url string) (*HTTPEntry, error) 
 	if err := json.NewDecoder(f).Decode(&e); err != nil {
 		return nil, err
 	}
+    // Touch meta file mtime to reflect recent access for LRU purposes
+    now := time.Now()
+    _ = os.Chtimes(p, now, now)
 	return &e, nil
 }
 
@@ -87,7 +91,15 @@ func (c *HTTPCache) LoadBody(_ context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	key := c.key(url)
-	return os.ReadFile(c.bodyPath(key))
+    p := c.bodyPath(key)
+    b, err := os.ReadFile(p)
+    if err != nil {
+        return nil, err
+    }
+    // Touch body file mtime to reflect recent access for LRU purposes
+    now := time.Now()
+    _ = os.Chtimes(p, now, now)
+    return b, nil
 }
 
 // Save stores a new cache entry to disk.

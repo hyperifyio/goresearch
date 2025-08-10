@@ -104,6 +104,11 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 			_, _ = cache.PurgeHTTPCacheByAge(cfg.CacheDir, cfg.CacheMaxAge)
 			_, _ = cache.PurgeLLMCacheByAge(cfg.CacheDir, cfg.CacheMaxAge)
 		}
+        // Enforce size/count limits with LRU eviction
+        if cfg.CacheMaxBytes > 0 || cfg.CacheMaxCount > 0 {
+            _, _ = cache.EnforceHTTPCacheLimits(cfg.CacheDir, cfg.CacheMaxBytes, cfg.CacheMaxCount)
+            _, _ = cache.EnforceLLMCacheLimits(cfg.CacheDir, cfg.CacheMaxBytes, cfg.CacheMaxCount)
+        }
         a.httpCache = &cache.HTTPCache{Dir: cfg.CacheDir, StrictPerms: cfg.CacheStrictPerms}
 	}
 

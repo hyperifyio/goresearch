@@ -62,6 +62,8 @@ type FileConfig struct {
         Clear       bool          `yaml:"clear" json:"clear"`
         StrictPerms bool          `yaml:"strictPerms" json:"strictPerms"`
         TopicHash   string        `yaml:"topicHash" json:"topicHash"`
+        MaxBytes    int64         `yaml:"maxBytes" json:"maxBytes"`
+        MaxCount    int           `yaml:"maxCount" json:"maxCount"`
     } `yaml:"cache" json:"cache"`
 
     EnablePDF bool `yaml:"enablePDF" json:"enablePDF"`
@@ -183,6 +185,8 @@ func ApplyFileConfig(cfg *Config, fc FileConfig) {
     if !cfg.CacheClear && fc.Cache.Clear { cfg.CacheClear = true }
     if !cfg.CacheStrictPerms && fc.Cache.StrictPerms { cfg.CacheStrictPerms = true }
     if cfg.TopicHash == "" && fc.Cache.TopicHash != "" { cfg.TopicHash = fc.Cache.TopicHash }
+    if cfg.CacheMaxBytes == 0 && fc.Cache.MaxBytes > 0 { cfg.CacheMaxBytes = fc.Cache.MaxBytes }
+    if cfg.CacheMaxCount == 0 && fc.Cache.MaxCount > 0 { cfg.CacheMaxCount = fc.Cache.MaxCount }
 
     if !cfg.EnablePDF && fc.EnablePDF { cfg.EnablePDF = true }
     if !cfg.DistributionChecks && fc.Distribution.Enable { cfg.DistributionChecks = true }

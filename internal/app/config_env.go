@@ -68,6 +68,20 @@ func ApplyEnvToConfig(cfg *Config) {
             }
         }
     }
+    if cfg.CacheMaxBytes == 0 {
+        if s := strings.TrimSpace(os.Getenv("CACHE_MAX_BYTES")); s != "" {
+            if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
+                cfg.CacheMaxBytes = n
+            }
+        }
+    }
+    if cfg.CacheMaxCount == 0 {
+        if s := strings.TrimSpace(os.Getenv("CACHE_MAX_COUNT")); s != "" {
+            if n, err := strconv.Atoi(s); err == nil && n > 0 {
+                cfg.CacheMaxCount = n
+            }
+        }
+    }
 
     // Booleans
     setBool := func(dst *bool, envKey string) {
@@ -124,6 +138,16 @@ func ApplyEnvOverrides(cfg *Config) {
     if s := os.Getenv("CACHE_MAX_AGE"); s != "" {
         if d, err := time.ParseDuration(s); err == nil {
             cfg.CacheMaxAge = d
+        }
+    }
+    if s := strings.TrimSpace(os.Getenv("CACHE_MAX_BYTES")); s != "" {
+        if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
+            cfg.CacheMaxBytes = n
+        }
+    }
+    if s := strings.TrimSpace(os.Getenv("CACHE_MAX_COUNT")); s != "" {
+        if n, err := strconv.Atoi(s); err == nil && n > 0 {
+            cfg.CacheMaxCount = n
         }
     }
 

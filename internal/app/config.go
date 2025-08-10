@@ -52,6 +52,14 @@ type Config struct {
     // CacheStrictPerms, when true, uses 0700 for cache dirs and 0600 for files.
     CacheStrictPerms bool
 
+    // Cache size limits & eviction
+    // If > 0, enforce a max total on-disk size for cache entries (HTTP+LLM)
+    // using LRU eviction when limits are exceeded.
+    CacheMaxBytes int64
+    // If > 0, enforce a max count of total cache entries (HTTP meta/body pairs
+    // count as one entry; LLM entries are single files). Eviction is LRU.
+    CacheMaxCount int
+
     // EnablePDF gates optional PDF ingestion. When true, the fetcher will accept
     // application/pdf content types and the extractor will attempt to parse text
     // from PDFs. Default is false to avoid binary parsing risk by default.

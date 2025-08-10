@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+    "time"
 )
 
 // LLMCache stores model responses keyed by a normalized prompt digest and model name.
@@ -55,10 +56,13 @@ func (c *LLMCache) Get(_ context.Context, key string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	p := c.pathFor(key)
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return nil, false, nil
-	}
+    b, err := os.ReadFile(p)
+    if err != nil {
+        return nil, false, nil
+    }
+    // Touch file mtime on access for LRU purposes
+    now := time.Now()
+    _ = os.Chtimes(p, now, now)
 	return b, true, nil
 }
 
