@@ -41,6 +41,10 @@ type Config struct {
     // exclusively from the LLM cache and fails fast on a cache miss. No LLM
     // requests are attempted. Intended for offline/airgapped operation.
     LLMCacheOnly bool
+    // DisableVerify, when true, skips the fact-check verification pass and
+    // omits the Evidence check appendix from the final report. Default is
+    // false (verification enabled).
+    DisableVerify bool
     // DebugVerbose, when true, allows logging of raw chain-of-thought (CoT)
     // content for debugging Harmony/tool-call interplay. Default is false and
     // CoT is redacted from logs. Use sparingly.

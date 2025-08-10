@@ -43,6 +43,26 @@ func TestParseConfig_DefaultsAndEnv(t *testing.T) {
     if cfg.ToolsMode != "harmony" { t.Fatalf("ToolsMode default harmony, got %q", cfg.ToolsMode) }
 }
 
+// Ensure --no-verify disables verification and --verify=false also disables.
+func TestParseConfig_VerificationFlags(t *testing.T) {
+    getenv := func(k string) string { return "" }
+    cfg, _, err := parseConfig([]string{"-no-verify"}, getenv)
+    if err != nil { t.Fatalf("parse: %v", err) }
+    if !cfg.DisableVerify {
+        t.Fatalf("-no-verify should set DisableVerify=true")
+    }
+    cfg, _, err = parseConfig([]string{"-verify=false"}, getenv)
+    if err != nil { t.Fatalf("parse: %v", err) }
+    if !cfg.DisableVerify {
+        t.Fatalf("-verify=false should set DisableVerify=true")
+    }
+    cfg, _, err = parseConfig([]string{"-verify"}, getenv)
+    if err != nil { t.Fatalf("parse: %v", err) }
+    if cfg.DisableVerify {
+        t.Fatalf("-verify (default true) should not disable")
+    }
+}
+
 // Test flags override for tools orchestration and prompt file override
 func TestParseConfig_ToolsFlagsAndPromptFile(t *testing.T) {
     dir := t.TempDir()

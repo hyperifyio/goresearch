@@ -84,6 +84,8 @@ func ApplyEnvToConfig(cfg *Config) {
     setBool(&cfg.CacheStrictPerms, "CACHE_STRICT_PERMS")
     setBool(&cfg.HTTPCacheOnly, "HTTP_CACHE_ONLY")
     setBool(&cfg.LLMCacheOnly, "LLM_CACHE_ONLY")
+    // VERIFICATION: default enabled; allow env to disable with NO_VERIFY truthy
+    setBool(&cfg.DisableVerify, "NO_VERIFY")
 }
 
 // ApplyEnvOverrides forcefully overrides cfg fields with environment variables
@@ -142,4 +144,22 @@ func ApplyEnvOverrides(cfg *Config) {
     setBool(&cfg.CacheStrictPerms, "CACHE_STRICT_PERMS")
     setBool(&cfg.HTTPCacheOnly, "HTTP_CACHE_ONLY")
     setBool(&cfg.LLMCacheOnly, "LLM_CACHE_ONLY")
+    // Allow explicit enable/disable via VERIFY and NO_VERIFY envs; VERIFY wins when true
+    // If VERIFY=true, ensure verification is enabled
+    if s := strings.ToLower(strings.TrimSpace(os.Getenv("VERIFY"))); s != "" {
+        switch s {
+        case "1", "true", "yes", "on":
+            cfg.DisableVerify = false
+        case "0", "false", "no", "off":
+            cfg.DisableVerify = true
+        }
+    }
+    if s := strings.ToLower(strings.TrimSpace(os.Getenv("NO_VERIFY"))); s != "" {
+        switch s {
+        case "1", "true", "yes", "on":
+            cfg.DisableVerify = true
+        case "0", "false", "no", "off":
+            // do not force enable unless VERIFY explicitly enabled above
+        }
+    }
 }

@@ -130,6 +130,7 @@ Primary flags (with defaults):
  - `-tools.maxWallClock` (default: 0): wall-clock cap for the tool loop (e.g., `30s`); 0 disables
  - `-tools.perToolTimeout` (default: 10s): per-tool execution timeout
  - `-tools.mode` (default: `harmony`): chat protocol mode: `harmony` or `legacy`
+ - `-verify` / `-no-verify` (default: `-verify`): enable or disable the fact-check verification pass and Evidence check appendix
 
 ## Full CLI reference
 

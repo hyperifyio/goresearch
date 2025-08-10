@@ -337,15 +337,19 @@ func (a *App) Run(ctx context.Context) error {
     }
     log.Info().Str("stage", "validate").Dur("elapsed", time.Since(stageStart)).Msg("validation completed")
 
-	// 7) Verification pass: extract claims and append an evidence map appendix.
-    stageStart = time.Now()
-    verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, SystemPrompt: a.cfg.VerifySystemPrompt, CacheOnly: a.cfg.LLMCacheOnly}
-	vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
-	if verr != nil {
-		log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
-	}
-	md = appendEvidenceAppendix(md, vres, verr)
-    log.Info().Str("stage", "verify").Bool("ok", verr == nil).Dur("elapsed", time.Since(stageStart)).Msg("verification completed")
+    // 7) Verification pass: extract claims and append an evidence map appendix.
+    if !a.cfg.DisableVerify {
+        stageStart = time.Now()
+        verifier := &verify.Verifier{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, SystemPrompt: a.cfg.VerifySystemPrompt, CacheOnly: a.cfg.LLMCacheOnly}
+        vres, verr := verifier.Verify(ctx, md, a.cfg.LLMModel, a.cfg.LanguageHint)
+        if verr != nil {
+            log.Warn().Err(verr).Msg("verification failed; continuing without appendix")
+        }
+        md = appendEvidenceAppendix(md, vres, verr)
+        log.Info().Str("stage", "verify").Bool("ok", verr == nil).Dur("elapsed", time.Since(stageStart)).Msg("verification completed")
+    } else {
+        log.Info().Str("stage", "verify").Bool("skipped", true).Msg("verification disabled by flag")
+    }
 
     // 7b) Glossary & acronym list — auto-extract key terms and append optional appendix
     md = appendGlossaryAppendix(md)

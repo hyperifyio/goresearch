@@ -48,6 +48,9 @@ type FileConfig struct {
     DryRun   bool   `yaml:"dryRun" json:"dryRun"`
     Verbose  bool   `yaml:"verbose" json:"verbose"`
     DebugVerbose bool `yaml:"debugVerbose" json:"debugVerbose"`
+    Verify   *struct{
+        Enable *bool `yaml:"enable" json:"enable"`
+    } `yaml:"verify" json:"verify"`
 
     Cache struct {
         Dir         string        `yaml:"dir" json:"dir"`
@@ -160,6 +163,14 @@ func ApplyFileConfig(cfg *Config, fc FileConfig) {
     if !cfg.DryRun && fc.DryRun { cfg.DryRun = true }
     if !cfg.Verbose && fc.Verbose { cfg.Verbose = true }
     if !cfg.DebugVerbose && fc.DebugVerbose { cfg.DebugVerbose = true }
+    // Verification toggle: default on; allow file config to disable when enable=false
+    if fc.Verify != nil && fc.Verify.Enable != nil {
+        if !*fc.Verify.Enable {
+            cfg.DisableVerify = true
+        } else {
+            cfg.DisableVerify = false
+        }
+    }
 
     if (cfg.CacheDir == "" || cfg.CacheDir == cacheDirDefault) && fc.Cache.Dir != "" { cfg.CacheDir = fc.Cache.Dir }
     if cfg.CacheMaxAge == 0 && fc.Cache.MaxAge > 0 { cfg.CacheMaxAge = fc.Cache.MaxAge }

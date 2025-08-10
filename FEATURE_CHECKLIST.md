@@ -246,7 +246,7 @@
 
 * [ ] Cache size limits & eviction — Add max bytes/count with LRU eviction for HTTP and LLM caches, alongside existing age-based invalidation.&#x20;
 
-* [ ] Verification toggle — Add `--verify/--no-verify` to explicitly enable/disable the fact-check pass and appendix.&#x20;
+* [x] Verification toggle — Add `--verify/--no-verify` to explicitly enable/disable the fact-check pass and appendix.&#x20;
 
 * [ ] Artifacts bundle export — Persist planner JSON, selected URLs, extracts, final report, manifest, and evidence appendix under `./reports/<topic>/` and optional tarball with digests for offline audit.&#x20;
 

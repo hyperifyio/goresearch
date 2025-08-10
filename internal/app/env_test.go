@@ -72,3 +72,21 @@ func TestApplyEnvToConfig_FromEnv(t *testing.T) {
         t.Fatalf("SOURCE_CAPS parsed to MaxSources=%d PerDomainCap=%d, want 9,2", cfg.MaxSources, cfg.PerDomainCap)
     }
 }
+
+// Verify that VERIFY/NO_VERIFY environment variables control DisableVerify.
+func TestApplyEnvOverrides_VerificationToggles(t *testing.T) {
+    t.Setenv("VERIFY", "true")
+    t.Setenv("NO_VERIFY", "")
+    cfg := Config{DisableVerify: true}
+    ApplyEnvOverrides(&cfg)
+    if cfg.DisableVerify {
+        t.Fatalf("VERIFY=true should enable verification (DisableVerify=false)")
+    }
+    t.Setenv("VERIFY", "")
+    t.Setenv("NO_VERIFY", "true")
+    cfg = Config{}
+    ApplyEnvOverrides(&cfg)
+    if !cfg.DisableVerify {
+        t.Fatalf("NO_VERIFY=true should disable verification")
+    }
+}

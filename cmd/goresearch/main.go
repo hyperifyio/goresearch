@@ -173,6 +173,8 @@ type boundVars struct {
     toolsMaxCalls                         *int
     toolsMaxWallClock, toolsPerToolTimeout *time.Duration
     toolsMode                              *string
+    verifyEnabled                          *bool
+    noVerify                               *bool
 }
 
 // flagMeta holds the FlagSet and the pointers to bound variables for later use.
@@ -226,6 +228,9 @@ func newFlagSet(getenv func(string) string) (*flag.FlagSet, flagMeta) {
     bv.toolsMaxWallClock = fs.Duration("tools.maxWallClock", 0, "Max wall-clock duration for tool loop (e.g. 30s); 0 disables")
     bv.toolsPerToolTimeout = fs.Duration("tools.perToolTimeout", 10*time.Second, "Per-tool execution timeout (e.g. 10s)")
     bv.toolsMode = fs.String("tools.mode", "harmony", "Chat protocol mode: harmony|legacy")
+    // Verification toggle (default enabled). Provide both --verify and --no-verify for clarity.
+    bv.verifyEnabled = fs.Bool("verify", true, "Enable the fact-check verification pass and Evidence check appendix")
+    bv.noVerify = fs.Bool("no-verify", false, "Disable the fact-check verification pass and Evidence check appendix")
 
     return fs, flagMeta{fs: fs, bound: bv}
 }
@@ -290,6 +295,8 @@ func renderCLIReferenceMarkdown(fs *flag.FlagSet) string {
         {"VERIFY_SYSTEM_PROMPT", "Inline verification system prompt override"},
         {"VERIFY_SYSTEM_PROMPT_FILE", "Path to verification system prompt file"},
         {"TOPIC_HASH", "Optional topic hash to scope cache"},
+        {"VERIFY", "Set to truthy to force enable verification (overrides NO_VERIFY)"},
+        {"NO_VERIFY", "Set to truthy to disable verification"},
     }
     for _, e := range envs {
         b.WriteString(fmt.Sprintf("- `%s`: %s\n", e.key, e.desc))
@@ -346,6 +353,8 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         toolsMaxWallClock  time.Duration
         toolsPerToolTimeout time.Duration
         toolsMode          string
+        verifyEnabled      bool
+        noVerify           bool
     )
 
     fs.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -382,6 +391,9 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
     // Centralized domain allow/deny lists
     fs.StringVar(&domainsAllow, "domains.allow", getenv("DOMAINS_ALLOW"), "Comma-separated allowlist of hosts/domains; if set, only these are permitted (subdomains included)")
     fs.StringVar(&domainsDeny, "domains.deny", getenv("DOMAINS_DENY"), "Comma-separated denylist of hosts/domains; takes precedence over allow")
+    // Verification toggle flags
+    fs.BoolVar(&verifyEnabled, "verify", true, "Enable the fact-check verification pass and Evidence check appendix")
+    fs.BoolVar(&noVerify, "no-verify", false, "Disable the fact-check verification pass and Evidence check appendix")
     // Tools orchestration flags (config flags item)
     fs.BoolVar(&toolsEnabled, "tools.enable", false, "Enable tool-orchestrated chat mode")
     fs.BoolVar(&toolsDryRun, "tools.dryRun", false, "Do not execute tools; emit dry-run envelopes")
@@ -461,6 +473,15 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         list := make([]string, 0, len(parts))
         for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
         cfg.DomainDenylist = list
+    }
+    // Apply verification toggle precedence:
+    // - if --no-verify set, disable
+    // - else if --verify explicitly false (rare), disable
+    // - else enabled (default)
+    if noVerify {
+        cfg.DisableVerify = true
+    } else if !verifyEnabled {
+        cfg.DisableVerify = true
     }
     return cfg, verbose, nil
 }
