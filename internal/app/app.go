@@ -311,6 +311,11 @@ func (a *App) Run(ctx context.Context) error {
         log.Warn().Err(err).Msg("visuals QA issues")
         md += "\n\n> WARNING: Visuals QA issues: " + err.Error() + "\n"
     }
+    // Audience fit check — flag jargon or mismatched sections vs audience/tone
+    if err := validate.ValidateAudienceFit(md, b.AudienceHint, b.ToneHint); err != nil {
+        log.Warn().Err(err).Msg("audience fit issues")
+        md += "\n\n> WARNING: Audience fit issues: " + err.Error() + "\n"
+    }
     log.Info().Str("stage", "validate").Dur("elapsed", time.Since(stageStart)).Msg("validation completed")
 
 	// 7) Verification pass: extract claims and append an evidence map appendix.

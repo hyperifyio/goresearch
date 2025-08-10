@@ -153,6 +153,66 @@ Notes.
     }
 }
 
+// Tests for FEATURE_CHECKLIST item 277: Audience fit check — per-brief audience/tone settings
+// and a pass that flags jargon or sections mismatched to the intended reader.
+func TestValidateAudienceFit_NonTechnical_JargonAndCode_Fails(t *testing.T) {
+    var sb strings.Builder
+    sb.WriteString("# Title\n")
+    sb.WriteString("2025-01-01\n\n")
+    sb.WriteString("## Executive summary\n")
+    sb.WriteString("This executive brief explains the approach.\n\n")
+    sb.WriteString("## Implementation details\n")
+    sb.WriteString("We implement a gRPC API with JWT, OAuth, and schema serialization using Protobuf. The algorithm ensures eventual consistency and uses sharding and quorum-based consensus like Raft.\n\n")
+    sb.WriteString("Example:\n")
+    sb.WriteString("```\n")
+    sb.WriteString("curl -H \"Authorization: Bearer ...\" https://api.example.com/v1/resource\n")
+    sb.WriteString("```\n\n")
+    sb.WriteString("## Risks and limitations\n")
+    sb.WriteString("None.\n\n")
+    sb.WriteString("## References\n")
+    sb.WriteString("1. Example — https://example.com")
+    md := sb.String()
+    // Non-technical audience should trigger issues due to technical section title,
+    // jargon density, and presence of code block.
+    if err := ValidateAudienceFit(md, "Executive, non-technical stakeholders", "formal"); err == nil {
+        t.Fatalf("expected audience fit issues for non-technical brief with jargon and code")
+    }
+}
+
+func TestValidateAudienceFit_FormalTone_CasualMarkers_Fails(t *testing.T) {
+    md := `# T
+2025-01-01
+
+## Executive summary
+This is a super cool overview! It kinda shows what's awesome about the thing.
+
+## Risks and limitations
+OK.
+
+## References
+1. Example — https://example.com`
+    if err := ValidateAudienceFit(md, "engineers", "formal"); err == nil {
+        t.Fatalf("expected tone issues for formal tone with casual markers")
+    }
+}
+
+func TestValidateAudienceFit_TechnicalAudience_AllowsJargon_OK(t *testing.T) {
+    md := `# T
+2025-01-01
+
+## Background
+We evaluate latency, throughput, and idempotent retry semantics under strong consistency.
+
+## Risks and limitations
+N/A
+
+## References
+1. Example — https://example.com`
+    if err := ValidateAudienceFit(md, "Senior engineers and architects", "concise technical"); err != nil {
+        t.Fatalf("expected no audience fit issues for technical audience, got %v", err)
+    }
+}
+
 // Tests for FEATURE_CHECKLIST item 287: Reference quality/mix validator — configurable policy
 // to prefer peer-reviewed/standards, ensure recency where appropriate, and prevent over-reliance.
 func TestValidateReferenceQuality_AtLeastOnePreferred(t *testing.T) {
