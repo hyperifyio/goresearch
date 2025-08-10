@@ -185,3 +185,44 @@ func TestInitScaffold(t *testing.T) {
     if _, err := os.Stat(filepath.Join(dir, "goresearch.yaml")); err != nil { t.Fatalf("missing goresearch.yaml: %v", err) }
     if _, err := os.Stat(filepath.Join(dir, ".env.example")); err != nil { t.Fatalf("missing .env.example: %v", err) }
 }
+
+// Test for FEATURE_CHECKLIST item 239: CLI/options auto-generated reference
+// Ensures the doc renderer includes key flags and environment variables.
+func TestDoc_RenderIncludesKnownFlagsAndEnvs(t *testing.T) {
+    fs := buildDocFlagSet(func(k string) string { return "" })
+    md := renderCLIReferenceMarkdown(fs)
+    mustContain := []string{
+        "# goresearch CLI reference",
+        "## Flags",
+        "- `-input` (default: `request.md`)",
+        "- `-output` (default: `report.md`)",
+        "- `-llm.model`",
+        "- `-searx.url`",
+        "- `-cache.dir`",
+        "- `-tools.enable`",
+        "## Environment variables",
+        "`LLM_BASE_URL`",
+        "`SEARX_URL`",
+        "`SOURCE_CAPS`",
+    }
+    for _, s := range mustContain {
+        if !contains(md, s) {
+            t.Fatalf("doc markdown missing %q\n---\n%s\n---", s, md)
+        }
+    }
+}
+
+// contains is a tiny helper to avoid strings import noise across tests.
+func contains(haystack, needle string) bool { return len(haystack) >= len(needle) && (func() bool { return (stringIndex(haystack, needle) >= 0) })() }
+
+// stringIndex provides strings.Index functionality without importing strings again here.
+func stringIndex(s, substr string) int {
+    // Simple O(n*m) scan is fine for short doc strings in tests
+    n, m := len(s), len(substr)
+    if m == 0 { return 0 }
+    if m > n { return -1 }
+    for i := 0; i <= n-m; i++ {
+        if s[i:i+m] == substr { return i }
+    }
+    return -1
+}

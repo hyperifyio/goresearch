@@ -1,14 +1,17 @@
 package main
 
 import (
+    "bytes"
     "context"
+    "errors"
+    "flag"
     "fmt"
     "os"
-    "flag"
-    "time"
-    "strings"
     "path/filepath"
-    "errors"
+    "reflect"
+    "sort"
+    "strings"
+    "time"
 
     "github.com/rs/zerolog"
     "github.com/rs/zerolog/log"
@@ -33,6 +36,14 @@ func main() {
             os.Exit(2)
         }
         log.Info().Msg("created goresearch.yaml and .env.example")
+        return
+    }
+
+    // Subcommand: goresearch doc — print CLI/options reference in Markdown
+    if len(os.Args) > 1 && os.Args[1] == "doc" {
+        fs := buildDocFlagSet(os.Getenv)
+        md := renderCLIReferenceMarkdown(fs)
+        fmt.Print(md)
         return
     }
 
@@ -134,6 +145,159 @@ SOURCE_CAPS=12,3
         }
     }
     return nil
+}
+
+// boundVars groups pointers to variables bound in a constructed FlagSet so we
+// can read their values after parsing and also reuse the same specification to
+// render documentation.
+type boundVars struct {
+    inputPath, outputPath                 *string
+    searxURL, searxKey, searxUA           *string
+    fileSearchPath                        *string
+    llmBaseURL, llmModel, llmKey          *string
+    maxSources, perDomain, perSourceChars *int
+    minSnippetChars                       *int
+    language                              *string
+    dryRun, verbose, debugVerbose         *bool
+    cacheDir                              *string
+    cacheMaxAge                           *time.Duration
+    cacheClear, cacheStrict               *bool
+    topicHash                             *string
+    enablePDF                             *bool
+    synthSystemPrompt, synthSystemPromptFile *string
+    verifySystemPrompt, verifySystemPromptFile *string
+    robotsOverrideAllowlist               *string
+    robotsOverrideConfirm                 *bool
+    domainsAllow, domainsDeny             *string
+    toolsEnabled, toolsDryRun             *bool
+    toolsMaxCalls                         *int
+    toolsMaxWallClock, toolsPerToolTimeout *time.Duration
+    toolsMode                              *string
+}
+
+// flagMeta holds the FlagSet and the pointers to bound variables for later use.
+type flagMeta struct {
+    fs   *flag.FlagSet
+    bound boundVars
+}
+
+// newFlagSet constructs the canonical CLI FlagSet and returns it with the bound variable pointers.
+func newFlagSet(getenv func(string) string) (*flag.FlagSet, flagMeta) {
+    fs := flag.NewFlagSet("goresearch", flag.ContinueOnError)
+    // Defaults
+    bv := boundVars{}
+    bv.inputPath = fs.String("input", "request.md", "Path to input Markdown research request")
+    bv.outputPath = fs.String("output", "report.md", "Path to write the final Markdown report")
+    bv.searxURL = fs.String("searx.url", getenv("SEARX_URL"), "SearxNG base URL")
+    bv.searxKey = fs.String("searx.key", getenv("SEARX_KEY"), "SearxNG API key (optional)")
+    bv.searxUA = fs.String("searx.ua", "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", "Custom User-Agent for SearxNG requests")
+    bv.fileSearchPath = fs.String("search.file", getenv("SEARCH_FILE"), "Path to JSON file for offline file-based search provider")
+    bv.llmBaseURL = fs.String("llm.base", getenv("LLM_BASE_URL"), "OpenAI-compatible base URL")
+    bv.llmModel = fs.String("llm.model", getenv("LLM_MODEL"), "Model name")
+    bv.llmKey = fs.String("llm.key", getenv("LLM_API_KEY"), "API key for OpenAI-compatible server")
+    bv.maxSources = fs.Int("max.sources", 12, "Maximum number of sources")
+    bv.perDomain = fs.Int("max.perDomain", 3, "Maximum sources per domain")
+    bv.perSourceChars = fs.Int("max.perSourceChars", 12000, "Maximum characters per source extract")
+    bv.minSnippetChars = fs.Int("min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
+    bv.language = fs.String("lang", "", "Optional language hint, e.g. 'en' or 'fi'")
+    bv.dryRun = fs.Bool("dry-run", false, "Plan and select without calling the model")
+    bv.verbose = fs.Bool("v", false, "Verbose logging")
+    bv.debugVerbose = fs.Bool("debug-verbose", false, "Allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay")
+    bv.cacheDir = fs.String("cache.dir", ".goresearch-cache", "Cache directory path")
+    bv.cacheMaxAge = fs.Duration("cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
+    bv.cacheClear = fs.Bool("cache.clear", false, "Clear cache directory before run")
+    bv.cacheStrict = fs.Bool("cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
+    bv.topicHash = fs.String("cache.topicHash", getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
+    bv.enablePDF = fs.Bool("enable.pdf", false, "Enable optional PDF ingestion (application/pdf)")
+    // Prompt overrides
+    bv.synthSystemPrompt = fs.String("synth.systemPrompt", getenv("SYNTH_SYSTEM_PROMPT"), "Override synthesis system prompt (inline string)")
+    bv.synthSystemPromptFile = fs.String("synth.systemPromptFile", getenv("SYNTH_SYSTEM_PROMPT_FILE"), "Path to file containing synthesis system prompt")
+    bv.verifySystemPrompt = fs.String("verify.systemPrompt", getenv("VERIFY_SYSTEM_PROMPT"), "Override verification system prompt (inline string)")
+    bv.verifySystemPromptFile = fs.String("verify.systemPromptFile", getenv("VERIFY_SYSTEM_PROMPT_FILE"), "Path to file containing verification system prompt")
+    // Robots override & domains
+    bv.robotsOverrideAllowlist = fs.String("robots.overrideDomains", getenv("ROBOTS_OVERRIDE_DOMAINS"), "Comma-separated domain allowlist to ignore robots.txt (use with --robots.overrideConfirm)")
+    bv.robotsOverrideConfirm = fs.Bool("robots.overrideConfirm", false, "Second confirmation flag required to activate robots override allowlist")
+    bv.domainsAllow = fs.String("domains.allow", getenv("DOMAINS_ALLOW"), "Comma-separated allowlist of hosts/domains; if set, only these are permitted (subdomains included)")
+    bv.domainsDeny = fs.String("domains.deny", getenv("DOMAINS_DENY"), "Comma-separated denylist of hosts/domains; takes precedence over allow")
+    // Tools
+    bv.toolsEnabled = fs.Bool("tools.enable", false, "Enable tool-orchestrated chat mode")
+    bv.toolsDryRun = fs.Bool("tools.dryRun", false, "Do not execute tools; emit dry-run envelopes")
+    bv.toolsMaxCalls = fs.Int("tools.maxCalls", 32, "Max tool calls per run")
+    bv.toolsMaxWallClock = fs.Duration("tools.maxWallClock", 0, "Max wall-clock duration for tool loop (e.g. 30s); 0 disables")
+    bv.toolsPerToolTimeout = fs.Duration("tools.perToolTimeout", 10*time.Second, "Per-tool execution timeout (e.g. 10s)")
+    bv.toolsMode = fs.String("tools.mode", "harmony", "Chat protocol mode: harmony|legacy")
+
+    return fs, flagMeta{fs: fs, bound: bv}
+}
+
+// buildDocFlagSet returns a FlagSet with the same flags as the main CLI but
+// with output redirected to a buffer to avoid printing usage during doc render.
+func buildDocFlagSet(getenv func(string) string) *flag.FlagSet {
+    fs, _ := newFlagSet(getenv)
+    // Do not parse; we only need definitions and defaults
+    return fs
+}
+
+// renderCLIReferenceMarkdown renders a comprehensive CLI/options page from a FlagSet.
+func renderCLIReferenceMarkdown(fs *flag.FlagSet) string {
+    var b bytes.Buffer
+    b.WriteString("# goresearch CLI reference\n\n")
+    b.WriteString("This page is auto-generated from the CLI flag definitions.\n\n")
+    b.WriteString("## Usage\n\n")
+    b.WriteString("```\n")
+    b.WriteString("goresearch [flags]\n")
+    b.WriteString("goresearch init\n")
+    b.WriteString("goresearch doc\n")
+    b.WriteString("```\n\n")
+
+    // Collect flags for stable ordering by name
+    type row struct{ name, def, usage string }
+    rows := make([]row, 0, 64)
+    fs.VisitAll(func(f *flag.Flag) {
+        rows = append(rows, row{name: f.Name, def: f.DefValue, usage: f.Usage})
+    })
+    sort.Slice(rows, func(i, j int) bool { return rows[i].name < rows[j].name })
+
+    b.WriteString("## Flags\n\n")
+    for _, r := range rows {
+        // Render as a definition list-like block
+        b.WriteString(fmt.Sprintf("- `-%s` (default: `%s`) — %s\n", r.name, r.def, r.usage))
+    }
+
+    b.WriteString("\n## Environment variables\n\n")
+    // Reflect environment variables from config_env.go docs via a curated list
+    envs := []struct{ key, desc string }{
+        {"LLM_BASE_URL", "OpenAI-compatible base URL"},
+        {"LLM_MODEL", "Model name"},
+        {"LLM_API_KEY", "API key"},
+        {"SEARX_URL", "SearxNG base URL (or SEARXNG_URL)"},
+        {"SEARX_KEY", "SearxNG API key (or SEARXNG_KEY)"},
+        {"CACHE_DIR", "Cache directory path"},
+        {"LANGUAGE", "Language hint"},
+        {"SOURCE_CAPS", "Max sources and optional per-domain cap as '<max>' or '<max>,<perDomain>'"},
+        {"CACHE_MAX_AGE", "Purge cache entries older than this duration (e.g. 24h, 7d)"},
+        {"DRY_RUN", "Enable dry-run when truthy"},
+        {"VERBOSE", "Enable verbose logs when truthy"},
+        {"CACHE_CLEAR", "Clear cache before run when truthy"},
+        {"CACHE_STRICT_PERMS", "Restrict cache permissions when truthy"},
+        {"HTTP_CACHE_ONLY", "Serve HTTP bodies only from cache; fail on miss"},
+        {"LLM_CACHE_ONLY", "Serve LLM results only from cache; fail on miss"},
+        {"ROBOTS_OVERRIDE_DOMAINS", "Comma-separated allowlist to ignore robots.txt; requires robots.overrideConfirm"},
+        {"DOMAINS_ALLOW", "Comma-separated allowlist of hosts/domains"},
+        {"DOMAINS_DENY", "Comma-separated denylist of hosts/domains"},
+        {"SYNTH_SYSTEM_PROMPT", "Inline synthesis system prompt override"},
+        {"SYNTH_SYSTEM_PROMPT_FILE", "Path to synthesis system prompt file"},
+        {"VERIFY_SYSTEM_PROMPT", "Inline verification system prompt override"},
+        {"VERIFY_SYSTEM_PROMPT_FILE", "Path to verification system prompt file"},
+        {"TOPIC_HASH", "Optional topic hash to scope cache"},
+    }
+    for _, e := range envs {
+        b.WriteString(fmt.Sprintf("- `%s`: %s\n", e.key, e.desc))
+    }
+
+    b.WriteString("\nGenerated by `goresearch doc`.\n")
+    _ = reflect.TypeOf(0) // keep reflect import if env source expands later
+    return b.String()
 }
 
 // parseConfig parses CLI flags and environment variables into app.Config.

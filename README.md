@@ -17,6 +17,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 - [Support](#support)
 - [License](#license)
 - [Project status](#project-status)
+ - [Full CLI reference](#full-cli-reference)
 
 ## Features
 - **End-to-end pipeline**: brief parsing → planning → search → fetch/extract → selection/dedup → budgeting → synthesis → validation → verification → rendering.
@@ -129,6 +130,10 @@ Primary flags (with defaults):
  - `-tools.maxWallClock` (default: 0): wall-clock cap for the tool loop (e.g., `30s`); 0 disables
  - `-tools.perToolTimeout` (default: 10s): per-tool execution timeout
  - `-tools.mode` (default: `harmony`): chat protocol mode: `harmony` or `legacy`
+
+## Full CLI reference
+
+For a comprehensive, auto-generated list of all flags and environment variables, see: [docs/cli-reference.md](docs/cli-reference.md).
 
 ## Usage
 
