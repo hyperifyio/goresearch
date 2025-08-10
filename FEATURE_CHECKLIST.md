@@ -248,7 +248,7 @@
 
 * [x] Verification toggle — Add `--verify/--no-verify` to explicitly enable/disable the fact-check pass and appendix.&#x20;
 
-* [ ] Artifacts bundle export — Persist planner JSON, selected URLs, extracts, final report, manifest, and evidence appendix under `./reports/<topic>/` and optional tarball with digests for offline audit.&#x20;
+* [x] Artifacts bundle export — Persist planner JSON, selected URLs, extracts, final report, manifest, and evidence appendix under `./reports/<topic>/` and optional tarball with digests for offline audit.&#x20;
 
 * [ ] Graceful cancel & resume — On SIGINT/SIGTERM, write partial artifacts and allow fast resume from cache on next run to keep UX “dead simple.”&#x20;
 

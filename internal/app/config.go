@@ -112,4 +112,12 @@ type Config struct {
     // Harmony-style analysis/commentary/final markers; "legacy" treats
     // assistant content as final without requiring Harmony markers.
     ToolsMode string
+
+    // Artifacts export bundle
+    // ReportsDir is the root directory for persisted artifacts bundles.
+    // Artifacts are written under ReportsDir/slug(topic)/.
+    ReportsDir string
+    // ReportsTar, when true, also produces a tar.gz archive of the bundle and
+    // a SHA256SUMS file listing digests for offline audit.
+    ReportsTar bool
 }

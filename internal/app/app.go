@@ -170,7 +170,7 @@ func (a *App) Run(ctx context.Context) error {
             for _, r := range selected { urls = append(urls, r.URL) }
             log.Info().Str("stage", "selection").Int("selected", len(selected)).Strs("urls", urls).Dur("elapsed", time.Since(stageStart)).Msg("search+selection completed")
 		}
-		content := fmt.Sprintf("# goresearch (dry run)\n\nTopic: %s\nAudience: %s\nTone: %s\nTarget Length (words): %d\n\nPlanned queries:\n", b.Topic, b.AudienceHint, b.ToneHint, b.TargetLengthWords)
+        content := fmt.Sprintf("# goresearch (dry run)\n\nTopic: %s\nAudience: %s\nTone: %s\nTarget Length (words): %d\n\nPlanned queries:\n", b.Topic, b.AudienceHint, b.ToneHint, b.TargetLengthWords)
 		for i, q := range plan.Queries {
 			content += fmt.Sprintf("%d. %s\n", i+1, q)
 		}
@@ -195,6 +195,10 @@ func (a *App) Run(ctx context.Context) error {
 			return fmt.Errorf("write output: %w", err)
 		}
 		log.Info().Str("out", a.cfg.OutputPath).Msg("wrote dry-run output")
+        // Export a minimal artifacts bundle for dry-run (planner + selection only)
+        if strings.TrimSpace(a.cfg.ReportsDir) != "" {
+            _ = exportArtifactsBundle(a.cfg, b, plan, selected, nil, content)
+        }
 		return nil
 	}
 
@@ -397,6 +401,13 @@ func (a *App) Run(ctx context.Context) error {
 		return fmt.Errorf("write output: %w", err)
 	}
 	log.Info().Str("out", a.cfg.OutputPath).Msg("wrote output")
+
+    // 11) Artifacts bundle export under reports/<topic>/ with optional tarball and digests
+    if strings.TrimSpace(a.cfg.ReportsDir) != "" {
+        if err := exportArtifactsBundle(a.cfg, b, plan, selected, excerpts, md); err != nil {
+            log.Warn().Err(err).Msg("artifacts bundle export failed")
+        }
+    }
 	return nil
 }
 

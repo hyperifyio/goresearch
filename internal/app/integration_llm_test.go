@@ -162,6 +162,8 @@ func TestIntegration_FullPipeline_StubLLM(t *testing.T) {
         LLMBaseURL:        llm.URL + "/v1",
         AllowPrivateHosts: true,
         CacheDir:          filepath.Join(tmp, "cache"),
+        ReportsDir:        filepath.Join(tmp, "reports"),
+        ReportsTar:        true,
     })
     if err != nil { t.Fatalf("new app: %v", err) }
     defer app.Close()
@@ -186,5 +188,32 @@ func TestIntegration_FullPipeline_StubLLM(t *testing.T) {
     // Basic inline citation presence
     if !strings.Contains(content, "[1]") {
         t.Fatalf("expected inline citation [1]")
+    }
+
+    // Artifacts bundle: verify files exist under reports/<topic>/ and tarball present
+    bundleDir := filepath.Join(tmp, "reports", "test-topic")
+    if _, err := os.Stat(filepath.Join(bundleDir, "planner.json")); err != nil {
+        t.Fatalf("missing planner.json: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(bundleDir, "selected.json")); err != nil {
+        t.Fatalf("missing selected.json: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(bundleDir, "extracts.json")); err != nil {
+        t.Fatalf("missing extracts.json: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(bundleDir, "report.md")); err != nil {
+        t.Fatalf("missing report.md copy: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(bundleDir, "manifest.json")); err != nil {
+        t.Fatalf("missing manifest.json: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(bundleDir, "evidence.md")); err != nil {
+        t.Fatalf("missing evidence.md: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(bundleDir, "SHA256SUMS")); err != nil {
+        t.Fatalf("missing SHA256SUMS: %v", err)
+    }
+    if _, err := os.Stat(filepath.Join(filepath.Dir(bundleDir), "test-topic.tar.gz")); err != nil {
+        t.Fatalf("missing tar.gz: %v", err)
     }
 }

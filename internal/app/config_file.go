@@ -17,6 +17,10 @@ type FileConfig struct {
     Input   string `yaml:"input" json:"input"`
     Output  string `yaml:"output" json:"output"`
     OutputPDF string `yaml:"outputPDF" json:"outputPDF"`
+    Reports struct {
+        Dir string `yaml:"dir" json:"dir"`
+        Tar bool   `yaml:"tar" json:"tar"`
+    } `yaml:"reports" json:"reports"`
 
     LLM struct {
         BaseURL string `yaml:"base" json:"base"`
@@ -145,6 +149,8 @@ func ApplyFileConfig(cfg *Config, fc FileConfig) {
     if (cfg.InputPath == "" || cfg.InputPath == inputDefault) && fc.Input != "" { cfg.InputPath = fc.Input }
     if (cfg.OutputPath == "" || cfg.OutputPath == outputDefault) && fc.Output != "" { cfg.OutputPath = fc.Output }
     if fc.OutputPDF != "" { cfg.OutputPDFPath = fc.OutputPDF }
+    if cfg.ReportsDir == "" && fc.Reports.Dir != "" { cfg.ReportsDir = fc.Reports.Dir }
+    if !cfg.ReportsTar && fc.Reports.Tar { cfg.ReportsTar = true }
 
     if cfg.LLMBaseURL == "" && fc.LLM.BaseURL != "" { cfg.LLMBaseURL = fc.LLM.BaseURL }
     if cfg.LLMModel == "" && fc.LLM.Model != "" { cfg.LLMModel = fc.LLM.Model }

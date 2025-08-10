@@ -175,6 +175,8 @@ type boundVars struct {
     toolsMode                              *string
     verifyEnabled                          *bool
     noVerify                               *bool
+    reportsDir                              *string
+    reportsTar                              *bool
 }
 
 // flagMeta holds the FlagSet and the pointers to bound variables for later use.
@@ -231,6 +233,9 @@ func newFlagSet(getenv func(string) string) (*flag.FlagSet, flagMeta) {
     // Verification toggle (default enabled). Provide both --verify and --no-verify for clarity.
     bv.verifyEnabled = fs.Bool("verify", true, "Enable the fact-check verification pass and Evidence check appendix")
     bv.noVerify = fs.Bool("no-verify", false, "Disable the fact-check verification pass and Evidence check appendix")
+    // Artifacts bundle
+    bv.reportsDir = fs.String("reports.dir", "reports", "Root directory to persist artifacts bundles (reports)")
+    bv.reportsTar = fs.Bool("reports.tar", false, "Also produce a tar.gz of the bundle with digests for offline audit")
 
     return fs, flagMeta{fs: fs, bound: bv}
 }
@@ -355,6 +360,8 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         toolsMode          string
         verifyEnabled      bool
         noVerify           bool
+        reportsDir         string
+        reportsTar         bool
     )
 
     fs.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
@@ -401,6 +408,9 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
     fs.DurationVar(&toolsMaxWallClock, "tools.maxWallClock", 0, "Max wall-clock duration for tool loop (e.g. 30s); 0 disables")
     fs.DurationVar(&toolsPerToolTimeout, "tools.perToolTimeout", 10*time.Second, "Per-tool execution timeout (e.g. 10s)")
     fs.StringVar(&toolsMode, "tools.mode", "harmony", "Chat protocol mode: harmony|legacy")
+    // Artifacts bundle flags
+    fs.StringVar(&reportsDir, "reports.dir", "reports", "Root directory to persist artifacts bundles (reports)")
+    fs.BoolVar(&reportsTar, "reports.tar", false, "Also produce a tar.gz of the bundle with digests for offline audit")
 
     if err := fs.Parse(args); err != nil {
         return app.Config{}, false, err
@@ -450,6 +460,8 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         ToolsMaxWallClock: toolsMaxWallClock,
         ToolsPerToolTimeout: toolsPerToolTimeout,
         ToolsMode:       toolsMode,
+        ReportsDir:      reportsDir,
+        ReportsTar:      reportsTar,
     }
 
     // Parse robots override domains into slice
