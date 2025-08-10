@@ -1,0 +1,20 @@
+---
+description: "Prevent Cursor IDE from running Docker commands due to lack of nested virtualization on Apple M2 virtual machines"
+globs: 
+- "**/docker*"
+- "**/Docker*"
+alwaysApply: true
+---
+
+This rule instructs that Docker commands must never be run because the current development environment is inside a virtual 
+machine on Apple M2 hardware. Apple M2 virtual machines do not support nested virtualization, which means Docker and other 
+container runtimes that require virtualization cannot function.
+
+All development and build tasks must be designed to run without using Docker. This includes avoiding docker-compose, docker 
+build, and docker run commands, as well as any scripts or automation that rely on containerization. If a tool or process normally 
+depends on Docker, alternative approaches must be used such as running the same steps directly on the host system or using 
+prebuilt binaries.
+
+Any instructions, scripts, or configuration changes must take into account this limitation to prevent failures and ensure 
+compatibility with the Apple M2 virtual machine environment. The use of Docker must be replaced with solutions that do not 
+require nested virtualization.
