@@ -204,7 +204,7 @@
 
 * [ ] Environment & secrets handling — Support a .env file and a committed .env.example documenting required variables (LLM\_BASE\_URL, LLM\_MODEL, SEARXNG\_URL, CACHE\_DIR, LANGUAGE, SOURCE\_CAPS). Ensure secrets are not baked into images; pass keys only via env or mounted files.
 
-* [ ] Health-gated startup — Use depends\_on with condition: service\_healthy so the tool starts only after llm-openai and searxng are ready. Provide a make wait target that polls health for local troubleshooting.
+* [x] Health-gated startup — Use depends\_on with condition: service\_healthy so the tool starts only after llm-openai and searxng are ready. Provide a make wait target that polls health for local troubleshooting.
 
 * [ ] Resource limits — Set conservative cpu/memory limits and reservations per service; document how to override (e.g., COMPOSE\_PROFILES=dev LLM\_MEMORY\_GB=8). Ensure the tool fails gracefully when limits are hit.
 
