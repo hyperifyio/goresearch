@@ -206,7 +206,10 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
     }
     fetchURLSchema := json.RawMessage(`{
         "type":"object",
-        "properties":{ "url": {"type":"string","format":"uri"} },
+        "properties":{
+            "url": {"type":"string","format":"uri"},
+            "cache": {"type":"string","enum":["only","revalidate","bypass"]}
+        },
         "required":["url"]
     }`)
     fetchURLResult := json.RawMessage(`{
@@ -228,7 +231,10 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
         ResultSchema: fetchURLResult,
         Capabilities: []string{"fetch"},
         Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-            var in struct{ URL string `json:"url"` }
+            var in struct{
+                URL   string `json:"url"`
+                Cache string `json:"cache"`
+            }
             if err := json.Unmarshal(args, &in); err != nil {
                 return nil, fmt.Errorf("invalid args: %w", err)
             }
@@ -239,6 +245,49 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
                 deps.FetchClient.DomainAllowlist = deps.DomainAllowlist
                 deps.FetchClient.DomainDenylist = deps.DomainDenylist
             }
+            // Handle cache mode: only | revalidate(default) | bypass
+            cacheMode := strings.ToLower(strings.TrimSpace(in.Cache))
+            switch cacheMode {
+            case "only":
+                // Serve directly from HTTP cache without network
+                if deps.FetchClient == nil || deps.FetchClient.Cache == nil {
+                    return nil, fmt.Errorf("cache only requested but no HTTP cache configured")
+                }
+                // Load body and meta; return not found if missing
+                b, berr := deps.FetchClient.Cache.LoadBody(ctx, u)
+                if berr != nil {
+                    return nil, fmt.Errorf("cache only: not found")
+                }
+                meta, merr := deps.FetchClient.Cache.LoadMeta(ctx, u)
+                if merr != nil || meta == nil {
+                    return nil, fmt.Errorf("cache only: not found meta")
+                }
+                // Apply result size budgeting
+                max := deps.MaxResultChars
+                if max > 0 && len(b) > max {
+                    id := sha256Hex(string(b))
+                    bodies.put(id, meta.ContentType, b)
+                    out := struct{
+                        ContentType string `json:"content_type"`
+                        Body        string `json:"body"`
+                        Truncated   bool   `json:"truncated"`
+                        Bytes       int    `json:"bytes"`
+                        ID          string `json:"id"`
+                    }{ContentType: meta.ContentType, Body: string(b[:max]), Truncated: true, Bytes: len(b), ID: id}
+                    return json.Marshal(out)
+                }
+                out := struct{
+                    ContentType string `json:"content_type"`
+                    Body        string `json:"body"`
+                }{ContentType: meta.ContentType, Body: string(b)}
+                return json.Marshal(out)
+            case "bypass":
+                if deps.FetchClient != nil { deps.FetchClient.BypassCache = true }
+            default:
+                // revalidate (default): ensure bypass is false
+                if deps.FetchClient != nil { deps.FetchClient.BypassCache = false }
+            }
+
             body, ct, err := deps.FetchClient.Get(ctx, u)
             if err != nil { return nil, err }
             // Apply result size budgeting if configured

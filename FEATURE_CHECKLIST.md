@@ -173,7 +173,7 @@
 
 * [x] Structured tracing — Log every tool call with tool name, args hash, duration, byte counts, and outcome; correlate to the final report for auditability.
 
-* [ ] Cache-aware tools — Tools consult HTTP/LLM caches; add a per-tool “cache only / revalidate / bypass” flag wired to your existing caching layer.
+* [x] Cache-aware tools — Tools consult HTTP/LLM caches; add a per-tool “cache only / revalidate / bypass” flag wired to your existing caching layer. (implemented for fetch_url with tests)
 
 * [ ] Dry-run for tools — A mode that prints intended tool calls (with redacted args) without executing them; useful for debugging prompt-tool interplay.
 
