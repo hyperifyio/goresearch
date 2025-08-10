@@ -122,6 +122,12 @@ Primary flags (with defaults):
 - `-robots.overrideConfirm` (default: false): second confirmation flag required to activate robots override allowlist
  - `-domains.allow` (comma-separated): only allow these hosts/domains; subdomains included
  - `-domains.deny` (comma-separated): block these hosts/domains; takes precedence over allow
+ - `-tools.enable` (default: false): enable the tool-orchestrated chat mode
+ - `-tools.dryRun` (default: false): do not execute tools; append structured dry-run envelopes
+ - `-tools.maxCalls` (default: 32): maximum number of tool calls per run
+ - `-tools.maxWallClock` (default: 0): wall-clock cap for the tool loop (e.g., `30s`); 0 disables
+ - `-tools.perToolTimeout` (default: 10s): per-tool execution timeout
+ - `-tools.mode` (default: `harmony`): chat protocol mode: `harmony` or `legacy`
 
 ## Usage
 

@@ -1,164 +1,37 @@
 package main
 
 import (
-	"context"
-	"flag"
-	"fmt"
-	"os"
-	"time"
+    "context"
+    "fmt"
+    "os"
+    "flag"
+    "time"
     "strings"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
 
-	"github.com/hyperifyio/goresearch/internal/app"
-	"github.com/hyperifyio/goresearch/internal/synth"
+    "github.com/hyperifyio/goresearch/internal/app"
+    "github.com/hyperifyio/goresearch/internal/synth"
 )
 
 func main() {
-	// Logging setup
-	zerolog.TimeFieldFormat = time.RFC3339
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+    // Logging setup
+    // Keep legacy console writer settings from previous implementation.
+    log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	var (
-		inputPath       string
-		outputPath      string
-		searxURL        string
-		searxKey        string
-		searxUA         string
-		fileSearchPath  string
-		llmBaseURL      string
-		llmModel        string
-		llmKey          string
-		maxSources      int
-		perDomain       int
-		perSourceChars  int
-		minSnippetChars int
-		language        string
-		dryRun          bool
-    	verbose         bool
-    	debugVerbose    bool
-		cacheDir        string
-		cacheMaxAge     time.Duration
-		cacheClear      bool
-		cacheStrict     bool
-		topicHash       string
-		enablePDF       bool
-	    synthSystemPrompt     string
-	    synthSystemPromptFile string
-	    verifySystemPrompt    string
-	    verifySystemPromptFile string
-	    robotsOverrideAllowlist string
-	    robotsOverrideConfirm   bool
-		domainsAllow            string
-		domainsDeny             string
-	)
+    cfg, verbose, err := parseConfig(os.Args[1:], os.Getenv)
+    if err != nil {
+        log.Error().Err(err).Msg("parse flags failed")
+        os.Exit(2)
+    }
+    if verbose {
+        zerolog.SetGlobalLevel(zerolog.DebugLevel)
+    } else {
+        zerolog.SetGlobalLevel(zerolog.InfoLevel)
+    }
 
-	flag.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
-	flag.StringVar(&outputPath, "output", "report.md", "Path to write the final Markdown report")
-	flag.StringVar(&searxURL, "searx.url", os.Getenv("SEARX_URL"), "SearxNG base URL")
-	flag.StringVar(&searxKey, "searx.key", os.Getenv("SEARX_KEY"), "SearxNG API key (optional)")
-	flag.StringVar(&searxUA, "searx.ua", "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", "Custom User-Agent for SearxNG requests")
-	flag.StringVar(&fileSearchPath, "search.file", os.Getenv("SEARCH_FILE"), "Path to JSON file for offline file-based search provider")
-	flag.StringVar(&llmBaseURL, "llm.base", os.Getenv("LLM_BASE_URL"), "OpenAI-compatible base URL")
-	flag.StringVar(&llmModel, "llm.model", os.Getenv("LLM_MODEL"), "Model name")
-	flag.StringVar(&llmKey, "llm.key", os.Getenv("LLM_API_KEY"), "API key for OpenAI-compatible server")
-	flag.IntVar(&maxSources, "max.sources", 12, "Maximum number of sources")
-	flag.IntVar(&perDomain, "max.perDomain", 3, "Maximum sources per domain")
-	flag.IntVar(&perSourceChars, "max.perSourceChars", 12000, "Maximum characters per source extract")
-	flag.IntVar(&minSnippetChars, "min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
-	flag.StringVar(&language, "lang", "", "Optional language hint, e.g. 'en' or 'fi'")
-	flag.BoolVar(&dryRun, "dry-run", false, "Plan and select without calling the model")
-    flag.BoolVar(&verbose, "v", false, "Verbose logging")
-    flag.BoolVar(&debugVerbose, "debug-verbose", false, "Allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay")
-	flag.StringVar(&cacheDir, "cache.dir", ".goresearch-cache", "Cache directory path")
-	flag.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
-	flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
-	flag.BoolVar(&cacheStrict, "cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
-	flag.StringVar(&topicHash, "cache.topicHash", os.Getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
-	flag.BoolVar(&enablePDF, "enable.pdf", false, "Enable optional PDF ingestion (application/pdf)")
-	// Prompt profile flexibility: allow overriding system prompts via flags/env
-	flag.StringVar(&synthSystemPrompt, "synth.systemPrompt", os.Getenv("SYNTH_SYSTEM_PROMPT"), "Override synthesis system prompt (inline string)")
-	flag.StringVar(&synthSystemPromptFile, "synth.systemPromptFile", os.Getenv("SYNTH_SYSTEM_PROMPT_FILE"), "Path to file containing synthesis system prompt")
-	flag.StringVar(&verifySystemPrompt, "verify.systemPrompt", os.Getenv("VERIFY_SYSTEM_PROMPT"), "Override verification system prompt (inline string)")
-	flag.StringVar(&verifySystemPromptFile, "verify.systemPromptFile", os.Getenv("VERIFY_SYSTEM_PROMPT_FILE"), "Path to file containing verification system prompt")
-	// Robots override (bounded allowlist + explicit confirm)
-	flag.StringVar(&robotsOverrideAllowlist, "robots.overrideDomains", os.Getenv("ROBOTS_OVERRIDE_DOMAINS"), "Comma-separated domain allowlist to ignore robots.txt (use with --robots.overrideConfirm)")
-	flag.BoolVar(&robotsOverrideConfirm, "robots.overrideConfirm", false, "Second confirmation flag required to activate robots override allowlist")
-	// Centralized domain allow/deny lists
-	flag.StringVar(&domainsAllow, "domains.allow", os.Getenv("DOMAINS_ALLOW"), "Comma-separated allowlist of hosts/domains; if set, only these are permitted (subdomains included)")
-	flag.StringVar(&domainsDeny, "domains.deny", os.Getenv("DOMAINS_DENY"), "Comma-separated denylist of hosts/domains; takes precedence over allow")
-	flag.Parse()
-	// If file-based prompts are provided, they take precedence over inline strings
-	if strings.TrimSpace(synthSystemPromptFile) != "" {
-		if b, err := os.ReadFile(synthSystemPromptFile); err == nil {
-			synthSystemPrompt = string(b)
-		}
-	}
-	if strings.TrimSpace(verifySystemPromptFile) != "" {
-		if b, err := os.ReadFile(verifySystemPromptFile); err == nil {
-			verifySystemPrompt = string(b)
-		}
-	}
-
-	if verbose {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
-
-	cfg := app.Config{
-		InputPath:       inputPath,
-		OutputPath:      outputPath,
-		SearxURL:        searxURL,
-		SearxKey:        searxKey,
-		LLMBaseURL:      llmBaseURL,
-		LLMModel:        llmModel,
-		LLMAPIKey:       llmKey,
-		MaxSources:      maxSources,
-		PerDomainCap:    perDomain,
-		PerSourceChars:  perSourceChars,
-		MinSnippetChars: minSnippetChars,
-		LanguageHint:    language,
-		DryRun:          dryRun,
-		CacheDir:        cacheDir,
-        Verbose:         verbose,
-        DebugVerbose:    debugVerbose,
-		CacheMaxAge:     cacheMaxAge,
-		CacheClear:      cacheClear,
-		CacheStrictPerms: cacheStrict,
-		TopicHash:       topicHash,
-		EnablePDF:       enablePDF,
-		SynthSystemPrompt:  synthSystemPrompt,
-		VerifySystemPrompt: verifySystemPrompt,
-		RobotsOverrideConfirm: robotsOverrideConfirm,
-	}
-
-	// Parse robots override domains into slice
-	if strings.TrimSpace(robotsOverrideAllowlist) != "" {
-		parts := strings.Split(robotsOverrideAllowlist, ",")
-		list := make([]string, 0, len(parts))
-		for _, p := range parts {
-			if s := strings.TrimSpace(p); s != "" { list = append(list, s) }
-		}
-		cfg.RobotsOverrideAllowlist = list
-	}
-
-	// Parse centralized domain allow/deny lists
-	if s := strings.TrimSpace(domainsAllow); s != "" {
-		parts := strings.Split(s, ",")
-		list := make([]string, 0, len(parts))
-		for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
-		cfg.DomainAllowlist = list
-	}
-	if s := strings.TrimSpace(domainsDeny); s != "" {
-		parts := strings.Split(s, ",")
-		list := make([]string, 0, len(parts))
-		for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
-		cfg.DomainDenylist = list
-	}
-
-	if err := run(cfg); err != nil {
+    if err := run(cfg); err != nil {
 		log.Error().Err(err).Msg("run failed")
 		// Exit code policy: nonzero only on no usable sources or no substantive body.
 		// Map known sentinel errors to exit code 2, otherwise exit 0 (warnings).
@@ -168,6 +41,171 @@ func main() {
 		// For other errors, treat as warnings and exit 0 to allow completion with warnings.
 		os.Exit(0)
 	}
+}
+
+// parseConfig parses CLI flags and environment variables into app.Config.
+// It is separated to enable unit testing of flag behavior.
+func parseConfig(args []string, getenv func(string) string) (app.Config, bool, error) {
+    fs := flag.NewFlagSet("goresearch", flag.ContinueOnError)
+    // Suppress default output during tests; callers can override
+    fs.SetOutput(os.Stderr)
+
+    var (
+        inputPath       string
+        outputPath      string
+        searxURL        string
+        searxKey        string
+        searxUA         string
+        fileSearchPath  string
+        llmBaseURL      string
+        llmModel        string
+        llmKey          string
+        maxSources      int
+        perDomain       int
+        perSourceChars  int
+        minSnippetChars int
+        language        string
+        dryRun          bool
+        verbose         bool
+        debugVerbose    bool
+        cacheDir        string
+        cacheMaxAge     time.Duration
+        cacheClear      bool
+        cacheStrict     bool
+        topicHash       string
+        enablePDF       bool
+        synthSystemPrompt     string
+        synthSystemPromptFile string
+        verifySystemPrompt    string
+        verifySystemPromptFile string
+        robotsOverrideAllowlist string
+        robotsOverrideConfirm   bool
+        domainsAllow            string
+        domainsDeny             string
+        // Tools flags
+        toolsEnabled       bool
+        toolsDryRun        bool
+        toolsMaxCalls      int
+        toolsMaxWallClock  time.Duration
+        toolsPerToolTimeout time.Duration
+        toolsMode          string
+    )
+
+    fs.StringVar(&inputPath, "input", "request.md", "Path to input Markdown research request")
+    fs.StringVar(&outputPath, "output", "report.md", "Path to write the final Markdown report")
+    fs.StringVar(&searxURL, "searx.url", getenv("SEARX_URL"), "SearxNG base URL")
+    fs.StringVar(&searxKey, "searx.key", getenv("SEARX_KEY"), "SearxNG API key (optional)")
+    fs.StringVar(&searxUA, "searx.ua", "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", "Custom User-Agent for SearxNG requests")
+    fs.StringVar(&fileSearchPath, "search.file", getenv("SEARCH_FILE"), "Path to JSON file for offline file-based search provider")
+    fs.StringVar(&llmBaseURL, "llm.base", getenv("LLM_BASE_URL"), "OpenAI-compatible base URL")
+    fs.StringVar(&llmModel, "llm.model", getenv("LLM_MODEL"), "Model name")
+    fs.StringVar(&llmKey, "llm.key", getenv("LLM_API_KEY"), "API key for OpenAI-compatible server")
+    fs.IntVar(&maxSources, "max.sources", 12, "Maximum number of sources")
+    fs.IntVar(&perDomain, "max.perDomain", 3, "Maximum sources per domain")
+    fs.IntVar(&perSourceChars, "max.perSourceChars", 12000, "Maximum characters per source extract")
+    fs.IntVar(&minSnippetChars, "min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
+    fs.StringVar(&language, "lang", "", "Optional language hint, e.g. 'en' or 'fi'")
+    fs.BoolVar(&dryRun, "dry-run", false, "Plan and select without calling the model")
+    fs.BoolVar(&verbose, "v", false, "Verbose logging")
+    fs.BoolVar(&debugVerbose, "debug-verbose", false, "Allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay")
+    fs.StringVar(&cacheDir, "cache.dir", ".goresearch-cache", "Cache directory path")
+    fs.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
+    fs.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
+    fs.BoolVar(&cacheStrict, "cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
+    fs.StringVar(&topicHash, "cache.topicHash", getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
+    fs.BoolVar(&enablePDF, "enable.pdf", false, "Enable optional PDF ingestion (application/pdf)")
+    // Prompt profile flexibility: allow overriding system prompts via flags/env
+    fs.StringVar(&synthSystemPrompt, "synth.systemPrompt", getenv("SYNTH_SYSTEM_PROMPT"), "Override synthesis system prompt (inline string)")
+    fs.StringVar(&synthSystemPromptFile, "synth.systemPromptFile", getenv("SYNTH_SYSTEM_PROMPT_FILE"), "Path to file containing synthesis system prompt")
+    fs.StringVar(&verifySystemPrompt, "verify.systemPrompt", getenv("VERIFY_SYSTEM_PROMPT"), "Override verification system prompt (inline string)")
+    fs.StringVar(&verifySystemPromptFile, "verify.systemPromptFile", getenv("VERIFY_SYSTEM_PROMPT_FILE"), "Path to file containing verification system prompt")
+    // Robots override (bounded allowlist + explicit confirm)
+    fs.StringVar(&robotsOverrideAllowlist, "robots.overrideDomains", getenv("ROBOTS_OVERRIDE_DOMAINS"), "Comma-separated domain allowlist to ignore robots.txt (use with --robots.overrideConfirm)")
+    fs.BoolVar(&robotsOverrideConfirm, "robots.overrideConfirm", false, "Second confirmation flag required to activate robots override allowlist")
+    // Centralized domain allow/deny lists
+    fs.StringVar(&domainsAllow, "domains.allow", getenv("DOMAINS_ALLOW"), "Comma-separated allowlist of hosts/domains; if set, only these are permitted (subdomains included)")
+    fs.StringVar(&domainsDeny, "domains.deny", getenv("DOMAINS_DENY"), "Comma-separated denylist of hosts/domains; takes precedence over allow")
+    // Tools orchestration flags (config flags item)
+    fs.BoolVar(&toolsEnabled, "tools.enable", false, "Enable tool-orchestrated chat mode")
+    fs.BoolVar(&toolsDryRun, "tools.dryRun", false, "Do not execute tools; emit dry-run envelopes")
+    fs.IntVar(&toolsMaxCalls, "tools.maxCalls", 32, "Max tool calls per run")
+    fs.DurationVar(&toolsMaxWallClock, "tools.maxWallClock", 0, "Max wall-clock duration for tool loop (e.g. 30s); 0 disables")
+    fs.DurationVar(&toolsPerToolTimeout, "tools.perToolTimeout", 10*time.Second, "Per-tool execution timeout (e.g. 10s)")
+    fs.StringVar(&toolsMode, "tools.mode", "harmony", "Chat protocol mode: harmony|legacy")
+
+    if err := fs.Parse(args); err != nil {
+        return app.Config{}, false, err
+    }
+    // If file-based prompts are provided, they take precedence over inline strings
+    if strings.TrimSpace(synthSystemPromptFile) != "" {
+        if b, err := os.ReadFile(synthSystemPromptFile); err == nil {
+            synthSystemPrompt = string(b)
+        }
+    }
+    if strings.TrimSpace(verifySystemPromptFile) != "" {
+        if b, err := os.ReadFile(verifySystemPromptFile); err == nil {
+            verifySystemPrompt = string(b)
+        }
+    }
+
+    cfg := app.Config{
+        InputPath:       inputPath,
+        OutputPath:      outputPath,
+        SearxURL:        searxURL,
+        SearxKey:        searxKey,
+        SearxUA:         searxUA,
+        FileSearchPath:  fileSearchPath,
+        LLMBaseURL:      llmBaseURL,
+        LLMModel:        llmModel,
+        LLMAPIKey:       llmKey,
+        MaxSources:      maxSources,
+        PerDomainCap:    perDomain,
+        PerSourceChars:  perSourceChars,
+        MinSnippetChars: minSnippetChars,
+        LanguageHint:    language,
+        DryRun:          dryRun,
+        CacheDir:        cacheDir,
+        Verbose:         verbose,
+        DebugVerbose:    debugVerbose,
+        CacheMaxAge:     cacheMaxAge,
+        CacheClear:      cacheClear,
+        CacheStrictPerms: cacheStrict,
+        TopicHash:       topicHash,
+        EnablePDF:       enablePDF,
+        SynthSystemPrompt:  synthSystemPrompt,
+        VerifySystemPrompt: verifySystemPrompt,
+        RobotsOverrideConfirm: robotsOverrideConfirm,
+        ToolsEnabled:    toolsEnabled,
+        ToolsDryRun:     toolsDryRun,
+        ToolsMaxCalls:   toolsMaxCalls,
+        ToolsMaxWallClock: toolsMaxWallClock,
+        ToolsPerToolTimeout: toolsPerToolTimeout,
+        ToolsMode:       toolsMode,
+    }
+
+    // Parse robots override domains into slice
+    if s := strings.TrimSpace(robotsOverrideAllowlist); s != "" {
+        parts := strings.Split(s, ",")
+        list := make([]string, 0, len(parts))
+        for _, p := range parts {
+            if v := strings.TrimSpace(p); v != "" { list = append(list, v) }
+        }
+        cfg.RobotsOverrideAllowlist = list
+    }
+    // Parse centralized domain allow/deny lists
+    if s := strings.TrimSpace(domainsAllow); s != "" {
+        parts := strings.Split(s, ",")
+        list := make([]string, 0, len(parts))
+        for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
+        cfg.DomainAllowlist = list
+    }
+    if s := strings.TrimSpace(domainsDeny); s != "" {
+        parts := strings.Split(s, ",")
+        list := make([]string, 0, len(parts))
+        for _, p := range parts { if v := strings.TrimSpace(p); v != "" { list = append(list, v) } }
+        cfg.DomainDenylist = list
+    }
+    return cfg, verbose, nil
 }
 
 // isNoSubstantiveBody checks whether the error indicates the synthesizer

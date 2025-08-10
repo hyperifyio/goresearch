@@ -71,4 +71,22 @@ type Config struct {
     // Denylist takes precedence over Allowlist.
     DomainAllowlist []string
     DomainDenylist  []string
+
+    // Tools / Orchestration
+    // ToolsEnabled toggles the tool-orchestrated research mode.
+    ToolsEnabled bool
+    // ToolsDryRun, when true, does not execute tool handlers; instead,
+    // structured dry-run envelopes are produced to trace intended calls.
+    ToolsDryRun bool
+    // ToolsMaxCalls bounds the total number of tool calls during one run.
+    ToolsMaxCalls int
+    // ToolsMaxWallClock bounds the total wall-clock duration of the
+    // orchestration loop. Zero disables the additional deadline.
+    ToolsMaxWallClock time.Duration
+    // ToolsPerToolTimeout bounds the duration of a single tool execution.
+    ToolsPerToolTimeout time.Duration
+    // ToolsMode selects chat protocol nuances: "harmony" (default) uses
+    // Harmony-style analysis/commentary/final markers; "legacy" treats
+    // assistant content as final without requiring Harmony markers.
+    ToolsMode string
 }

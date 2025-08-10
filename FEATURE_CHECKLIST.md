@@ -187,7 +187,7 @@
 
 * [x] Tests: schema & fuzz — Unit tests that validate tool arg/result schemas and fuzz malformed inputs to ensure graceful errors. (arg schema enforced in orchestrator; result/arg schema tests + fuzz added)
 
-* [ ] Config flags — CLI/env switches to enable tools, set loop caps/time budgets, and toggle Harmony/legacy function-calling modes.
+* [x] Config flags — CLI/env switches to enable tools, set loop caps/time budgets, and toggle Harmony/legacy function-calling modes.
 
 * [ ] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.
 
