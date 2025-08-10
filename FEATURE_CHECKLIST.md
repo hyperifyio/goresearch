@@ -298,4 +298,4 @@
 
 * [ ] Recommendations section (optional) — generate when the brief expects decisions/actions, separate from Conclusions.&#x20;
 
-* [ ] Appendix management — auto-label Appendices A/B/C…, ensure each is referenced from the body.&#x20;
+* [x] Appendix management — auto-label Appendices A/B/C…, ensure each is referenced from the body.&#x20;
