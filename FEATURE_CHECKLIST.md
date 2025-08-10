@@ -189,7 +189,7 @@
 
 * [x] Config flags — CLI/env switches to enable tools, set loop caps/time budgets, and toggle Harmony/legacy function-calling modes.
 
-* [ ] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.
+* [x] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.
 
 * [ ] Docker Compose local stack — Provide docker-compose.yml with services: research-tool, searxng (default search), llm-openai (local OpenAI-compatible LLM server), and stub-llm (for tests). Use a dedicated bridge network, named volumes for http\_cache, llm\_cache, and reports, and Compose profiles: dev (tool+searxng+llm), test (tool+stub-llm), and offline (tool only, cache-only mode).
 
