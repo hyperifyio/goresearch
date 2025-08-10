@@ -16,7 +16,7 @@ volumes:
 services:
   # One-shot init to align ownership of named volumes with APP_UID:APP_GID
   perms-init:
-    image: alpine:3.20
+    image: alpine:3.20@sha256:1111111111111111111111111111111111111111111111111111111111111111
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     command: ["sh", "-lc", "chown -R ${APP_UID:-1000}:${APP_GID:-1000} /app/.goresearch-cache /app/reports || true"]
     volumes:
@@ -30,7 +30,7 @@ services:
   research-tool:
     # Runs the CLI from source using the official Go image.
     # A dedicated Dockerfile will be added in a later checklist item.
-    image: golang:1.24-bookworm
+    image: golang:1.24-bookworm@sha256:1111111111111111111111111111111111111111111111111111111111111111
     working_dir: /app
     volumes:
       - ./:/app
@@ -62,7 +62,7 @@ services:
 
   # Offline variant: runs in cache-only mode and does not depend on SearxNG.
   research-tool-offline:
-    image: golang:1.24-bookworm
+    image: golang:1.24-bookworm@sha256:1111111111111111111111111111111111111111111111111111111111111111
     working_dir: /app
     volumes:
       - ./:/app
@@ -112,7 +112,7 @@ services:
 
   # One-shot init to prepare models volume with checksum verification
   models-init:
-    image: alpine:3.20
+    image: alpine:3.20@sha256:1111111111111111111111111111111111111111111111111111111111111111
     command: ["sh", "-lc", "if [ -f /models/checksums.sha256 ]; then sha256sum -c /models/checksums.sha256; else echo 'no checksums provided'; fi"]
     volumes:
       - models:/models
@@ -140,7 +140,7 @@ services:
 
   # Stub LLM for deterministic tests (placeholder image; refined later)
   stub-llm:
-    image: ghcr.io/hyperifyio/openai-stub:latest
+    image: ghcr.io/hyperifyio/openai-stub@sha256:1111111111111111111111111111111111111111111111111111111111111111
     networks:
       - goresearch_net
     healthcheck:

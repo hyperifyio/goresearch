@@ -1,4 +1,4 @@
-.PHONY: wait up down logs rebuild test clean
+.PHONY: wait up down logs rebuild test clean image
 
 # Wait for local dependencies (LLM and SearxNG) to become healthy.
 # Uses environment variables LLM_BASE_URL and SEARX_URL when set.
@@ -38,3 +38,20 @@ clean:
 	@echo "Pruning cache volumes and local cache directory"
 	@docker volume rm goresearch_http_cache goresearch_llm_cache >/dev/null 2>&1 || true
 	@rm -rf .goresearch-cache || true
+
+# Build the goresearch container image with SBOM and provenance attestations.
+# Note: This target only constructs the image; it does not push anywhere.
+# It relies on Docker Buildx and BuildKit; in environments without Docker,
+# this target is a no-op unless Docker is available.
+VERSION ?= 0.0.0-dev
+COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo dev)
+DATE    ?= $(shell date -u +%FT%TZ)
+
+image:
+	@echo "Building goresearch image with SBOM and provenance"
+	@docker buildx build \
+		--sbom=true --provenance=mode=max \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t ghcr.io/hyperifyio/goresearch:dev . || true
