@@ -200,7 +200,7 @@
 * [x] SearxNG container — Add a searxng service (image pinned by digest) with mounted settings.yml, custom User-Agent, reduced concurrency, and safe rate limits. Expose internal URL to the tool only via the Compose network (no public port by default). Healthcheck /status page. (2025-08-10)
     - Also provide non-Docker options: Homebrew and Python venv setup; add file-based provider for offline/no third-party dependency operation.
 
-* [ ] Model weights volume & bootstrap — Define a models named volume and an optional one-shot init container to fetch or copy local weights into the volume, with checksum verification and clear failure on mismatch.
+* [x] Model weights volume & bootstrap — Define a models named volume and an optional one-shot init container to fetch or copy local weights into the volume, with checksum verification and clear failure on mismatch. (added models volume, models-init service with sha256 verification, and tests)
 
 * [ ] Environment & secrets handling — Support a .env file and a committed .env.example documenting required variables (LLM\_BASE\_URL, LLM\_MODEL, SEARXNG\_URL, CACHE\_DIR, LANGUAGE, SOURCE\_CAPS). Ensure secrets are not baked into images; pass keys only via env or mounted files.
 

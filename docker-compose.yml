@@ -10,6 +10,7 @@ networks:
 volumes:
   http_cache:
   llm_cache:
+  models:
   reports:
 
 services:
@@ -34,6 +35,8 @@ services:
       - goresearch_net
     profiles: ["dev", "test", "offline"]
     depends_on:
+      models-init:
+        condition: service_completed_successfully
       llm-openai:
         condition: service_healthy
       searxng:
@@ -49,12 +52,26 @@ services:
     networks:
       - goresearch_net
     volumes:
-      - llm_cache:/models
+      - models:/models
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/models"]
       interval: 10s
       timeout: 3s
       retries: 10
+    profiles: ["dev", "test"]
+    depends_on:
+      models-init:
+        condition: service_completed_successfully
+
+  # One-shot init to prepare models volume with checksum verification
+  models-init:
+    image: alpine:3.20
+    command: ["sh", "-lc", "if [ -f /models/checksums.sha256 ]; then sha256sum -c /models/checksums.sha256; else echo 'no checksums provided'; fi"]
+    volumes:
+      - models:/models
+    networks:
+      - goresearch_net
+    restart: "no"
     profiles: ["dev", "test"]
 
   # SearxNG meta-search engine (default search provider)
