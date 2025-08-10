@@ -1,0 +1,12 @@
+# Example override to expose services on localhost for troubleshooting.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
+# Note: Not used by default; base compose keeps services on an internal network with no host ports.
+
+services:
+  llm-openai:
+    ports:
+      - "8080:8080"   # expose OpenAI-compatible API on localhost:8080
+
+  searxng:
+    ports:
+      - "8888:8080"   # expose SearxNG web UI/API on localhost:8888
