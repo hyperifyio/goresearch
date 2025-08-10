@@ -236,7 +236,7 @@
 
 * [ ] Quick Start in README — One copy-paste command with expected output, plus a “hello research” example brief and result.&#x20;
 
-* [ ] Full flag & config reference — Auto-generate a comprehensive CLI/options page and link it from README.&#x20;
+* [x] Full flag & config reference — Auto-generate a comprehensive CLI/options page and link it from README.&#x20;
 
 * [x] Feature guides for verification & manifest — Explain how the evidence appendix is produced/read and how to use the embedded/sidecar manifest for audit.&#x20;
 
