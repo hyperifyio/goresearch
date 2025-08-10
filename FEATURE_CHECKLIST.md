@@ -212,7 +212,7 @@
 
 * [ ] Logs & artifacts mapping — Map structured JSON logs to ./logs and final Markdown reports to ./reports. Ensure timestamps are in UTC and file names are stable (topic hash or timestamp).
 
-* [ ] Reproducible images — Pin all service images by digest, add SBOM export at build (BuildKit attestations), and label images with vcs-ref and build-date for traceability.
+* [x] Reproducible images — Pin all service images by digest, add SBOM export at build (BuildKit attestations), and label images with vcs-ref and build-date for traceability.
 
 * [x] Make targets for DX — Add make up, make down, make logs, make rebuild, make test (uses test profile + stub-llm), and make clean (prunes volumes for caches). Document one-liners in README.
 
