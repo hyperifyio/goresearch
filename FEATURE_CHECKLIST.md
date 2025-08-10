@@ -147,7 +147,7 @@
 * [x] Tool protocol adapter — Add an OpenAI-compatible “tools/functions” encoder and response parser (name, description, JSON Schema args; detect and read `tool_calls` in assistant messages). 
 * [x] Harmony response handling — Support Harmony-style channels (analysis/commentary/final) so the loop can safely ignore raw CoT except for explicit tool calls and final answers.
 
-* [ ] CoT redaction policy — Do not log or surface raw chain-of-thought by default; expose behind a debug flag since gpt-oss may interleave tool calls within CoT.
+* [x] CoT redaction policy — Do not log or surface raw chain-of-thought by default; expose behind a debug flag since gpt-oss may interleave tool calls within CoT. (added `ContentForLogging`, `DebugVerbose` flag wired to synthesizer)
 
 * [ ] Tool registry & versioning — Central registry mapping stable tool names to internal functions; include semantic version and capability meta for reproducibility.
 

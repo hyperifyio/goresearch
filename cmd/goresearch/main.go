@@ -36,7 +36,8 @@ func main() {
 		minSnippetChars int
 		language        string
 		dryRun          bool
-		verbose         bool
+    	verbose         bool
+    	debugVerbose    bool
 		cacheDir        string
 		cacheMaxAge     time.Duration
 		cacheClear      bool
@@ -66,7 +67,8 @@ func main() {
 	flag.IntVar(&minSnippetChars, "min.snippetChars", 0, "Minimum non-whitespace snippet characters to keep a result (0 disables)")
 	flag.StringVar(&language, "lang", "", "Optional language hint, e.g. 'en' or 'fi'")
 	flag.BoolVar(&dryRun, "dry-run", false, "Plan and select without calling the model")
-	flag.BoolVar(&verbose, "v", false, "Verbose logging")
+    flag.BoolVar(&verbose, "v", false, "Verbose logging")
+    flag.BoolVar(&debugVerbose, "debug-verbose", false, "Allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay")
 	flag.StringVar(&cacheDir, "cache.dir", ".goresearch-cache", "Cache directory path")
 	flag.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
 	flag.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
@@ -115,7 +117,8 @@ func main() {
 		LanguageHint:    language,
 		DryRun:          dryRun,
 		CacheDir:        cacheDir,
-		Verbose:         verbose,
+        Verbose:         verbose,
+        DebugVerbose:    debugVerbose,
 		CacheMaxAge:     cacheMaxAge,
 		CacheClear:      cacheClear,
 		CacheStrictPerms: cacheStrict,

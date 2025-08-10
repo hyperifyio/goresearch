@@ -9,6 +9,7 @@ import (
     openai "github.com/sashabaranov/go-openai"
 
     "github.com/hyperifyio/goresearch/internal/brief"
+    "github.com/hyperifyio/goresearch/internal/llmtools"
 )
 
 type capturingClient struct{ lastReq openai.ChatCompletionRequest }
@@ -53,16 +54,20 @@ func (f *flakyClient) CreateChatCompletion(ctx context.Context, req openai.ChatC
 type countingClient struct{
     calls int
     lastReq openai.ChatCompletionRequest
+    lastResp openai.ChatCompletionResponse
 }
 
 func (c *countingClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
     c.calls++
     c.lastReq = req
-    return openai.ChatCompletionResponse{
-        Choices: []openai.ChatCompletionChoice{{
-            Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "# ok"},
-        }},
-    }, nil
+    if c.lastResp.Choices == nil || len(c.lastResp.Choices) == 0 {
+        c.lastResp = openai.ChatCompletionResponse{
+            Choices: []openai.ChatCompletionChoice{{
+                Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "# ok"},
+            }},
+        }
+    }
+    return c.lastResp, nil
 }
 
 func TestSynthesizer_IncludesLanguageInstruction(t *testing.T) {
@@ -137,6 +142,24 @@ func TestSynthesizer_SinglePassNoStreaming(t *testing.T) {
     // Single, deterministic completion requested
     if cc.lastReq.N != 1 {
         t.Fatalf("expected N=1 completions, got %d", cc.lastReq.N)
+    }
+}
+
+func TestSynthesizer_CoTRedactionHelperUsed(t *testing.T) {
+    // counting client that returns analysis + final block
+    cc := &countingClient{}
+    s := &Synthesizer{Client: cc, Cache: nil, Verbose: true, AllowCOTLogging: false}
+    in := Input{Brief: brief.Brief{Topic: "T"}, Model: "m"}
+    // Inject a response with analysis + final
+    cc.lastResp = openai.ChatCompletionResponse{Choices: []openai.ChatCompletionChoice{{
+        Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "thinking\n```final\nMD\n```"},
+    }}}
+    out, err := s.Synthesize(context.Background(), in)
+    if err != nil { t.Fatalf("synthesize error: %v", err) }
+    if strings.TrimSpace(out) == "" { t.Fatalf("expected output") }
+    safe := llmtools.ContentForLogging(cc.lastResp, false)
+    if safe != "MD" {
+        t.Fatalf("expected final-only content, got %q", safe)
     }
 }
 

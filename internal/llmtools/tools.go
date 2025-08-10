@@ -102,3 +102,45 @@ func ParseHarmony(resp openai.ChatCompletionResponse) (final string, calls []Too
     // Fallback to whole content
     return strings.TrimSpace(content), nil
 }
+
+// ContentForLogging returns a safe string to log from a chat completion
+// response, enforcing the CoT redaction policy by default.
+//
+// When allowCOT is false (default), only the Harmony-style final answer is
+// returned (if present). If no final marker exists and there are tool calls,
+// a short notice is returned. Raw analysis/commentary is not included.
+//
+// When allowCOT is true, the full assistant message content is returned so that
+// callers can debug interleaved tool-calls within CoT when explicitly enabled.
+//
+// Requirement: FEATURE_CHECKLIST.md — CoT redaction policy
+// Source: https://github.com/hyperifyio/goresearch/blob/main/FEATURE_CHECKLIST.md
+func ContentForLogging(resp openai.ChatCompletionResponse, allowCOT bool) string {
+    if len(resp.Choices) == 0 {
+        return ""
+    }
+    if allowCOT {
+        return strings.TrimSpace(resp.Choices[0].Message.Content)
+    }
+    // If tools are requested, do not surface CoT; indicate presence of tool calls
+    calls := ParseToolCalls(resp)
+    if len(calls) > 0 {
+        return "(tool_calls present; CoT redacted)"
+    }
+    // Try to extract explicit final markers only. Do not fall back to whole content.
+    if len(resp.Choices) > 0 {
+        content := resp.Choices[0].Message.Content
+        if m := fencedFinalRe.FindStringSubmatch(content); m != nil {
+            for i := 1; i < len(m); i++ {
+                if strings.TrimSpace(m[i]) != "" {
+                    return strings.TrimSpace(m[i])
+                }
+            }
+        }
+        if m := xmlFinalRe.FindStringSubmatch(content); m != nil && len(m) >= 2 {
+            return strings.TrimSpace(m[1])
+        }
+    }
+    // No final markers; redact entirely
+    return "(CoT redacted)"
+}

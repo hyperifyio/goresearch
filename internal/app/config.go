@@ -33,6 +33,10 @@ type Config struct {
 	DryRun   bool
 	CacheDir string
 	Verbose  bool
+    // DebugVerbose, when true, allows logging of raw chain-of-thought (CoT)
+    // content for debugging Harmony/tool-call interplay. Default is false and
+    // CoT is redacted from logs. Use sparingly.
+    DebugVerbose bool
     // CacheStrictPerms, when true, uses 0700 for cache dirs and 0600 for files.
     CacheStrictPerms bool
 

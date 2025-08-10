@@ -111,7 +111,8 @@ Primary flags (with defaults):
 - `-min.snippetChars` (default: 0): minimum snippet chars to keep a search result
 - `-lang` (default: empty): language hint, e.g. `en` or `fi`
 - `-dry-run` (default: false): plan/select without calling the LLM
-- `-v` (default: false): verbose logging
+  - `-v` (default: false): verbose logging (prompts summarized; CoT redacted)
+  - `-debug-verbose` (default: false): allow logging raw chain-of-thought (CoT) for debugging Harmony/tool-call interplay. Off by default.
 - `-cache.dir` (default: `.goresearch-cache`): cache directory
 - `-cache.maxAge` (default: 0): purge cache entries older than this duration (e.g. `24h`, `7d`); 0 disables
 - `-cache.clear` (default: false): clear entire cache before run

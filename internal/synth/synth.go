@@ -12,6 +12,7 @@ import (
 
     "github.com/hyperifyio/goresearch/internal/brief"
     "github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/llmtools"
 )
 
 // ChatClient abstracts the OpenAI client dependency for testability.
@@ -44,6 +45,9 @@ type Synthesizer struct {
     Verbose bool
     // SystemPrompt, when non-empty, overrides the default system message.
     SystemPrompt string
+    // AllowCOTLogging enables logging of raw assistant content (CoT) for
+    // debugging Harmony/tool-call interplay. Default is false and CoT is redacted.
+    AllowCOTLogging bool
 }
 
 // ErrNoSubstantiveBody indicates the model produced no usable Markdown body.
@@ -103,6 +107,11 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
     }
     if len(resp.Choices) == 0 {
         return "", ErrNoSubstantiveBody
+    }
+    if s.Verbose {
+        // Respect CoT redaction policy; surface only final content unless explicitly enabled
+        safe := llmtools.ContentForLogging(resp, s.AllowCOTLogging)
+        _ = safe // placeholder in case of future structured logs; no direct print here
     }
     out := strings.TrimSpace(resp.Choices[0].Message.Content)
     if out == "" {

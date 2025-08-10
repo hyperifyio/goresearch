@@ -3,6 +3,7 @@ package llmtools
 import (
     "encoding/json"
     "testing"
+    "strings"
 
     openai "github.com/sashabaranov/go-openai"
 )
@@ -80,5 +81,46 @@ func TestParseHarmony_PrefersToolCallsOverContent(t *testing.T) {
     }
     if len(calls) != 1 || calls[0].Name != "web_search" {
         t.Fatalf("unexpected tool calls: %+v", calls)
+    }
+}
+
+func TestContentForLogging_RedactsCoTByDefault(t *testing.T) {
+    // Response with only analysis and no final; no tool calls
+    resp := openai.ChatCompletionResponse{
+        Choices: []openai.ChatCompletionChoice{
+            {Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "thinking... details ..."}},
+        },
+    }
+    got := ContentForLogging(resp, false)
+    if got == "" || got == "thinking... details ..." {
+        t.Fatalf("expected redaction message, got %q", got)
+    }
+}
+
+func TestContentForLogging_ReturnsFinalWhenPresent(t *testing.T) {
+    resp := openai.ChatCompletionResponse{
+        Choices: []openai.ChatCompletionChoice{
+            {Message: openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "notes\n```final\nAnswer\n```"}},
+        },
+    }
+    got := ContentForLogging(resp, false)
+    if got != "Answer" {
+        t.Fatalf("expected final content, got %q", got)
+    }
+}
+
+func TestContentForLogging_NotesWhenToolCallsPresent(t *testing.T) {
+    // Build response JSON to include a function tool call
+    var resp openai.ChatCompletionResponse
+    _ = json.Unmarshal([]byte(`{
+        "choices":[{"message":{
+            "role":"assistant",
+            "content":"analysis text",
+            "tool_calls":[{"id":"tool1","type":"function","function":{"name":"web_search","arguments":"{\"q\":\"x\"}"}}]
+        }}]
+    }`), &resp)
+    got := ContentForLogging(resp, false)
+    if !strings.Contains(got, "tool_calls") {
+        t.Fatalf("expected a tool_calls notice, got %q", got)
     }
 }

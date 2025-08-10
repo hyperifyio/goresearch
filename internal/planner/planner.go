@@ -55,9 +55,10 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 			}
 		}
 	}
-	if p.Verbose {
-		log.Debug().Str("model", p.Model).Str("system", systemMessage).Str("user", user).Msg("planner prompt")
-	}
+    if p.Verbose {
+        // Log prompt skeleton only; avoid logging raw excerpts or sensitive data
+        log.Debug().Str("stage", "planner").Str("model", p.Model).Int("system_len", len(systemMessage)).Int("user_len", len(user)).Msg("planner prompt")
+    }
 	resp, err := p.Client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: p.Model,
 		Messages: []openai.ChatCompletionMessage{
@@ -70,7 +71,7 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 	if err != nil {
 		return Plan{}, fmt.Errorf("planner call: %w", err)
 	}
-	if len(resp.Choices) == 0 {
+    if len(resp.Choices) == 0 {
 		return Plan{}, errors.New("no choices")
 	}
 	var plan Plan

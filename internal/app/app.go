@@ -280,7 +280,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 5) Synthesize report
     stageStart = time.Now()
-    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt}
+    syn := &synth.Synthesizer{Client: a.ai, Cache: &cache.LLMCache{Dir: a.cfg.CacheDir, StrictPerms: a.cfg.CacheStrictPerms}, Verbose: a.cfg.Verbose, SystemPrompt: a.cfg.SynthSystemPrompt, AllowCOTLogging: a.cfg.DebugVerbose}
 	md, err := syn.Synthesize(ctx, synth.Input{
 		Brief:                b,
 		Outline:              plan.Outline,
