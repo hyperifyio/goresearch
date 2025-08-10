@@ -149,7 +149,7 @@
 
 * [x] CoT redaction policy — Do not log or surface raw chain-of-thought by default; expose behind a debug flag since gpt-oss may interleave tool calls within CoT. (added `ContentForLogging`, `DebugVerbose` flag wired to synthesizer)
 
-* [ ] Tool registry & versioning — Central registry mapping stable tool names to internal functions; include semantic version and capability meta for reproducibility.
+* [x] Tool registry & versioning — Central registry mapping stable tool names to internal functions; include semantic version and capability meta for reproducibility.
 
 * [ ] Orchestration loop — Iterate: send messages + tool schema, execute any returned tool calls, append tool results as `tool` messages, stop on final assistant text.
 
