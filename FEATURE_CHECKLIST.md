@@ -260,7 +260,7 @@
 
 * [ ] Static analysis & pre-commit — Enforce `go fmt`, `go vet`, `staticcheck`, and pre-commit hooks; wire into CI next to existing tests.&#x20;
 
-* [ ] Troubleshooting & FAQ — Document common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug.&#x20;
+* [x] Troubleshooting & FAQ — Document common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug.&#x20;
 
 * [ ] LLM backend interface — Extract a provider interface so different OpenAI-compatible or local backends can be swapped without touching core logic.&#x20;
 
