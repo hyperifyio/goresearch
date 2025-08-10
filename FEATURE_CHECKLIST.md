@@ -256,7 +256,7 @@
 
 * [ ] Release packaging — Use GoReleaser to ship macOS/Linux/Windows binaries with version/commit info, checksums, and SBOM; publish via CI.&#x20;
 
-* [ ] Benchmarks — Add Go benchmarks for fetch, extract, selection, and token budgeting to quantify the impact of concurrency/politeness settings.&#x20;
+* [x] Benchmarks — Add Go benchmarks for fetch, extract, selection, and token budgeting to quantify the impact of concurrency/politeness settings.&#x20;
 
 * [ ] Static analysis & pre-commit — Enforce `go fmt`, `go vet`, `staticcheck`, and pre-commit hooks; wire into CI next to existing tests.&#x20;
 
