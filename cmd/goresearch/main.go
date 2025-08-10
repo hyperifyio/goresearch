@@ -20,11 +20,17 @@ func main() {
     // Keep legacy console writer settings from previous implementation.
     log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
+    // Load dotenv files early so env defaults in flag parsing can see them.
+    // Non-fatal if files are missing.
+    _ = app.LoadEnvFiles(".env", ".env.local")
+
     cfg, verbose, err := parseConfig(os.Args[1:], os.Getenv)
     if err != nil {
         log.Error().Err(err).Msg("parse flags failed")
         os.Exit(2)
     }
+    // Populate unset fields from environment (after flags), so explicit flags win.
+    app.ApplyEnvToConfig(&cfg)
     if verbose {
         zerolog.SetGlobalLevel(zerolog.DebugLevel)
     } else {
