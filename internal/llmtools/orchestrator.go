@@ -4,6 +4,8 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "regexp"
+    "net/url"
     "strings"
     "time"
 
@@ -154,7 +156,7 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                         "tool": call.Name,
                         "error": map[string]any{
                             "code":    code,
-                            "message": err.Error(),
+                            "message": scrubString(err.Error()),
                         },
                     }
                     b, _ := json.Marshal(env)
@@ -165,6 +167,8 @@ func (o *Orchestrator) Run(ctx context.Context, baseReq openai.ChatCompletionReq
                     if len(raw) > 0 {
                         _ = json.Unmarshal(raw, &val)
                     }
+                    // Safety redaction: scrub secrets, cookies, tracking params from data
+                    val = scrubValue(val)
                     var vErr error
                     if def.ResultSchema != nil && len(def.ResultSchema) > 0 {
                         vErr = validateAgainstSchema(val, def.ResultSchema)
@@ -238,4 +242,76 @@ func classifyToolError(err error) string {
     default:
         return "E_TOOL"
     }
+}
+
+// scrubValue walks arbitrary JSON-like data and scrubs sensitive information.
+// - Strings that look like URLs are normalized (drop fragments, lowercase host),
+//   tracking params are removed, and sensitive param values (token, key, secret, password)
+//   are replaced with "[redacted]"; userinfo in URLs is removed.
+// - Header-like strings such as Authorization/Cookie/Set-Cookie have values redacted.
+// - Maps and arrays are processed recursively.
+func scrubValue(v any) any {
+    switch t := v.(type) {
+    case string:
+        return scrubString(t)
+    case map[string]any:
+        out := make(map[string]any, len(t))
+        for k, vv := range t {
+            out[k] = scrubValue(vv)
+        }
+        return out
+    case []any:
+        out := make([]any, len(t))
+        for i, vv := range t {
+            out[i] = scrubValue(vv)
+        }
+        return out
+    default:
+        return v
+    }
+}
+
+var (
+    reAuthHeader   = regexp.MustCompile(`(?i)(authorization\s*:\s*)([^\r\n]+)`) // Authorization: ....
+    reCookieHeader = regexp.MustCompile(`(?i)\b(set-cookie|cookie)\s*:\s*[^\r\n]+`) // full header
+    reBearer       = regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._\-+/=]+`)
+)
+
+// scrubString redacts header-like secrets and sanitizes URL strings.
+func scrubString(s string) string {
+    // Redact common header leaks
+    s = reAuthHeader.ReplaceAllString(s, "$1[redacted]")
+    s = reCookieHeader.ReplaceAllString(s, "$1: [redacted]")
+    s = reBearer.ReplaceAllString(s, "Bearer [redacted]")
+
+    // Try to parse as a full URL and sanitize
+    if u, err := urlParseMaybe(s); err == nil && u.Scheme != "" && u.Host != "" {
+        return sanitizeURLForSafety(u)
+    }
+    return s
+}
+
+// urlParseMaybe parses a string as URL if it appears to be a URL.
+func urlParseMaybe(s string) (*url.URL, error) {
+    return url.Parse(s)
+}
+
+// sanitizeURLForSafety applies sanitizeURLString plus secret param redaction and userinfo removal.
+func sanitizeURLForSafety(u *url.URL) string {
+    // remove userinfo
+    u.User = nil
+    // drop fragment and lowercase host; remove tracking params
+    cleaned := sanitizeURLString(u.String())
+    uu, err := url.Parse(cleaned)
+    if err != nil { return cleaned }
+    // Redact sensitive param values
+    q := uu.Query()
+    for _, key := range []string{"token", "access_token", "id_token", "api_key", "apikey", "x_api_key", "key", "secret", "password", "auth"} {
+        if _, ok := q[key]; ok {
+            q.Del(key) // drop existing to control order
+            q.Add(key, "[redacted]")
+        }
+    }
+    uu.RawQuery = q.Encode()
+    return uu.String()
 }

@@ -12,6 +12,7 @@ import (
 // The JSON file format is an array of objects: {"title": "...", "url": "...", "snippet": "..."}.
 type FileProvider struct {
     Path string
+    Policy DomainPolicy // optional: filter results by domain
 }
 
 func (f *FileProvider) Name() string { return "file" }
@@ -35,6 +36,12 @@ func (f *FileProvider) Search(_ context.Context, query string, limit int) ([]Res
             continue
         }
         if q == "" || strings.Contains(strings.ToLower(r.Title), q) || strings.Contains(strings.ToLower(r.Snippet), q) {
+            // Apply optional domain policy
+            if f.Policy.Denylist != nil || f.Policy.Allowlist != nil {
+                if blocked, _ := isDomainBlocked(r.URL, f.Policy.Allowlist, f.Policy.Denylist); blocked {
+                    continue
+                }
+            }
             r.Source = f.Name()
             out = append(out, r)
             if limit > 0 && len(out) >= limit {

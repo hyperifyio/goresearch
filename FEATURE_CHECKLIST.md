@@ -167,7 +167,7 @@
 
 * [x] Policy enforcement in tools — Apply existing robots/opt-out/host politeness rules inside tool execution so the model cannot bypass them (deny-on-disallow). (enforced in `internal/fetch` and verified by tests in `internal/llmtools/builtin_test.go`)
 
-* [ ] Domain allow/deny lists — Centralized allowlist/denylist evaluated before any networked tool runs; log blocked attempts.
+* [x] Domain allow/deny lists — Centralized allowlist/denylist evaluated before any networked tool runs; log blocked attempts.
 
 * [ ] Safety redaction — Strip secrets, cookies, and tracking params from tool outputs; scrub headers before echoing anything into the transcript.
 

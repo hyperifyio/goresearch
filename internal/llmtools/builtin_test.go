@@ -30,7 +30,7 @@ func (s *stubFetch) Get(ctx context.Context, url string) ([]byte, string, error)
 
 func TestNewMinimalRegistry_WebSearchAndExtractFlow(t *testing.T) {
     deps := MinimalDeps{
-        SearchProvider: stubSearch{results: []search.Result{{Title: "Go", URL: "https://go.dev", Snippet: "go site", Source: "stub"}}},
+        SearchProvider: stubSearch{results: []search.Result{{Title: "Go", URL: "https://go.dev/?utm_source=x#frag", Snippet: "go site", Source: "stub"}}},
         FetchClient:    &fetch.Client{AllowPrivateHosts: true},
     }
     r, err := NewMinimalRegistry(deps)
@@ -44,7 +44,9 @@ func TestNewMinimalRegistry_WebSearchAndExtractFlow(t *testing.T) {
     // After orchestration change, handler still returns raw "data"; envelope added by orchestrator.
     var out struct{ Results []struct{ Title, URL, Snippet, Source string } }
     if err := json.Unmarshal(raw, &out); err != nil { t.Fatalf("unmarshal: %v", err) }
-    if len(out.Results) != 1 || out.Results[0].URL != "https://go.dev" { t.Fatalf("unexpected results: %+v", out.Results) }
+    if len(out.Results) != 1 || out.Results[0].URL != "https://go.dev/" && out.Results[0].URL != "https://go.dev" {
+        t.Fatalf("unexpected sanitized url: %+v", out.Results)
+    }
 
     // extract_main_text
     def, ok = r.Get("extract_main_text")

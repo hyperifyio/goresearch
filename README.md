@@ -120,6 +120,8 @@ Primary flags (with defaults):
 - `-cache.strictPerms` (default: false): restrict cache at rest (0700 dirs, 0600 files)
 - `-robots.overrideDomains` (default from env `ROBOTS_OVERRIDE_DOMAINS`): comma-separated domain allowlist to ignore robots.txt, requires `-robots.overrideConfirm`
 - `-robots.overrideConfirm` (default: false): second confirmation flag required to activate robots override allowlist
+ - `-domains.allow` (comma-separated): only allow these hosts/domains; subdomains included
+ - `-domains.deny` (comma-separated): block these hosts/domains; takes precedence over allow
 
 ## Usage
 

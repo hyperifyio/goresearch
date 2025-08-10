@@ -10,12 +10,37 @@ import (
 	"time"
 )
 
+// isDomainBlocked returns true when urlStr's host is blocked by policy.
+func isDomainBlocked(urlStr string, allowlist, denylist []string) (bool, string) {
+    u, err := url.Parse(strings.TrimSpace(urlStr))
+    if err != nil || u.Hostname() == "" {
+        return false, ""
+    }
+    host := strings.ToLower(u.Hostname())
+    // Deny precedence
+    for _, d := range denylist {
+        dd := strings.ToLower(strings.TrimSpace(d))
+        if dd == "" { continue }
+        if host == dd || strings.HasSuffix(host, "."+dd) { return true, "denylist" }
+    }
+    if len(allowlist) > 0 {
+        for _, a := range allowlist {
+            aa := strings.ToLower(strings.TrimSpace(a))
+            if aa == "" { continue }
+            if host == aa || strings.HasSuffix(host, "."+aa) { return false, "" }
+        }
+        return true, "not-allowed"
+    }
+    return false, ""
+}
+
 // SearxNG implements Provider against a SearxNG instance's /search endpoint.
 type SearxNG struct {
 	BaseURL    string
 	APIKey     string // optional
 	HTTPClient *http.Client
     UserAgent  string // optional custom UA
+    Policy     DomainPolicy // optional: filter results by domain
 }
 
 func (s *SearxNG) Name() string { return "searxng" }
@@ -70,17 +95,21 @@ func (s *SearxNG) Search(ctx context.Context, query string, limit int) ([]Result
 	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
 		return nil, err
 	}
-	out := make([]Result, 0, len(sr.Results))
+    out := make([]Result, 0, len(sr.Results))
 	for _, r := range sr.Results {
 		if r.URL == "" || r.Title == "" {
 			continue
 		}
-		out = append(out, Result{
-			Title:   strings.TrimSpace(r.Title),
-			URL:     strings.TrimSpace(r.URL),
-			Snippet: strings.TrimSpace(r.Content),
-			Source:  s.Name(),
-		})
+        urlStr := strings.TrimSpace(r.URL)
+        title := strings.TrimSpace(r.Title)
+        snippet := strings.TrimSpace(r.Content)
+        // Apply optional domain policy filtering
+        if s.Policy.Denylist != nil || s.Policy.Allowlist != nil {
+            if blocked, _ := isDomainBlocked(urlStr, s.Policy.Allowlist, s.Policy.Denylist); blocked {
+                continue
+            }
+        }
+        out = append(out, Result{Title: title, URL: urlStr, Snippet: snippet, Source: s.Name()})
 		if len(out) >= limit {
 			break
 		}

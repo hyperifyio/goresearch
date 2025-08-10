@@ -64,4 +64,11 @@ type Config struct {
     // mirrors or explicitly permitted domains.
     RobotsOverrideAllowlist []string
     RobotsOverrideConfirm   bool
+
+    // Domain allow/deny lists — evaluated before any networked operation.
+    // When Denylist contains a host or parent domain, access is blocked.
+    // When Allowlist is non-empty, only listed hosts/domains are permitted.
+    // Denylist takes precedence over Allowlist.
+    DomainAllowlist []string
+    DomainDenylist  []string
 }

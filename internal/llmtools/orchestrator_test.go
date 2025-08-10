@@ -3,6 +3,7 @@ package llmtools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
     "time"
@@ -59,13 +60,14 @@ func TestOrchestrator_ToolLoopAndFinal(t *testing.T) {
 	client := &stubClient{responses: []openai.ChatCompletionResponse{resp1, resp2}}
 
 	r := NewRegistry()
-	_ = r.Register(ToolDefinition{
+    _ = r.Register(ToolDefinition{
 		StableName:  "web_search",
 		SemVer:      "v1.0.0",
 		Description: "Search web",
 		JSONSchema:  jsonObj(map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}}),
 		Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-			return jsonObj(map[string]any{"results": []map[string]any{{"title": "Go", "url": "https://go.dev"}}}), nil
+            // Include tracking and auth in URL to verify scrubbed in envelope
+            return jsonObj(map[string]any{"results": []map[string]any{{"Title": "Go", "URL": "https://user:pass@go.dev/?utm_source=x&token=abc#frag"}}}), nil
 		},
 	})
 
@@ -91,7 +93,7 @@ func TestOrchestrator_ToolLoopAndFinal(t *testing.T) {
 			t.Fatalf("role[%d]=%s want %s", i, roles[i], wantOrder[i])
 		}
 	}
-	// Validate tool message fields
+    // Validate tool message fields
 	toolMsg := transcript[3]
     if toolMsg.Name != "web_search" || toolMsg.ToolCallID != "call1" || toolMsg.Content == "" {
 		t.Fatalf("unexpected tool message: %+v", toolMsg)
@@ -103,6 +105,14 @@ func TestOrchestrator_ToolLoopAndFinal(t *testing.T) {
     }
     if ok, _ := env["ok"].(bool); !ok {
         t.Fatalf("expected ok=true in tool envelope: %v", env)
+    }
+    // Ensure URL has been sanitized and redacted
+    data := env["data"].(map[string]any)
+    results := data["results"].([]any)
+    item := results[0].(map[string]any)
+    urlStr, _ := item["URL"].(string)
+    if strings.Contains(urlStr, "utm_") || strings.Contains(urlStr, "#") || strings.Contains(urlStr, "user:pass") || strings.Contains(urlStr, "token=abc") {
+        t.Fatalf("url not scrubbed: %q", urlStr)
     }
 }
 
@@ -234,6 +244,51 @@ func TestOrchestrator_PerToolTimeoutEnforced(t *testing.T) {
     if !found {
         t.Fatalf("expected tool message not found")
     }
+}
+
+func TestOrchestrator_ScrubsErrorMessages(t *testing.T) {
+    // Assistant calls a tool that returns an error containing secrets
+    rawResp1 := `{
+        "choices":[{
+            "message":{
+                "role":"assistant",
+                "tool_calls":[{"id":"t1","type":"function","function":{"name":"leaky","arguments":"{}"}}]
+            }
+        }]
+    }`
+    rawResp2 := "{\n\t\"choices\":[{\n\t\t\"message\":{\n\t\t\t\"role\":\"assistant\",\n\t\t\t\"content\":\"<final>Done</final>\"\n\t\t}\n\t}]\n}"
+    client := &stubClient{responses: []openai.ChatCompletionResponse{mustUnmarshalResp(t, rawResp1), mustUnmarshalResp(t, rawResp2)}}
+    r := NewRegistry()
+    _ = r.Register(ToolDefinition{
+        StableName:  "leaky",
+        SemVer:      "v1.0.0",
+        Description: "returns an error including headers",
+        JSONSchema:  jsonObj(map[string]any{"type": "object"}),
+        Handler: func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+            return nil, fmt.Errorf("Authorization: Bearer SECRET123; Cookie: a=b; url=https://example.com/?token=abc#frag")
+        },
+    })
+    orch := &Orchestrator{Client: client, Registry: r}
+    _, transcript, err := orch.Run(context.Background(), openai.ChatCompletionRequest{Model: "gpt-oss"}, "s", "u", nil)
+    if err != nil { t.Fatalf("unexpected error: %v", err) }
+    // Find tool message and assert redaction
+    found := false
+    for _, m := range transcript {
+        if m.Role == openai.ChatMessageRoleTool && m.Name == "leaky" {
+            var env map[string]any
+            if e := json.Unmarshal([]byte(m.Content), &env); e != nil { t.Fatalf("unmarshal: %v", e) }
+            errObj := env["error"].(map[string]any)
+            msg := errObj["message"].(string)
+            if strings.Contains(msg, "SECRET123") || strings.Contains(msg, "token=abc") || strings.Contains(msg, "Cookie:") || strings.Contains(msg, "#frag") {
+                t.Fatalf("message not scrubbed: %q", msg)
+            }
+            if !strings.Contains(msg, "[redacted]") {
+                t.Fatalf("expected [redacted] markers in: %q", msg)
+            }
+            found = true
+        }
+    }
+    if !found { t.Fatalf("tool message not found") }
 }
 
 func TestOrchestrator_WallClockBudgetExceeded(t *testing.T) {

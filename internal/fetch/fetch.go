@@ -58,6 +58,13 @@ type Client struct {
     // internal per-host scheduler state for crawl-delay
     crawlMu      sync.Mutex
     nextAllowed  map[string]time.Time
+
+    // Domain policy: centralized allow/deny evaluation before any network call.
+    // If DomainDenylist contains a host or parent domain, access is blocked.
+    // If DomainAllowlist is non-empty, only listed hosts/domains are permitted.
+    // Denylist takes precedence.
+    DomainAllowlist []string
+    DomainDenylist  []string
 }
 
 // ReuseDeniedError is returned when a response contains headers that opt out of
@@ -200,6 +207,11 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
     host := req.URL.Hostname()
     if !c.AllowPrivateHosts && isLocalOrPrivateHost(host) {
         return nil, "", "", "", 0, fmt.Errorf("private host not allowed: %s", host)
+    }
+
+    // Centralized domain allow/deny policy
+    if blocked, reason := isDomainBlocked(host, c.DomainAllowlist, c.DomainDenylist); blocked {
+        return nil, "", "", "", 0, fmt.Errorf("domain blocked: %s (%s)", host, reason)
     }
 
     // Deny-on-disallow enforcement: consult robots rules before any network fetch
@@ -623,6 +635,41 @@ func isLocalOrPrivateHost(host string) bool {
             return true
         }
     }
+    return false
+}
+
+// isDomainBlocked evaluates host against denylist and allowlist.
+// - If host matches any deny entry (exact or as a subdomain), returns (true, "denylist").
+// - Else if allowlist is non-empty and host does not match any allow entry, returns (true, "not-allowed").
+// - Otherwise returns (false, "").
+func isDomainBlocked(host string, allowlist, denylist []string) (bool, string) {
+    h := strings.ToLower(strings.TrimSpace(host))
+    if h == "" { return false, "" }
+    // Denylist precedence
+    for _, d := range denylist {
+        dd := strings.ToLower(strings.TrimSpace(d))
+        if dd == "" { continue }
+        if hostMatchesDomain(h, dd) {
+            return true, "denylist"
+        }
+    }
+    if len(allowlist) > 0 {
+        for _, a := range allowlist {
+            aa := strings.ToLower(strings.TrimSpace(a))
+            if aa == "" { continue }
+            if hostMatchesDomain(h, aa) {
+                return false, ""
+            }
+        }
+        return true, "not-allowed"
+    }
+    return false, ""
+}
+
+// hostMatchesDomain returns true if host equals domain or is a subdomain of it.
+func hostMatchesDomain(host string, domain string) bool {
+    if host == domain { return true }
+    if strings.HasSuffix(host, "."+domain) { return true }
     return false
 }
 

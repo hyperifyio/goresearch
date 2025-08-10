@@ -17,3 +17,10 @@ type Provider interface {
 	Search(ctx context.Context, query string, limit int) ([]Result, error)
 	Name() string
 }
+
+// DomainPolicy allows providers to filter or block results/requests by host.
+// Implementations should treat Denylist as taking precedence over Allowlist.
+type DomainPolicy struct {
+    Allowlist []string
+    Denylist  []string
+}

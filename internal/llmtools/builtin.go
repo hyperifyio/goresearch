@@ -6,6 +6,7 @@ import (
     "encoding/hex"
     "encoding/json"
     "fmt"
+    "net/url"
     "strings"
     "sync"
 
@@ -30,6 +31,10 @@ type MinimalDeps struct {
     // a stable ID so callers can retrieve the full cached content via a loader tool.
     // Requirement: FEATURE_CHECKLIST.md — Result size budgeting
     MaxResultChars int
+
+    // Domain policy propagated to fetch_url: centralized allow/deny policy
+    DomainAllowlist []string
+    DomainDenylist  []string
 }
 
 // inMemoryExcerptStore stores extracted documents keyed by deterministic ID.
@@ -87,6 +92,24 @@ func (s *inMemoryBodyStore) get(id string) (ct string, body []byte, ok bool) {
     s.mu.RUnlock()
     if !ok { return "", nil, false }
     return v.ContentType, append([]byte(nil), v.Body...), true
+}
+
+// sanitizeURLString removes obvious tracking parameters and fragments from a URL string.
+// It returns the original string on parse failure.
+func sanitizeURLString(s string) string {
+    u, err := url.Parse(s)
+    if err != nil {
+        return s
+    }
+    // Drop fragment and lowercase host
+    u.Fragment = ""
+    u.Host = strings.ToLower(u.Host)
+    q := u.Query()
+    for _, p := range []string{"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id", "gclid", "fbclid"} {
+        q.Del(p)
+    }
+    u.RawQuery = q.Encode()
+    return u.String()
 }
 
 // NewMinimalRegistry registers the initial minimal tool surface:
@@ -171,7 +194,7 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
             type outResult struct{ Title, URL, Snippet, Source string }
             out := struct{ Results []outResult `json:"results"` }{Results: make([]outResult, 0, len(results))}
             for _, r := range results {
-                out.Results = append(out.Results, outResult{Title: r.Title, URL: r.URL, Snippet: r.Snippet, Source: r.Source})
+                out.Results = append(out.Results, outResult{Title: r.Title, URL: sanitizeURLString(r.URL), Snippet: r.Snippet, Source: r.Source})
             }
             return json.Marshal(out)
         },
@@ -211,6 +234,11 @@ func NewMinimalRegistry(deps MinimalDeps) (*Registry, error) {
             }
             u := strings.TrimSpace(in.URL)
             if u == "" { return nil, fmt.Errorf("missing url") }
+            // Ensure domain policy from deps is reflected on the client
+            if deps.FetchClient != nil {
+                deps.FetchClient.DomainAllowlist = deps.DomainAllowlist
+                deps.FetchClient.DomainDenylist = deps.DomainDenylist
+            }
             body, ct, err := deps.FetchClient.Get(ctx, u)
             if err != nil { return nil, err }
             // Apply result size budgeting if configured

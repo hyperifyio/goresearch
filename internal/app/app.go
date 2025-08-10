@@ -146,9 +146,9 @@ func (a *App) Run(ctx context.Context) error {
         // Fake search with zero provider if not configured
     var provider search.Provider
     if a.cfg.FileSearchPath != "" {
-        provider = &search.FileProvider{Path: a.cfg.FileSearchPath}
+        provider = &search.FileProvider{Path: a.cfg.FileSearchPath, Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
     } else if a.cfg.SearxURL != "" {
-        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)"}
+        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
     }
 		var selected []search.Result
 		if provider != nil {
@@ -221,7 +221,7 @@ func (a *App) Run(ctx context.Context) error {
         if strings.TrimSpace(ua) == "" {
             ua = "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)"
         }
-        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: ua}
+        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: ua, Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
     }
 	var selected []search.Result
 	if provider != nil {
@@ -265,6 +265,8 @@ func (a *App) Run(ctx context.Context) error {
         AllowPrivateHosts: a.cfg.AllowPrivateHosts,
         EnablePDF:         a.cfg.EnablePDF,
         Robots:            rb,
+        DomainAllowlist:   a.cfg.DomainAllowlist,
+        DomainDenylist:    a.cfg.DomainDenylist,
 	}}
     // Use adapter-based extractor to enable swap of readability tactics
     excerpts, skipped := fetchAndExtract(ctx, f, extract.HeuristicExtractor{}, selected, a.cfg)
