@@ -2,8 +2,11 @@ package validate
 
 import (
     "fmt"
+    "net/url"
     "regexp"
     "sort"
+    "strings"
+    "time"
 )
 
 // Citations represents the validation result for inline [n] citations
@@ -289,6 +292,230 @@ func ValidateReport(markdown string) error {
         return fmt.Errorf("out-of-range citations: %v", c.OutOfRange)
     }
     return nil
+}
+
+// ReferenceQualityPolicy configures quality and mix checks over the references
+// list. It is intentionally simple and deterministic, relying only on the
+// markdown text without additional network calls.
+type ReferenceQualityPolicy struct {
+    // RequireAtLeastOnePreferred enforces that at least one reference comes
+    // from a preferred host (peer-reviewed venue or standards body).
+    RequireAtLeastOnePreferred bool
+    // MinPreferredFraction, when >0, enforces that at least this fraction of
+    // references are from preferred hosts. Example: 0.3 means ≥30%.
+    MinPreferredFraction float64
+    // PreferredHostPatterns lists host patterns considered preferred. A pattern
+    // matches when host equals the pattern or ends with "."+pattern.
+    PreferredHostPatterns []string
+
+    // MaxPerDomainFraction, when >0, rejects over-reliance on a single host if
+    // any single domain exceeds this fraction of total references.
+    MaxPerDomainFraction float64
+    // MaxPerDomain, when >0, caps the absolute number of references per domain.
+    MaxPerDomain int
+
+    // RecentWithinYears, when >0, defines the cutoff for a reference to count
+    // as "recent" based on a four-digit year found in the reference line.
+    // Example: 5 means year >= (Now().Year()-5).
+    RecentWithinYears int
+    // MinRecentFraction, when >0 and RecentWithinYears>0, enforces that at
+    // least this fraction of references are recent.
+    MinRecentFraction float64
+    // RecencyExemptHostPatterns lists host patterns that are exempt from
+    // recency checks (e.g., standards like RFCs which remain valid for years).
+    RecencyExemptHostPatterns []string
+
+    // Now allows tests to inject a fixed time. If nil, time.Now is used.
+    Now func() time.Time
+}
+
+// ValidateReferenceQuality parses the references section in the provided
+// markdown and enforces the configured ReferenceQualityPolicy. It returns an
+// error describing the first violated constraint, or nil when the policy is
+// satisfied or not applicable.
+func ValidateReferenceQuality(markdown string, policy ReferenceQualityPolicy) error {
+    refs := extractReferences(markdown)
+    if len(refs) == 0 {
+        // Nothing to check; leave to other validators to require references.
+        return nil
+    }
+
+    // Build helper predicates
+    isPreferred := func(host string) bool {
+        h := strings.ToLower(host)
+        for _, p := range policy.PreferredHostPatterns {
+            pp := strings.ToLower(strings.TrimSpace(p))
+            if pp == "" {
+                continue
+            }
+            if h == pp || strings.HasSuffix(h, "."+pp) {
+                return true
+            }
+        }
+        return false
+    }
+    isRecencyExempt := func(host string) bool {
+        h := strings.ToLower(host)
+        for _, p := range policy.RecencyExemptHostPatterns {
+            pp := strings.ToLower(strings.TrimSpace(p))
+            if pp == "" {
+                continue
+            }
+            if h == pp || strings.HasSuffix(h, "."+pp) {
+                return true
+            }
+        }
+        return false
+    }
+
+    // Preferred sources checks
+    if policy.RequireAtLeastOnePreferred || policy.MinPreferredFraction > 0 {
+        preferred := 0
+        for _, r := range refs {
+            if isPreferred(r.Host) {
+                preferred++
+            }
+        }
+        if policy.RequireAtLeastOnePreferred && preferred == 0 {
+            return fmt.Errorf("reference quality: expected at least one preferred source (peer-reviewed or standards)")
+        }
+        if policy.MinPreferredFraction > 0 {
+            frac := float64(preferred) / float64(len(refs))
+            if frac+1e-9 < policy.MinPreferredFraction { // tiny epsilon for float comparisons
+                return fmt.Errorf("reference quality: preferred source fraction %.2f < required %.2f", frac, policy.MinPreferredFraction)
+            }
+        }
+    }
+
+    // Over-reliance checks
+    if policy.MaxPerDomain > 0 || policy.MaxPerDomainFraction > 0 {
+        counts := map[string]int{}
+        for _, r := range refs {
+            counts[r.Host]++
+        }
+        for host, n := range counts {
+            if policy.MaxPerDomain > 0 && n > policy.MaxPerDomain {
+                return fmt.Errorf("reference mix: too many references from %s (%d > %d)", host, n, policy.MaxPerDomain)
+            }
+            if policy.MaxPerDomainFraction > 0 {
+                frac := float64(n) / float64(len(refs))
+                if frac > policy.MaxPerDomainFraction+1e-9 {
+                    return fmt.Errorf("reference mix: domain %s dominates with fraction %.2f > %.2f", host, frac, policy.MaxPerDomainFraction)
+                }
+            }
+        }
+    }
+
+    // Recency checks
+    if policy.RecentWithinYears > 0 && policy.MinRecentFraction > 0 {
+        now := time.Now
+        if policy.Now != nil {
+            now = policy.Now
+        }
+        cutoff := now().Year() - policy.RecentWithinYears
+        recent := 0
+        total := 0
+        for _, r := range refs {
+            if isRecencyExempt(r.Host) {
+                // Treat exempt hosts as recent-neutral; neither help nor hurt.
+                continue
+            }
+            total++
+            if r.Year >= cutoff && r.Year <= now().Year() && r.Year != 0 {
+                recent++
+            }
+        }
+        if total > 0 { // if all were exempt, recency check is vacuously satisfied
+            frac := float64(recent) / float64(total)
+            if frac+1e-9 < policy.MinRecentFraction {
+                return fmt.Errorf("reference recency: fraction of recent items %.2f < required %.2f (cutoff year %d)", frac, policy.MinRecentFraction, cutoff)
+            }
+        }
+    }
+    return nil
+}
+
+type referenceEntry struct {
+    Index int
+    Title string
+    URL   string
+    Host  string
+    Year  int
+}
+
+// extractReferences scans the markdown References section and extracts the URL,
+// host, and any four-digit year present on the same line as a heuristic
+// publication/last-updated date.
+func extractReferences(markdown string) []referenceEntry {
+    lines := splitLines(markdown)
+    inRefs := false
+    order := 0
+    var out []referenceEntry
+    for i := 0; i < len(lines); i++ {
+        line := trimSpace(lines[i])
+        if line == "" {
+            if inRefs && order > 0 {
+                break
+            }
+            continue
+        }
+        if isHeading(line) {
+            if inRefs {
+                break
+            }
+            if equalsIgnoreCase(stripHeading(line), "references") {
+                inRefs = true
+                continue
+            }
+        }
+        if !inRefs {
+            continue
+        }
+        if isNumberedItem(line) {
+            order++
+            content := stripNumberedPrefix(line)
+            u := firstURL(content)
+            host := ""
+            if u != "" {
+                if pu, err := url.Parse(strings.TrimSpace(u)); err == nil {
+                    host = strings.ToLower(pu.Host)
+                }
+            }
+            yr := detectYearInText(content)
+            title := strings.TrimSpace(strings.ReplaceAll(content, u, ""))
+            out = append(out, referenceEntry{Index: order, Title: title, URL: u, Host: host, Year: yr})
+        }
+    }
+    return out
+}
+
+func firstURL(s string) string {
+    loc := urlRe.FindStringIndex(s)
+    if loc == nil {
+        return ""
+    }
+    return s[loc[0]:loc[1]]
+}
+
+var yearRe = regexp.MustCompile(`(?:\(|\b)(19\d{2}|20\d{2}|21\d{2})(?:\)|\b)`) // 1900..2199 with simple bounds
+
+func detectYearInText(s string) int {
+    // Favor the last year on the line, which often reflects the most recent.
+    matches := yearRe.FindAllStringSubmatch(s, -1)
+    if len(matches) == 0 {
+        return 0
+    }
+    last := matches[len(matches)-1][1]
+    // Fast atoi for 4-digit year
+    y := 0
+    for _, ch := range last {
+        y = y*10 + int(ch-'0')
+    }
+    // clamp to a sane range just in case
+    if y < 1900 || y > 2199 {
+        return 0
+    }
+    return y
 }
 
 // ValidateStructure enforces a minimal Markdown output contract:
