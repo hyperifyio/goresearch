@@ -228,7 +228,7 @@
 
 * [ ] Multi-arch builds — Configure buildx targets for linux/amd64 and linux/arm64, with QEMU emulation in CI, and publish local artifacts for both arches for developers on Intel/Apple Silicon.
 
-* [ ] Cache at-rest option — If cache encryption is enabled in the app, wire it to a dedicated cache volume and expose a COMPOSE profile/env toggle to activate encryption or restricted permissions at runtime.
+* [x] Cache at-rest option — If cache encryption is enabled in the app, wire it to a dedicated cache volume and expose a COMPOSE profile/env toggle to activate encryption or restricted permissions at runtime.
 
 * [x] Documentation snippet — Update README with a “Run locally with Docker” section covering prerequisites, one-line dev start, profiles, environment variables, health checks, and common troubleshooting steps.
 
