@@ -280,7 +280,7 @@
 
 * [x] Visuals QA — numbered figures/tables with captions, required in-text references (“See Fig. X”), and alt text; verify placement near discussion.&#x20;
 
-* [ ] Table of Contents for long reports — auto-generate ToC when document exceeds a size threshold.&#x20;
+* [x] Table of Contents for long reports — auto-generate ToC when document exceeds a size threshold.&#x20;
 
 * [ ] References enrichment — resolve/insert DOIs where available, add stable URLs and “Accessed on” dates for web sources; completeness validator.&#x20;
 
