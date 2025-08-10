@@ -270,7 +270,7 @@
 
 * [x] Title quality check — enforce ≤12 words, descriptive keywords, and no unexplained acronyms/jargon.&#x20;
 
-* [ ] Heading audit — require descriptive “mini-title” headings, consistent hierarchy/parallel phrasing; optional auto-numbering for long reports.&#x20;
+* [x] Heading audit — require descriptive “mini-title” headings, consistent hierarchy/parallel phrasing; optional auto-numbering for long reports.&#x20;
 
 * [ ] Plain-language & readability lint — active-voice preference, acronym defined on first use, average sentence length \~15–20 words, target reading level with metrics.&#x20;
 
