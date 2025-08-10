@@ -2,6 +2,8 @@ package llmtools
 
 import (
     "encoding/json"
+    "regexp"
+    "strings"
 
     openai "github.com/sashabaranov/go-openai"
 )
@@ -61,4 +63,42 @@ func ParseToolCalls(resp openai.ChatCompletionResponse) []ToolCall {
         })
     }
     return out
+}
+
+// Harmony parsing helpers
+var (
+    fencedFinalRe = regexp.MustCompile("(?s)```\n?final\n(.*?)```|```final\n(.*?)```|```final\r?\n(.*?)```")
+    xmlFinalRe    = regexp.MustCompile("(?s)<final>(.*?)</final>")
+)
+
+// ParseHarmony extracts a Harmony-style final answer and any tool calls.
+// Behavior:
+// - If tool_calls are present, return empty final and the parsed calls (model is requesting tools)
+// - Else, try to extract content inside ```final fenced block, or <final>...</final>
+// - Else, return the whole assistant message content as the final string
+func ParseHarmony(resp openai.ChatCompletionResponse) (final string, calls []ToolCall) {
+    calls = ParseToolCalls(resp)
+    if len(calls) > 0 {
+        return "", calls
+    }
+    if len(resp.Choices) == 0 {
+        return "", nil
+    }
+    msg := resp.Choices[0].Message
+    content := msg.Content
+    // Try fenced final
+    if m := fencedFinalRe.FindStringSubmatch(content); m != nil {
+        // Find the first non-empty capture group
+        for i := 1; i < len(m); i++ {
+            if strings.TrimSpace(m[i]) != "" {
+                return strings.TrimSpace(m[i]), nil
+            }
+        }
+    }
+    // Try XML-style <final>
+    if m := xmlFinalRe.FindStringSubmatch(content); m != nil && len(m) >= 2 {
+        return strings.TrimSpace(m[1]), nil
+    }
+    // Fallback to whole content
+    return strings.TrimSpace(content), nil
 }

@@ -145,7 +145,7 @@
 * [x] Documentation of policy — Document default-on compliance, the override mechanism, and the exact decision policy for 404 vs 401/403/5xx outcomes, making clear that the tool is intended for public web pages and polite use. (README section added with flags and behavior)
 
 * [x] Tool protocol adapter — Add an OpenAI-compatible “tools/functions” encoder and response parser (name, description, JSON Schema args; detect and read `tool_calls` in assistant messages). 
-* [ ] Harmony response handling — Support Harmony-style channels (analysis/commentary/final) so the loop can safely ignore raw CoT except for explicit tool calls and final answers.
+* [x] Harmony response handling — Support Harmony-style channels (analysis/commentary/final) so the loop can safely ignore raw CoT except for explicit tool calls and final answers.
 
 * [ ] CoT redaction policy — Do not log or surface raw chain-of-thought by default; expose behind a debug flag since gpt-oss may interleave tool calls within CoT.
 
