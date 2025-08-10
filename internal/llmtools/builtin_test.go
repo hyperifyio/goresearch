@@ -9,6 +9,7 @@ import (
     "testing"
 
     "github.com/hyperifyio/goresearch/internal/fetch"
+    "github.com/hyperifyio/goresearch/internal/robots"
     "github.com/hyperifyio/goresearch/internal/search"
 )
 
@@ -152,4 +153,74 @@ func TestNewMinimalRegistry_MissingDeps(t *testing.T) {
     // Missing fetch client
     _, err = NewMinimalRegistry(MinimalDeps{SearchProvider: stubSearch{}})
     if err == nil { t.Fatalf("expected error for missing fetch client") }
+}
+
+// Verifies deny-on-disallow is enforced inside the fetch_url tool via the fetcher
+// consulting robots.txt rules before network body retrieval.
+// Requirement: FEATURE_CHECKLIST.md — Policy enforcement in tools (deny-on-disallow)
+func TestFetchURL_DenyOnRobotsDisallow(t *testing.T) {
+    // HTTP server that serves robots.txt disallowing /blocked and a simple HTML body otherwise
+    mux := http.NewServeMux()
+    mux.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/plain")
+        _, _ = w.Write([]byte("User-agent: *\nDisallow: /blocked\n"))
+    })
+    mux.HandleFunc("/blocked", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        _, _ = w.Write([]byte("<html><body>should not be fetched</body></html>"))
+    })
+    srv := httptest.NewServer(mux)
+    defer srv.Close()
+
+    // Robots manager used by fetch client to evaluate disallow before fetch
+    rm := &robots.Manager{AllowPrivateHosts: true}
+    client := &fetch.Client{
+        AllowPrivateHosts: true,
+        UserAgent:         "goresearch-test",
+        Robots:            rm,
+    }
+
+    deps := MinimalDeps{SearchProvider: stubSearch{}, FetchClient: client}
+    reg, err := NewMinimalRegistry(deps)
+    if err != nil { t.Fatalf("NewMinimalRegistry: %v", err) }
+
+    def, ok := reg.Get("fetch_url")
+    if !ok { t.Fatalf("fetch_url not registered") }
+
+    // Attempt to fetch a disallowed path
+    _, err = def.Handler(context.Background(), mustRaw(t, map[string]any{"url": srv.URL + "/blocked"}))
+    if err == nil {
+        t.Fatalf("expected robots disallow error, got nil")
+    }
+    if reason, denied := fetch.IsRobotsDenied(err); !denied {
+        t.Fatalf("expected robots denied error, got: %v", err)
+    } else if reason == "" {
+        t.Fatalf("robots denial should include a reason")
+    }
+}
+
+// Verifies AI/TDM reuse opt-out via X-Robots-Tag is enforced inside tools.
+// Requirement: FEATURE_CHECKLIST.md — Policy enforcement in tools (opt-out headers)
+func TestFetchURL_ReuseDeniedByXRobotsTag(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.Header().Set("X-Robots-Tag", "noai")
+        _, _ = w.Write([]byte("<html><body>should be denied for reuse</body></html>"))
+    }))
+    defer srv.Close()
+
+    client := &fetch.Client{AllowPrivateHosts: true, UserAgent: "goresearch-test"}
+    deps := MinimalDeps{SearchProvider: stubSearch{}, FetchClient: client}
+    reg, err := NewMinimalRegistry(deps)
+    if err != nil { t.Fatalf("NewMinimalRegistry: %v", err) }
+    def, ok := reg.Get("fetch_url")
+    if !ok { t.Fatalf("fetch_url not registered") }
+
+    _, err = def.Handler(context.Background(), mustRaw(t, map[string]any{"url": srv.URL}))
+    if err == nil { t.Fatalf("expected reuse denied error, got nil") }
+    if reason, denied := fetch.IsReuseDenied(err); !denied {
+        t.Fatalf("expected reuse denied error, got: %v", err)
+    } else if reason == "" {
+        t.Fatalf("reuse denial should include a reason")
+    }
 }

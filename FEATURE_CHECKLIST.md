@@ -165,7 +165,7 @@
 
 * [x] Deterministic IDs — Assign stable content IDs/digests for fetched pages and extracts so the model can request slices by ID instead of re-pulling text.
 
-* [ ] Policy enforcement in tools — Apply existing robots/opt-out/host politeness rules inside tool execution so the model cannot bypass them (deny-on-disallow).
+* [x] Policy enforcement in tools — Apply existing robots/opt-out/host politeness rules inside tool execution so the model cannot bypass them (deny-on-disallow). (enforced in `internal/fetch` and verified by tests in `internal/llmtools/builtin_test.go`)
 
 * [ ] Domain allow/deny lists — Centralized allowlist/denylist evaluated before any networked tool runs; log blocked attempts.
 
