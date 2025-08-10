@@ -286,7 +286,7 @@
 
 * [x] Reference quality/mix validator — configurable policy to prefer peer-reviewed/standards, ensure recency where appropriate, and prevent over-reliance on a few sources.&#x20;
 
-* [ ] Counter-evidence search step — inject queries like “limitations of X / contrary findings”, and require a short “Alternatives & conflicting evidence” subsection.&#x20;
+* [x] Counter-evidence search step — inject queries like “limitations of X / contrary findings”, and require a short “Alternatives & conflicting evidence” subsection.&#x20;
 
 * [ ] Reporting-guideline profiles — optional PRISMA/CONSORT/EQUATOR compliance checks tied to report type; for reviews, emit a simple PRISMA-style inclusion/exclusion table/diagram.&#x20;
 
