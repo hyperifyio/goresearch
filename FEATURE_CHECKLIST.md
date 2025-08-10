@@ -138,7 +138,7 @@
 
 * [x] Deny-on-disallow enforcement — Before each fetch, evaluate the URL path against cached rules; skip disallowed URLs, avoid partial reads, and short-circuit redirects that would land on disallowed paths.
 
-* [ ] Robots decision logging — For every skipped URL, log the host, matched directive, agent section used, and rule pattern; include a “skipped due to robots” section in the run manifest.
+* [x] Robots decision logging — For every skipped URL, log the host, matched directive, agent section used, and rule pattern; include a “skipped due to robots” section in the run manifest. (implemented with detailed decisions + manifest section and tests)
 
 * [ ] Tests for robots evaluation — Add unit tests covering UA-specific vs wildcard sections, longest-match precedence, Allow overriding Disallow, wildcard and anchor behavior, Crawl-delay enforcement, and header/meta opt-outs.
 

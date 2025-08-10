@@ -36,6 +36,16 @@ type Group struct {
 	CrawlDelay *time.Duration
 }
 
+// Decision captures the evaluation outcome for a specific user agent and path,
+// including the agent section used, the directive that decided the outcome, and
+// the matched rule pattern when applicable.
+type Decision struct {
+    Allowed   bool
+    Agent     string // the user-agent token of the matched group (e.g., "*" or "goresearch")
+    Directive string // "Allow" or "Disallow" when a rule matched; empty when default-allow
+    Pattern   string // the matched robots pattern that decided the outcome, if any
+}
+
 type Manager struct {
 	HTTPClient        *http.Client
 	Cache             *cache.HTTPCache
@@ -256,14 +266,30 @@ func disallowAllRules() Rules {
 //   If specificities tie, Allow beats Disallow.
 // - If no directive matches, default allow.
 func (r Rules) IsAllowed(userAgent string, pathWithOptionalQuery string) bool {
+    return r.Evaluate(userAgent, pathWithOptionalQuery).Allowed
+}
+
+// CrawlDelayFor returns the crawl delay configured for the most specific matching
+// user agent group. If none is set, returns nil.
+func (r Rules) CrawlDelayFor(userAgent string) *time.Duration {
     grpIdx := r.selectGroupIndex(userAgent)
     if grpIdx < 0 || grpIdx >= len(r.Groups) {
-        return true
+        return nil
+    }
+    return r.Groups[grpIdx].CrawlDelay
+}
+
+// Evaluate returns a full decision with details for auditing/logging.
+func (r Rules) Evaluate(userAgent string, pathWithOptionalQuery string) Decision {
+    grpIdx := r.selectGroupIndex(userAgent)
+    if grpIdx < 0 || grpIdx >= len(r.Groups) {
+        return Decision{Allowed: true}
     }
     grp := r.Groups[grpIdx]
 
     bestScore := -1
     bestAllow := true
+    bestPattern := ""
 
     evaluate := func(patterns []string, isAllow bool) {
         for _, p := range patterns {
@@ -275,6 +301,7 @@ func (r Rules) IsAllowed(userAgent string, pathWithOptionalQuery string) bool {
                 if score > bestScore || (score == bestScore && isAllow && !bestAllow) {
                     bestScore = score
                     bestAllow = isAllow
+                    bestPattern = p
                 }
             }
         }
@@ -283,20 +310,45 @@ func (r Rules) IsAllowed(userAgent string, pathWithOptionalQuery string) bool {
     evaluate(grp.Disallow, false)
     evaluate(grp.Allow, true)
 
+    // Determine the agent token that matched within this group for transparency.
+    agentToken := selectAgentTokenForGroup(grp, userAgent)
+
     if bestScore == -1 {
-        return true
+        return Decision{Allowed: true, Agent: agentToken}
     }
-    return bestAllow
+    dir := "Allow"
+    if !bestAllow {
+        dir = "Disallow"
+    }
+    return Decision{Allowed: bestAllow, Agent: agentToken, Directive: dir, Pattern: bestPattern}
 }
 
-// CrawlDelayFor returns the crawl delay configured for the most specific matching
-// user agent group. If none is set, returns nil.
-func (r Rules) CrawlDelayFor(userAgent string) *time.Duration {
-    grpIdx := r.selectGroupIndex(userAgent)
-    if grpIdx < 0 || grpIdx >= len(r.Groups) {
-        return nil
+// selectAgentTokenForGroup chooses the most specific agent token in the group
+// that matches the provided user agent string. "*" is considered a match with
+// the lowest specificity. Returns an empty string if none match.
+func selectAgentTokenForGroup(g Group, userAgent string) string {
+    ua := strings.ToLower(strings.TrimSpace(userAgent))
+    best := ""
+    bestScore := -1
+    for _, a := range g.Agents {
+        token := strings.ToLower(strings.TrimSpace(a))
+        if token == "" {
+            continue
+        }
+        var score int
+        if token == "*" {
+            score = 0
+        } else if strings.Contains(ua, token) {
+            score = len(token)
+        } else {
+            continue
+        }
+        if score > bestScore {
+            bestScore = score
+            best = token
+        }
     }
-    return r.Groups[grpIdx].CrawlDelay
+    return best
 }
 
 // selectGroupIndex chooses the best-matching group for the given user agent.

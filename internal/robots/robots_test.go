@@ -347,6 +347,23 @@ Disallow: /*?session=
     }
 }
 
+func TestEvaluate_ReturnsDecisionDetails(t *testing.T) {
+    t.Parallel()
+    txt := `User-agent: goresearch
+Disallow: /blocked
+Allow: /open$
+`
+    rules := parseRobots(txt)
+    dec1 := rules.Evaluate("goresearch", "/blocked/path")
+    if dec1.Allowed || dec1.Directive != "Disallow" || dec1.Pattern != "/blocked" || dec1.Agent == "" {
+        t.Fatalf("unexpected decision for /blocked: %+v", dec1)
+    }
+    dec2 := rules.Evaluate("goresearch", "/open")
+    if !dec2.Allowed || dec2.Directive != "Allow" || dec2.Pattern != "/open$" || dec2.Agent == "" {
+        t.Fatalf("unexpected decision for /open: %+v", dec2)
+    }
+}
+
 func TestEvaluate_CrawlDelayForMatchedGroup(t *testing.T) {
     t.Parallel()
     txt := `User-agent: goresearch

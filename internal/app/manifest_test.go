@@ -61,3 +61,16 @@ func TestAppendEmbeddedManifestWithSkipped_AppendsSkippedSection(t *testing.T) {
         t.Fatalf("expected skipped entry line; got:\n%s", out)
     }
 }
+
+func TestFormatRobotsDetails_EmptyWhenNoFields(t *testing.T) {
+    if s := formatRobotsDetails("", "", "", ""); s != "" {
+        t.Fatalf("expected empty suffix, got %q", s)
+    }
+}
+
+func TestFormatRobotsDetails_IncludesAvailableFields(t *testing.T) {
+    s := formatRobotsDetails("example.com", "goresearch", "Disallow", "/private")
+    if !strings.Contains(s, "host=example.com") || !strings.Contains(s, "ua=goresearch") || !strings.Contains(s, "dir=Disallow") || !strings.Contains(s, "pattern=/private") {
+        t.Fatalf("unexpected formatted details: %q", s)
+    }
+}

@@ -24,6 +24,51 @@ import (
 	"github.com/hyperifyio/goresearch/internal/verify"
 )
 
+// extractRobotsDetails attempts to pull structured details out of robots-related
+// errors emitted by the fetcher so they can be logged and captured in the
+// manifest's skipped section.
+func extractRobotsDetails(err error) (host, agent, directive, pattern string) {
+    type det interface{ RobotsDetails() (string, string, string, string) }
+    if d, ok := err.(det); ok {
+        return d.RobotsDetails()
+    }
+    return "", "", "", ""
+}
+
+func formatRobotsDetails(host, agent, directive, pattern string) string {
+    var b strings.Builder
+    b.WriteString(" (")
+    wrote := false
+    if strings.TrimSpace(host) != "" {
+        b.WriteString("host=")
+        b.WriteString(strings.TrimSpace(host))
+        wrote = true
+    }
+    if strings.TrimSpace(agent) != "" {
+        if wrote { b.WriteString(" ") }
+        b.WriteString("ua=")
+        b.WriteString(strings.TrimSpace(agent))
+        wrote = true
+    }
+    if strings.TrimSpace(directive) != "" {
+        if wrote { b.WriteString(" ") }
+        b.WriteString("dir=")
+        b.WriteString(strings.TrimSpace(directive))
+        wrote = true
+    }
+    if strings.TrimSpace(pattern) != "" {
+        if wrote { b.WriteString(" ") }
+        b.WriteString("pattern=")
+        b.WriteString(strings.TrimSpace(pattern))
+        wrote = true
+    }
+    if !wrote {
+        return ""
+    }
+    b.WriteString(")")
+    return b.String()
+}
+
 type App struct {
 	cfg       Config
 	ai        *openai.Client
@@ -370,8 +415,15 @@ func fetchAndExtract(ctx context.Context, f sourceGetter, extractor interface{ E
                 continue
             }
             if reason, denied := fetch.IsRobotsDenied(err); denied {
-                log.Info().Str("url", r.URL).Str("reason", reason).Msg("skipping due to robots/disallow")
-                skipped = append(skipped, skippedEntry{URL: r.URL, Reason: reason})
+                // Try to enrich reason with details if available
+                host, agent, directive, pattern := extractRobotsDetails(err)
+                det := reason
+                if directive != "" || agent != "" || pattern != "" {
+                    // Format: reason (host=.. ua=.. dir=.. pattern=..)
+                    det = det + formatRobotsDetails(host, agent, directive, pattern)
+                }
+                log.Info().Str("url", r.URL).Str("reason", det).Msg("skipping due to robots/disallow")
+                skipped = append(skipped, skippedEntry{URL: r.URL, Reason: det})
                 continue
             }
             log.Warn().Err(err).Str("url", r.URL).Msg("fetch failed; skipping source")

@@ -82,16 +82,36 @@ func IsReuseDenied(err error) (string, bool) {
 // RobotsDisallowError indicates that fetching a URL is forbidden by robots.txt
 // rules for the effective user agent. Callers should skip using this URL.
 type RobotsDisallowError struct{
-    URL string
+    URL       string
+    Host      string
+    Agent     string
+    Directive string
+    Pattern   string
 }
 
 func (e RobotsDisallowError) Error() string { return "robots disallow: " + e.URL }
 
+// RobotsDetails exposes structured decision details for logging/manifest.
+func (e RobotsDisallowError) RobotsDetails() (host, agent, directive, pattern string) {
+    return e.Host, e.Agent, e.Directive, e.Pattern
+}
+
 // robotsRedirectDisallowedError is returned from the redirect policy when the
 // redirect target would be disallowed by robots rules. Kept unexported; callers
 // can still detect via IsRobotsDenied.
-type robotsRedirectDisallowedError struct{ URL string }
+type robotsRedirectDisallowedError struct{
+    URL       string
+    Host      string
+    Agent     string
+    Directive string
+    Pattern   string
+}
 func (e robotsRedirectDisallowedError) Error() string { return "redirect disallowed by robots: " + e.URL }
+
+// RobotsDetails exposes structured decision details for logging/manifest.
+func (e robotsRedirectDisallowedError) RobotsDetails() (host, agent, directive, pattern string) {
+    return e.Host, e.Agent, e.Directive, e.Pattern
+}
 
 // IsRobotsDenied reports whether the error indicates a robots-based denial and
 // returns a short reason string when true.
@@ -194,8 +214,9 @@ func (c *Client) tryOnce(ctx context.Context, url string, etag string, lastMod s
             if rawQ := req.URL.RawQuery; rawQ != "" {
                 pathWithQuery += "?" + rawQ
             }
-            if !rules.IsAllowed(c.UserAgent, pathWithQuery) {
-                return nil, "", "", "", 0, RobotsDisallowError{URL: req.URL.String()}
+            dec := rules.Evaluate(c.UserAgent, pathWithQuery)
+            if !dec.Allowed {
+                return nil, "", "", "", 0, RobotsDisallowError{URL: req.URL.String(), Host: req.URL.Hostname(), Agent: dec.Agent, Directive: dec.Directive, Pattern: dec.Pattern}
             }
         }
     }
@@ -559,8 +580,9 @@ func (c *Client) checkRedirectFunc() func(req *http.Request, via []*http.Request
             if rules, _, err := c.Robots.Get(req.Context(), robotsURL); err == nil {
                 pathWithQuery := req.URL.EscapedPath()
                 if rawQ := req.URL.RawQuery; rawQ != "" { pathWithQuery += "?" + rawQ }
-                if !rules.IsAllowed(c.UserAgent, pathWithQuery) {
-                    return robotsRedirectDisallowedError{URL: req.URL.String()}
+                dec := rules.Evaluate(c.UserAgent, pathWithQuery)
+                if !dec.Allowed {
+                    return robotsRedirectDisallowedError{URL: req.URL.String(), Host: req.URL.Hostname(), Agent: dec.Agent, Directive: dec.Directive, Pattern: dec.Pattern}
                 }
             }
         }
