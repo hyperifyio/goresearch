@@ -276,7 +276,7 @@
 
 * [x] Audience fit check — per-brief audience/tone settings and a pass that flags jargon or sections mismatched to the intended reader.&#x20;
 
-* [ ] Glossary & acronym list — auto-extract key terms and acronyms; add optional “Glossary” appendix.&#x20;
+* [x] Glossary & acronym list — auto-extract key terms and acronyms; add optional “Glossary” appendix.&#x20;
 
 * [x] Visuals QA — numbered figures/tables with captions, required in-text references (“See Fig. X”), and alt text; verify placement near discussion.&#x20;
 
