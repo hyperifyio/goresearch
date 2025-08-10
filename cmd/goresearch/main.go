@@ -128,17 +128,24 @@ cache:
     // Create .env.example if missing
     envExample := filepath.Join(dir, ".env.example")
     if _, err := os.Stat(envExample); errors.Is(err, os.ErrNotExist) {
-        sampleEnv := []byte(`LLM_BASE_URL=http://localhost:11434/v1
+        sampleEnv := []byte(`# Copy to .env and edit values. Do not commit your .env.
+# Required runtime variables
+LLM_BASE_URL=http://localhost:11434/v1
 LLM_MODEL=gpt-oss
-LLM_API_KEY=changeme
 
-SEARX_URL=http://localhost:8888
-SEARX_KEY=
+# SearxNG base URL (either SEARX_URL or SEARXNG_URL is accepted)
+SEARXNG_URL=http://localhost:8888
+# SEARX_URL=http://localhost:8888
 
+# Optional but recommended
 CACHE_DIR=.goresearch-cache
 LANGUAGE=
 # SOURCE_CAPS format: <max>[,<perDomain>]
 SOURCE_CAPS=12,3
+
+# Secrets — provide via environment or .env (never commit secrets)
+LLM_API_KEY=
+SEARX_KEY=
 `)
         if err := os.WriteFile(envExample, sampleEnv, 0o644); err != nil {
             return fmt.Errorf("write .env.example: %w", err)
