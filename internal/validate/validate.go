@@ -295,6 +295,50 @@ func ValidateReport(markdown string) error {
     return nil
 }
 
+// ValidateReferencesEnrichment verifies that reference lines are enriched with
+// stable URLs where applicable, include DOI URLs when a DOI is present, and include
+// an "Accessed on YYYY-MM-DD" date for web sources. This check is tolerant and
+// returns a single aggregated error describing the first issue found.
+func ValidateReferencesEnrichment(markdown string) error {
+    lines := splitLines(markdown)
+    inRefs := false
+    order := 0
+    // Simple regexes (must match app.enrichReferences behavior)
+    headingRe := regexp.MustCompile(`^#{1,6}\s+References\s*$`)
+    numItemRe := regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
+    urlRe := regexp.MustCompile(`https?://[^\s)]+`)
+    accessedRe := regexp.MustCompile(`(?i)accessed on\s+\d{4}-\d{2}-\d{2}`)
+    doiCore := `10\.[0-9]{4,9}/[-._;()/:A-Za-z0-9]+`
+    doiTextRe := regexp.MustCompile(`(?i)(?:doi\s*[:]?\s*|https?://(?:dx\.)?doi\.org/)(` + doiCore + `)`) // capture DOI
+
+    for i := 0; i < len(lines); i++ {
+        s := trimSpace(lines[i])
+        if s == "" { continue }
+        if headingRe.MatchString(s) { inRefs = true; order = 0; continue }
+        if inRefs {
+            if isHeading(s) { break }
+            m := numItemRe.FindStringSubmatch(s)
+            if m == nil { continue }
+            order++
+            content := trimSpace(m[2])
+
+            // If URL exists, require Accessed on date
+            if urlRe.FindStringIndex(content) != nil && !accessedRe.MatchString(content) {
+                return fmt.Errorf("references enrichment: item %d missing 'Accessed on YYYY-MM-DD'", order)
+            }
+            // If DOI detectable, require canonical DOI URL presence
+            if dm := doiTextRe.FindStringSubmatch(content); dm != nil && len(dm) >= 2 {
+                doi := dm[1]
+                doiURL := "https://doi.org/" + doi
+                if !strings.Contains(strings.ToLower(content), strings.ToLower(doiURL)) {
+                    return fmt.Errorf("references enrichment: item %d missing DOI URL %s", order, doiURL)
+                }
+            }
+        }
+    }
+    return nil
+}
+
 // ReferenceQualityPolicy configures quality and mix checks over the references
 // list. It is intentionally simple and deterministic, relying only on the
 // markdown text without additional network calls.

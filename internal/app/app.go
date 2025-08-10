@@ -307,16 +307,24 @@ func (a *App) Run(ctx context.Context) error {
 	}
     log.Info().Str("stage", "synth").Int("chars", len(md)).Dur("elapsed", time.Since(stageStart)).Msg("synthesis completed")
 
+    // 5b) Enrich references: stable URLs, DOI links, and access dates
+    md = enrichReferences(md, nil)
+
 	// 6) Validate structure and citations. If invalid, keep document but append a warning.
     stageStart = time.Now()
-	if err := validate.ValidateStructure(md, plan.Outline); err != nil {
+    if err := validate.ValidateStructure(md, plan.Outline); err != nil {
 		log.Warn().Err(err).Msg("report structure issues")
 		md += "\n\n> WARNING: Structure issues: " + err.Error() + "\n"
 	}
-	if err := validate.ValidateReport(md); err != nil {
+    if err := validate.ValidateReport(md); err != nil {
 		log.Warn().Err(err).Msg("report validation issues")
 		md += "\n\n> WARNING: Validation noted issues: " + err.Error() + "\n"
 	}
+    if err := validate.ValidateReferencesEnrichment(md); err != nil {
+        // Non-fatal; warn in document when enrichment is incomplete
+        log.Warn().Err(err).Msg("references enrichment issues")
+        md += "\n\n> WARNING: References enrichment: " + err.Error() + "\n"
+    }
     // Visuals QA (figures/tables)
     if err := validate.ValidateVisuals(md); err != nil {
         log.Warn().Err(err).Msg("visuals QA issues")

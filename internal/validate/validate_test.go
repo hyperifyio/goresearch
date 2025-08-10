@@ -59,6 +59,38 @@ Body with a cite [1].
     }
 }
 
+// Tests for FEATURE_CHECKLIST item 285: References enrichment — ensure DOI URL presence,
+// stable URLs, and "Accessed on" dates for web sources.
+func TestValidateReferencesEnrichment_MissingAccessDate_Fails(t *testing.T) {
+    md := `# T
+
+## References
+1. Alpha — https://example.com/page
+`
+    if err := ValidateReferencesEnrichment(md); err == nil {
+        t.Fatalf("expected failure when web source lacks Accessed on date")
+    }
+}
+
+func TestValidateReferencesEnrichment_DOIURLRequired(t *testing.T) {
+    md := `# T
+
+## References
+1. Paper — https://journal.example/article doi:10.1000/xyz123 (Accessed on 2025-01-01)
+`
+    if err := ValidateReferencesEnrichment(md); err == nil {
+        t.Fatalf("expected failure when DOI present but DOI URL missing")
+    }
+    md2 := `# T
+
+## References
+1. Paper — https://journal.example/article DOI: https://doi.org/10.1000/xyz123 (Accessed on 2025-01-01)
+`
+    if err := ValidateReferencesEnrichment(md2); err != nil {
+        t.Fatalf("expected pass when DOI URL present, got %v", err)
+    }
+}
+
 func TestValidateStructure_OK_WithOutline(t *testing.T) {
     md := `# Title
 2025-01-01
