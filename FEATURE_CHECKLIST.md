@@ -278,7 +278,7 @@
 
 * [ ] Glossary & acronym list — auto-extract key terms and acronyms; add optional “Glossary” appendix.&#x20;
 
-* [ ] Visuals QA — numbered figures/tables with captions, required in-text references (“See Fig. X”), and alt text; verify placement near discussion.&#x20;
+* [x] Visuals QA — numbered figures/tables with captions, required in-text references (“See Fig. X”), and alt text; verify placement near discussion.&#x20;
 
 * [ ] Table of Contents for long reports — auto-generate ToC when document exceeds a size threshold.&#x20;
 
