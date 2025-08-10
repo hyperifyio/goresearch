@@ -244,7 +244,7 @@
 
 * [ ] Quiet default + log levels — Make concise progress output the default; route detailed structured logs to file and gate with `--log-level`. Document how to enable verbose.&#x20;
 
-* [ ] Cache size limits & eviction — Add max bytes/count with LRU eviction for HTTP and LLM caches, alongside existing age-based invalidation.&#x20;
+* [x] Cache size limits & eviction — Add max bytes/count with LRU eviction for HTTP and LLM caches, alongside existing age-based invalidation.&#x20;
 
 * [x] Verification toggle — Add `--verify/--no-verify` to explicitly enable/disable the fact-check pass and appendix.&#x20;
 
