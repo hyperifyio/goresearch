@@ -1,0 +1,128 @@
+---
+description: "Drive a single use case end to end with test-driven development; implement any missing features; accept only when real automated tests and data prove the use case works"
+alwaysApply: false
+---
+
+Take a single clearly stated use case as the scope of work and deliver it end 
+to end using test driven development. Begin by restating the use case in one 
+paragraph in plain language and extract the observable behaviors, inputs, 
+outputs, and constraints. From these, write an initial failing end to end test 
+that executes the system the way a real user or script would, using 
+deterministic fixtures and seeded test data. Keep the test runnable on a 
+developer machine and in continuous integration without flaky external 
+dependencies by stubbing or faking networks and clocks where appropriate, or by 
+providing hermetic configuration. Only add the minimum production code to make 
+the failing test pass, then refactor while keeping the entire suite green.
+
+Treat the software as incomplete until the use case truly works through the 
+public entry points. If an interface, flag, configuration, or module does not 
+exist yet, implement only what is needed for the use case and cover it with 
+unit and integration tests in addition to the end to end test. Ensure tests are 
+isolated, repeatable, and explain in short comments what each verifies and why 
+it matters for the use case. When a regression is discovered or a requirement 
+is clarified, add a protecting test that fails before the fix and passes after 
+it.
+
+Use FEATURE_CHECKLIST.md as a living ledger, not as a source of truth. Do not 
+trust checked items. Verify each claimed capability by running or extending 
+real tests. When a feature is proven by passing tests and working software, 
+update the checklist to reflect the new state. If a previously checked feature 
+is not actually implemented or has regressed, uncheck it and record the gap 
+with a short note in the same line. Sync the checklist with commits so that 
+readers can follow progress from tests to implementation.
+
+Apply the project’s definition of done to every change. A change is complete 
+only when the build is reproducible, all tests are green, static analysis and 
+linters report no new issues, type checks and security scans pass, and no 
+secrets are leaked. Preserve backward compatibility across public interfaces 
+unless a deliberate breaking change is justified with a migration path and 
+verification steps. For data changes, provide idempotent forward scripts, a 
+tested rollback plan, and evidence that the system can safely roll forward or 
+back. Respect performance budgets with targeted benchmarks or load tests when 
+the risk profile warrants it. Update user documentation for visible behaviors, 
+developer documentation for architecture or public APIs, operational runbooks 
+for configuration, and the changelog when release notes would otherwise be 
+ambiguous.
+
+Maintain traceability throughout. Each commit message states intent in plain 
+language and references the canonical issue URL. Tests and production code 
+contain brief comments that connect behavior to the issue and the use case. 
+Manual checks that cannot yet be automated, such as visual inspection, are 
+recorded alongside the issue with exact inputs, expected outputs, and observed 
+results so another maintainer can reproduce them later.
+
+Keep work incremental and verifiable. Prefer small, focused commits that move 
+the use case from red to green. If an immediate fix is unavoidable without a 
+test, follow with the protective test as the next change tied to the same 
+issue, without altering production behavior. Exceptions to any part of this 
+rule are rare and must be justified in the linked issue with scope, risk, and a 
+concrete follow up plan. The work is done only when the end to end test for the 
+use case passes reliably, all supporting tests and quality gates are green, 
+required features are implemented, documentation and checklist are updated, and 
+the software can be executed to achieve the use case exactly as specified.
+
+If the provided use case is the decision brief for enabling HTTP Strict 
+Transport Security on Nginx with max age, include subdomains, and preload, 
+produce a one page evidence backed Markdown report that explains configuration, 
+validation steps, risks, and rollback, favors primary sources, and includes a 
+verification appendix and a reproducibility footer. Validate that the tool’s 
+report structure, citation behavior, and source handling meet the project’s 
+output contract through end to end assertions. If a different use case is 
+supplied, follow the same process and quality bar, adapting tests, 
+implementation, and documentation so that the specified scenario can be 
+executed successfully with the software.
+
+### Use case: “Enable HSTS correctly on Nginx (with preload) — decision brief”
+
+**Goal**
+
+Produce a one-page, evidence-backed executive summary that explains how to 
+enable HTTP Strict Transport Security (HSTS) on Nginx for a production site, 
+including `max-age`, `includeSubDomains`, and `preload` directives, validation 
+steps, and risks/rollback guidance. Favor primary sources (RFC 6797, NGINX 
+docs, browser preload docs). The output must be a well-formed Markdown report 
+with citations and a references section.
+
+**How to run (example command)**
+
+```bash
+goresearch \
+  --q "How to enable HSTS correctly on Nginx (includeSubDomains & preload), validation steps, risks, rollback" \
+  --lang en \
+  --primary true \
+  --verify true \
+  --cache.maxAge=0
+```
+
+(Exercises CLI entrypoint, language hint, primary-source preference, verification pass, and cache controls.)&#x20;
+
+**Why this is a good end-to-end scope**
+
+* Hits every stage: search → fetch → extract → select → brief → synthesize → validate → verify.&#x20;
+* Naturally pulls **primary** sources (RFC 6797, NGINX docs, MDN/Chrome docs), which lets you assert the selector’s “prefer primary sources” behavior.&#x20;
+* Produces a concise, decision-ready brief that should meet your Markdown output contract (title/date/sections/refs), making validation deterministic.&#x20;
+
+**Acceptance criteria (structure & artifacts)**
+
+1. **Report structure passes validation**: title, date, logical headings, and a complete **References** list with full URLs are present (tool’s Markdown contract check).&#x20;
+2. **Primary sources included**: references include at least two of: RFC 6797, official NGINX docs, MDN/Web security docs, or Chrome preload guidance; citations in-text point to these. (Exercises selection + primary-source preference.)&#x20;
+3. **Verification appendix present**: an “Evidence”/verification appendix lists key claims (e.g., recommended `max-age`, preload caveats, validation via `curl`/security headers) with linked supporting sources and confidence.&#x20;
+4. **Reproducibility footer present**: includes model name, base API URL, source count, and whether caching was active.&#x20;
+5. **Embedded source manifest generated**: sidecar or embedded JSON lists canonical source URLs + SHA-256 digests.&#x20;
+6. **Per-source failure isolation**: if one fetched page fails (simulate with a known bad URL via test harness), the run completes, citations reindex, and the bad source is skipped with a structured log.&#x20;
+7. **Token-budget safety**: with ≥8 sources returned, proportional excerpt truncation keeps all sources represented without exceeding context. (Check logs for truncation event.)&#x20;
+
+**Content expectations (spot-checks)**
+
+* Executive summary states what HSTS is, the exact header to use in Nginx 
+(`Strict-Transport-Security: max-age=...; includeSubDomains; preload`), 
+verification steps (e.g., response header checks), and **risks/rollback** 
+(e.g., subdomain lock-in, staging first, how to remove from preload). 
+(Leverages the tool’s “decision-ready” report pattern and validation of section 
+presence.) &#x20;
+
+That one scenario gives you stable sources, exercises the full pipeline 
+(including caching/flags, primary-source preference, output contract, manifest, 
+and the fact-check pass), and yields clear, automatable assertions for 
+CI.&#x20;
+
