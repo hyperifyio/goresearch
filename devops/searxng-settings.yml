@@ -9,6 +9,17 @@ server:
 
 ui:
   default_locale: en
+  default_theme: simple
+  results_on_new_tab: false
+  theme_args:
+    simple_style: auto
+  center_alignment: false
+  advanced_search: true
+  query_in_title: false
+  infinite_scroll: true
+  search_on_category_select: true
+  hotkeys: default
+  url_formatting: pretty
 
 search:
   safe_search: 1
@@ -29,7 +40,9 @@ searx:
   instance_name: "goresearch searxng (local)"
 
 # DOI resolver configuration
-default_doi_resolver: "https://doi.org/"
+doi_resolvers:
+  doi.org: "https://doi.org/"
+default_doi_resolver: "doi.org"
 
 # Disable any engines that require API keys by default
 engines:
