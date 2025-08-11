@@ -31,10 +31,14 @@ searx:
 # Disable any engines that require API keys by default
 engines:
   - name: duckduckgo
+    engine: duckduckgo
     disabled: true
   - name: google
+    engine: google
     disabled: true
   - name: wikipedia
+    engine: wikipedia
     disabled: false
   - name: github
+    engine: github
     disabled: false
