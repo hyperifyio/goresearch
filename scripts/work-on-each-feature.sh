@@ -6,11 +6,22 @@ FEATURE_FILE="FEATURE_CHECKLIST.md"
 
 commit_if_changes() {
   if ! git diff --quiet || ! git diff --cached --quiet; then
+
+    # Randomize model
+    choices=("gpt-5" "sonnet-4" "opus-4.1")
+    if command -v shuf >/dev/null 2>&1; then
+      MODEL="$(printf '%s\n' "${choices[@]}" | shuf -n1)"
+    else
+      MODEL="${choices[RANDOM % ${#choices[@]}]}"
+    fi
+    echo "MODEL=$MODEL"
+
+
     echo
     echo "--- COMMITTING LOCAL CHANGES ---"
     echo
     git add .
-    timeout 5m cursor-agent -p --output-format text -f -m gpt-5 \
+    timeout 5m cursor-agent -p --output-format text -f -m "$MODEL" \
       "Follow these rules .cursor/rules/go-commit.mdc"
   fi
 }
@@ -53,7 +64,18 @@ $task_text
 When implementation and tests are complete, update FEATURE_CHECKLIST.md to check off this exact line. Keep commits small and meaningful.
 EOF
 )
-    timeout 15m cursor-agent -p --output-format text -f -m gpt-5 "$prompt"
+
+    # Randomize model
+    choices=("gpt-5" "sonnet-4" "opus-4.1")
+    if command -v shuf >/dev/null 2>&1; then
+      MODEL="$(printf '%s\n' "${choices[@]}" | shuf -n1)"
+    else
+      MODEL="${choices[RANDOM % ${#choices[@]}]}"
+    fi
+    echo "MODEL=$MODEL"
+    echo
+
+    timeout 15m cursor-agent -p --output-format text -f -m "$MODEL" "$prompt"
 
     # Commit after each attempt
     commit_if_changes
