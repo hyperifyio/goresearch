@@ -12,6 +12,9 @@ volumes:
   reports:
   # Dedicated volume for secure-at-rest cache profile
   secure_cache:
+  # Caddy volumes for TLS certificates and configuration
+  caddy_data:
+  caddy_config:
 
 services:
   # One-shot init to align ownership of named volumes with APP_UID:APP_GID
@@ -26,7 +29,7 @@ services:
     networks:
       - goresearch_net
     restart: "no"
-    profiles: ["dev", "test", "offline"]
+    profiles: ["dev", "test", "offline", "tls"]
 
   # One-shot init for secure cache volume; aligns ownership for /app/.goresearch-cache
   perms-init-secure:
@@ -156,6 +159,36 @@ services:
       llm-openai:
         condition: service_healthy
 
+  # TLS variant: uses HTTPS endpoints provided by caddy-tls reverse proxy
+  research-tool-tls:
+    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - http_cache:/app/.goresearch-cache/http
+      - llm_cache:/app/.goresearch-cache/llm
+      - reports:/app/reports
+      # Mount Caddy's CA certificate for SSL verification
+      - caddy_data:/caddy_data:ro
+    environment:
+      - LLM_BASE_URL=https://caddy-tls:8443/v1
+      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
+      - SEARX_URL=https://caddy-tls:8444
+      # Skip SSL verification for self-signed certs in local development
+      - SSL_VERIFY=false
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    command: ["sleep", "infinity"]
+    networks:
+      - goresearch_net
+    profiles: ["tls"]
+    depends_on:
+      perms-init:
+        condition: service_completed_successfully
+      models-init:
+        condition: service_completed_successfully
+      caddy-tls:
+        condition: service_healthy
+
   # OpenAI-compatible LLM server
   # This uses LocalAI as a convenient default for development.
   llm-openai:
@@ -172,7 +205,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    profiles: ["dev", "test", "offline", "secure-cache"]
+    profiles: ["dev", "test", "offline", "secure-cache", "tls"]
     depends_on:
       models-bootstrap:
         condition: service_completed_successfully
@@ -188,7 +221,7 @@ services:
     networks:
       - goresearch_net
     restart: "no"
-    profiles: ["dev", "test", "secure-cache"]
+    profiles: ["dev", "test", "secure-cache", "tls"]
 
   # One-shot bootstrap to fetch a small GGUF model and write models.yaml for LocalAI
   models-bootstrap:
@@ -209,7 +242,7 @@ services:
     networks:
       - goresearch_net
     restart: "no"
-    profiles: ["dev", "test", "offline", "secure-cache"]
+    profiles: ["dev", "test", "offline", "secure-cache", "tls"]
 
   # SearxNG meta-search engine (default search provider)
   searxng:
@@ -226,7 +259,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
-    profiles: ["dev", "secure-cache"]
+    profiles: ["dev", "secure-cache", "tls"]
 
   # Stub LLM for deterministic tests (placeholder image; refined later)
   stub-llm:
@@ -241,3 +274,33 @@ services:
       timeout: 3s
       retries: 10
     profiles: ["test"]
+
+  # Optional Caddy reverse-proxy for local HTTPS termination
+  # Provides self-signed TLS certificates for llm and searxng services
+  # Disabled by default and isolated to the Compose network
+  caddy-tls:
+    image: caddy:2.8-alpine@sha256:af32e97399febea808609119bb21544d0265c58a02836576e32a2d082c262c17
+    networks:
+      - goresearch_net
+    volumes:
+      - ./devops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    # Map ports for HTTPS access to services
+    # llm.local:8443 -> llm-openai:8080
+    # searx.local:8444 -> searxng:8080
+    ports:
+      - "8443:8443"  # HTTPS LLM service
+      - "8444:8444"  # HTTPS SearxNG service
+    healthcheck:
+      test: ["CMD", "sh", "-c", "caddy validate --config /etc/caddy/Caddyfile"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    profiles: ["tls"]
+    depends_on:
+      llm-openai:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
