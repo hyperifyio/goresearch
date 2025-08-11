@@ -5,6 +5,7 @@
 server:
   port: 8080
   bind_address: 0.0.0.0
+  secret_key: "dev-secret-change-me"
 
 ui:
   default_locale: en
