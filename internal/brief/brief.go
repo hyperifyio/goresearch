@@ -96,6 +96,12 @@ func ParseBrief(input string) Brief {
 }
 
 func normalizeReportType(s string) string {
+    // Delegate to the template package for consistency
+    return string(getTypeFromString(s))
+}
+
+// getTypeFromString is a simplified version that returns the canonical type string
+func getTypeFromString(s string) string {
     v := strings.ToLower(strings.TrimSpace(s))
     switch v {
     case "imrad", "i.m.r.a.d", "i m r a d", "introduction, methods, results, discussion":
