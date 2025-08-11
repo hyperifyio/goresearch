@@ -152,7 +152,7 @@ func isTechnicalSectionTitle(title string) bool {
 }
 
 func jargonDensity(text string) float64 {
-    words := countWords(text)
+    words := CountWords(text)
     if words == 0 { return 0 }
     hits := 0
     // Acronyms
@@ -175,7 +175,7 @@ func jargonDensity(text string) float64 {
     return per100
 }
 
-func countWords(s string) int {
+func CountWords(s string) int {
     // Simple split on whitespace; collapse multiples
     n := 0
     in := false

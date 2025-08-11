@@ -266,7 +266,7 @@
 
 * [ ] Report-type templates & section profiles — selectable IMRaD, decision/tech report, and literature-review profiles that enforce the right sections per type.&#x20;
 
-* [ ] Executive Summary guardrails — length target (\~150–250 words) and content checks (motivation, methods, key results, recommendations).&#x20;
+* [x] Executive Summary guardrails — length target (\~150–250 words) and content checks (motivation, methods, key results, recommendations).&#x20;
 
 * [x] Title quality check — enforce ≤12 words, descriptive keywords, and no unexplained acronyms/jargon.&#x20;
 

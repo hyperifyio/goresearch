@@ -278,6 +278,11 @@ func isNumberedItem(s string) bool {
 // ValidateReport performs basic post-generation checks and returns an error if
 // the document violates the citation contract.
 func ValidateReport(markdown string) error {
+    // Executive summary validation
+    if err := ValidateExecutiveSummary(markdown); err != nil {
+        return fmt.Errorf("executive summary validation failed: %v", err)
+    }
+    
     n, ok := EnsureReferencesSection(markdown)
     if !ok {
         return fmt.Errorf("references section missing or empty")
@@ -1190,4 +1195,164 @@ func isAcronymDefined(markdown, acro string) bool {
     reB := regexp.MustCompile(`(?s)\b` + regexp.QuoteMeta(acro) + `\s*\(([A-Za-z][A-Za-z0-9&/\-]+(?:\s+[A-Za-z][A-Za-z0-9&/\-]+){0,6})\)`) //nolint:gosimple
     return reA.FindStringIndex(markdown) != nil || reB.FindStringIndex(markdown) != nil
 }
+
+// ValidateExecutiveSummary enforces executive summary guardrails:
+// - Length target of 150-250 words
+// - Content checks for motivation, methods, key results, and recommendations
+// Returns an error if the executive summary section fails these checks.
+func ValidateExecutiveSummary(markdown string) error {
+    execContent, err := extractExecutiveSummaryContent(markdown)
+    if err != nil {
+        return err
+    }
+    
+    if execContent == "" {
+        return fmt.Errorf("executive summary section is empty")
+    }
+    
+    // Content quality checks first (more important than word count)
+    var missing []string
+    
+    if !containsMotivation(execContent) {
+        missing = append(missing, "motivation/problem statement")
+    }
+    if !containsMethods(execContent) {
+        missing = append(missing, "methods/approach")
+    }
+    if !containsKeyResults(execContent) {
+        missing = append(missing, "key results/findings")
+    }
+    if !containsRecommendations(execContent) {
+        missing = append(missing, "recommendations/conclusions")
+    }
+    
+    if len(missing) > 0 {
+        return fmt.Errorf("executive summary missing essential content: %s", strings.Join(missing, ", "))
+    }
+    
+    // Word count check (150-250 words target) after content checks
+    wordCount := CountWords(execContent)
+    if wordCount < 150 {
+        return fmt.Errorf("executive summary too short: %d words (target: 150-250 words)", wordCount)
+    }
+    if wordCount > 250 {
+        return fmt.Errorf("executive summary too long: %d words (target: 150-250 words)", wordCount)
+    }
+    
+    return nil
+}
+
+// extractExecutiveSummaryContent finds and extracts the content from the
+// "Executive summary" section of the markdown document.
+func extractExecutiveSummaryContent(markdown string) (string, error) {
+    lines := splitLines(markdown)
+    inExecSummary := false
+    var content []string
+    
+    for i := 0; i < len(lines); i++ {
+        line := trimSpace(lines[i])
+        if line == "" {
+            if inExecSummary {
+                content = append(content, "")
+            }
+            continue
+        }
+        
+        if isHeading(line) {
+            if inExecSummary {
+                // Next heading ends executive summary section
+                break
+            }
+            if equalsIgnoreCase(stripHeading(line), "executive summary") {
+                inExecSummary = true
+                continue
+            }
+        }
+        
+        if inExecSummary {
+            content = append(content, line)
+        }
+    }
+    
+    if !inExecSummary {
+        return "", fmt.Errorf("executive summary section not found")
+    }
+    
+    return strings.Join(content, "\n"), nil
+}
+
+// containsMotivation checks for motivation/problem statement indicators
+func containsMotivation(text string) bool {
+    low := strings.ToLower(text)
+    motivationMarkers := []string{
+        "problem", "challenge", "issue", "need", "motivation", "why",
+        "purpose", "objective", "goal", "aim", "background", "context",
+        "driving", "requirement", "demand", "critical", "important",
+    }
+    
+    for _, marker := range motivationMarkers {
+        if strings.Contains(low, marker) {
+            return true
+        }
+    }
+    return false
+}
+
+// containsMethods checks for methods/approach indicators
+func containsMethods(text string) bool {
+    low := strings.ToLower(text)
+    methodMarkers := []string{
+        "method", "approach", "strategy", "technique", "process", "procedure",
+        "methodology", "framework", "implementation", "solution", "design",
+        "analysis", "evaluation", "assessment", "investigation", "study",
+        "research", "survey", "review", "examination", "how", "using",
+    }
+    
+    for _, marker := range methodMarkers {
+        if strings.Contains(low, marker) {
+            return true
+        }
+    }
+    return false
+}
+
+// containsKeyResults checks for key results/findings indicators
+func containsKeyResults(text string) bool {
+    low := strings.ToLower(text)
+    resultMarkers := []string{
+        "result", "finding", "outcome", "conclusion", "discovery", "evidence",
+        "data", "show", "demonstrate", "reveal", "indicate", "suggest",
+        "confirm", "establish", "prove", "identify", "determine", "observe",
+        "measure", "performance", "improvement", "benefit", "impact", "effect",
+        "success", "achievement", "accomplishment", "found", "discovered",
+    }
+    
+    for _, marker := range resultMarkers {
+        if strings.Contains(low, marker) {
+            return true
+        }
+    }
+    return false
+}
+
+// containsRecommendations checks for recommendations/conclusions indicators
+func containsRecommendations(text string) bool {
+    low := strings.ToLower(text)
+    recommendMarkers := []string{
+        "recommend", "recommendation", "suggest", "proposal", "propose",
+        "should", "must", "need to", "ought to", "advise", "guidance",
+        "next steps", "action", "implement", "adopt", "consider", "evaluate",
+        "conclusion", "summary", "implication", "takeaway", "lesson",
+        "future", "forward", "direction", "path", "plan", "strategy",
+    }
+    
+    for _, marker := range recommendMarkers {
+        if strings.Contains(low, marker) {
+            return true
+        }
+    }
+    return false
+}
+
+
 

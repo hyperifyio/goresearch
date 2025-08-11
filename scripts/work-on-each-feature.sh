@@ -2,7 +2,8 @@
 set -euo pipefail
 set -x
 
-choices=("gpt-5" "sonnet-4" "opus-4.1")
+#choices=("gpt-5" "sonnet-4" "opus-4.1")
+choices=("sonnet-4")
 
 FEATURE_FILE="FEATURE_CHECKLIST.md"
 
@@ -66,7 +67,7 @@ EOF
     echo "MODEL=$MODEL"
     echo
 
-    if timeout 15m cursor-agent -p --output-format text -f -m "$MODEL" "$prompt"; then
+    if timeout 60m cursor-agent -p --output-format text -f -m "$MODEL" "$prompt"; then
       echo
       echo '--- SUCCESS ---'
       echo
