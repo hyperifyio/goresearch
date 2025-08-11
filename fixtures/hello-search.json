@@ -1,0 +1,22 @@
+[
+  {
+    "title": "Hello Research — Brief introduction to goresearch specification",
+    "url": "https://github.com/hyperifyio/goresearch",
+    "snippet": "goresearch is an AI-powered research report generator that helps developers and researchers create validated, citation-rich reports from a single Markdown brief. This introduction covers the basic specification and core functionality."
+  },
+  {
+    "title": "Hello Research — Brief introduction to goresearch documentation",
+    "url": "https://goresearch.dev/documentation",
+    "snippet": "Complete documentation for goresearch covering installation, usage, and examples. Perfect hello research tool for developers who need reliable, cited research reports with evidence checking."
+  },
+  {
+    "title": "Hello Research — Brief introduction to goresearch reference",
+    "url": "https://goresearch.dev/reference",
+    "snippet": "Step-by-step reference for using goresearch. Learn how this hello research tool generates professional reports by searching the web, extracting content, and synthesizing findings with proper citations."
+  },
+  {
+    "title": "Hello Research — Brief introduction to goresearch tutorial",
+    "url": "https://goresearch.dev/tutorial", 
+    "snippet": "Tutorial guide for goresearch. Includes examples of well-structured research briefs and resulting reports. Essential tutorial for hello research workflows."
+  }
+]
