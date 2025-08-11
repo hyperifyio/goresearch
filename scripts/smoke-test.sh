@@ -114,7 +114,10 @@ cat >"$RESULTS" <<'EOF'
 ]
 EOF
 LLM_BASE="http://127.0.0.1:8080/v1"
-"$GO_BIN" -input "$BRIEF" -output "$OUT" -search.file "$RESULTS" -llm.base "$LLM_BASE" -llm.model tinyllama -no-verify -cache.dir "$TMPDIR/cache" -reports.dir "$REPORTS_DIR" -reports.tar >/dev/null 2>&1
+# Prefer using an explicit installed model ID when LocalAI exposes filenames
+MODEL_ID=$(curl -sS "$LLM_BASE/models" | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
+if [[ -z "$MODEL_ID" || "$MODEL_ID" == "model" ]]; then MODEL_ID=tinyllama; fi
+"$GO_BIN" -input "$BRIEF" -output "$OUT" -search.file "$RESULTS" -llm.base "$LLM_BASE" -llm.model "$MODEL_ID" -no-verify -cache.dir "$TMPDIR/cache" -reports.dir "$REPORTS_DIR" -reports.tar >/dev/null 2>&1
 status=$?
 if [[ $status -eq 0 && -s "$OUT" ]]; then
   ok "Generated report with evidence and manifest"
