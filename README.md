@@ -184,7 +184,12 @@ docker compose --profile offline up -d
 
 # Secure-at-rest cache profile (dedicated cache volume + strict perms)
 docker compose --profile secure-cache up -d research-tool-secure
+
+# TLS profile (HTTPS termination with self-signed certs for local development)
+docker compose --profile tls up -d research-tool-tls
 ```
+
+The TLS profile provides optional HTTPS termination via Caddy reverse proxy with self-signed certificates. This is useful for testing TLS connectivity locally. The research tool will connect to the LLM and SearxNG services through HTTPS endpoints (ports 8443 and 8444) with SSL verification disabled for the self-signed certificates.
 
 ### Environment variables
 Compose will read a local `.env` file when present and also respects exported shell variables. Useful settings:
@@ -192,6 +197,7 @@ Compose will read a local `.env` file when present and also respects exported sh
 - `LLM_MODEL`: model identifier known to your LLM server (default `gpt-neo`)
 - `LLM_API_KEY`: API key if your server requires one (not baked into images)
 - `SEARX_URL`: internal URL for SearxNG (default `http://searxng:8080`)
+- `SSL_VERIFY`: enable SSL certificate verification; set to `false` for self-signed certificates (default `true`)
 - `APP_UID` / `APP_GID`: host user/group IDs to avoid permission issues on bind mounts (e.g., `APP_UID=$(id -u) APP_GID=$(id -g)` before `make up`)
 
 You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container, but the defaults in `docker-compose.yml` are sufficient for most dev flows.
