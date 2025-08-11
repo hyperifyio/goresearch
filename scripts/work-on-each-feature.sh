@@ -2,21 +2,17 @@
 set -euo pipefail
 set -x
 
+choices=("gpt-5" "sonnet-4" "opus-4.1")
+
 FEATURE_FILE="FEATURE_CHECKLIST.md"
 
 commit_if_changes() {
   if ! git diff --quiet || ! git diff --cached --quiet; then
 
     # Randomize model
-    choices=("gpt-5" "sonnet-4" "opus-4.1")
-    if command -v shuf >/dev/null 2>&1; then
-      MODEL="$(printf '%s\n' "${choices[@]}" | shuf -n1)"
-    else
-      MODEL="${choices[RANDOM % ${#choices[@]}]}"
-    fi
+    MODEL="${choices[RANDOM % ${#choices[@]}]}"
+    echo
     echo "MODEL=$MODEL"
-
-
     echo
     echo "--- COMMITTING LOCAL CHANGES ---"
     echo
@@ -66,16 +62,19 @@ EOF
 )
 
     # Randomize model
-    choices=("gpt-5" "sonnet-4" "opus-4.1")
-    if command -v shuf >/dev/null 2>&1; then
-      MODEL="$(printf '%s\n' "${choices[@]}" | shuf -n1)"
-    else
-      MODEL="${choices[RANDOM % ${#choices[@]}]}"
-    fi
+    MODEL="${choices[RANDOM % ${#choices[@]}]}"
     echo "MODEL=$MODEL"
     echo
 
-    timeout 15m cursor-agent -p --output-format text -f -m "$MODEL" "$prompt"
+    if timeout 15m cursor-agent -p --output-format text -f -m "$MODEL" "$prompt"; then
+      echo
+      echo '--- SUCCESS ---'
+      echo
+    else
+      echo
+      echo '--- FAILURE ---'
+      echo
+    fi
 
     # Commit after each attempt
     commit_if_changes
