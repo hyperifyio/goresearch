@@ -11,7 +11,7 @@ import (
 )
 
 func TestNewHighThroughputHTTPClient_Config(t *testing.T) {
-	c := newHighThroughputHTTPClient()
+	c := newHighThroughputHTTPClient(true)
 	if c.Timeout == 0 {
 		t.Fatalf("expected non-zero timeout")
 	}

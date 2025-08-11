@@ -1,6 +1,7 @@
 package app
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"time"
@@ -8,7 +9,8 @@ import (
 
 // newHighThroughputHTTPClient returns an HTTP client tuned for high parallelism
 // without client-side throttling. Timeouts are kept reasonable to avoid hangs.
-func newHighThroughputHTTPClient() *http.Client {
+// If sslVerify is false, SSL certificate verification is disabled for self-signed certs.
+func newHighThroughputHTTPClient(sslVerify bool) *http.Client {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -22,6 +24,13 @@ func newHighThroughputHTTPClient() *http.Client {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	// Configure TLS settings based on SSL verification preference
+	if !sslVerify {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
 	}
 
 	return &http.Client{

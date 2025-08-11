@@ -51,6 +51,10 @@ type Config struct {
     DebugVerbose bool
     // CacheStrictPerms, when true, uses 0700 for cache dirs and 0600 for files.
     CacheStrictPerms bool
+    // SSLVerify, when false, disables SSL certificate verification for HTTPS
+    // requests. Intended for local development with self-signed certificates.
+    // Default is true (verification enabled) for security.
+    SSLVerify bool
 
     // Cache size limits & eviction
     // If > 0, enforce a max total on-disk size for cache entries (HTTP+LLM)

@@ -212,6 +212,7 @@ type boundVars struct {
     cacheDir                              *string
     cacheMaxAge                           *time.Duration
     cacheClear, cacheStrict               *bool
+    sslVerify                             *bool
     topicHash                             *string
     enablePDF                             *bool
     synthSystemPrompt, synthSystemPromptFile *string
@@ -263,6 +264,7 @@ func newFlagSet(getenv func(string) string) (*flag.FlagSet, flagMeta) {
     bv.cacheMaxAge = fs.Duration("cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
     bv.cacheClear = fs.Bool("cache.clear", false, "Clear cache directory before run")
     bv.cacheStrict = fs.Bool("cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
+    bv.sslVerify = fs.Bool("ssl.verify", getenv("SSL_VERIFY") != "false", "Enable SSL certificate verification (set to false for self-signed certs)")
     bv.topicHash = fs.String("cache.topicHash", getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
     bv.enablePDF = fs.Bool("enable.pdf", false, "Enable optional PDF ingestion (application/pdf)")
     // Prompt overrides
@@ -345,6 +347,7 @@ func renderCLIReferenceMarkdown(fs *flag.FlagSet) string {
         {"VERBOSE", "Enable verbose logs when truthy"},
         {"CACHE_CLEAR", "Clear cache before run when truthy"},
         {"CACHE_STRICT_PERMS", "Restrict cache permissions when truthy"},
+        {"SSL_VERIFY", "Enable SSL certificate verification (set to 'false' for self-signed certs)"},
         {"HTTP_CACHE_ONLY", "Serve HTTP bodies only from cache; fail on miss"},
         {"LLM_CACHE_ONLY", "Serve LLM results only from cache; fail on miss"},
         {"ROBOTS_OVERRIDE_DOMAINS", "Comma-separated allowlist to ignore robots.txt; requires robots.overrideConfirm"},
@@ -398,6 +401,7 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         cacheMaxAge     time.Duration
         cacheClear      bool
         cacheStrict     bool
+        sslVerify       bool
         topicHash       string
         enablePDF       bool
         synthSystemPrompt     string
@@ -445,6 +449,7 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
     fs.DurationVar(&cacheMaxAge, "cache.maxAge", 0, "Max age for cache entries before purge (e.g. 24h, 7d); 0 disables")
     fs.BoolVar(&cacheClear, "cache.clear", false, "Clear cache directory before run")
     fs.BoolVar(&cacheStrict, "cache.strictPerms", false, "Restrict cache permissions (0700 dirs, 0600 files)")
+    fs.BoolVar(&sslVerify, "ssl.verify", getenv("SSL_VERIFY") != "false", "Enable SSL certificate verification (set to false for self-signed certs)")
     fs.StringVar(&topicHash, "cache.topicHash", getenv("TOPIC_HASH"), "Optional topic hash to scope cache; accepted for traceability")
     fs.BoolVar(&enablePDF, "enable.pdf", false, "Enable optional PDF ingestion (application/pdf)")
     // Prompt profile flexibility: allow overriding system prompts via flags/env
@@ -512,6 +517,7 @@ func parseConfig(args []string, getenv func(string) string) (app.Config, bool, e
         CacheMaxAge:     cacheMaxAge,
         CacheClear:      cacheClear,
         CacheStrictPerms: cacheStrict,
+        SSLVerify:       sslVerify,
         TopicHash:       topicHash,
         EnablePDF:       enablePDF,
         SynthSystemPrompt:  synthSystemPrompt,

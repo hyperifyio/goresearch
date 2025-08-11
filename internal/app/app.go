@@ -90,7 +90,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	}
 
 	// Use a high-throughput HTTP client to avoid client-side throttling
-	transportCfg.HTTPClient = newHighThroughputHTTPClient()
+	transportCfg.HTTPClient = newHighThroughputHTTPClient(cfg.SSLVerify)
     client := openai.NewClientWithConfig(transportCfg)
     // Wrap in provider adapter implementing the llm.Client interface
     a := &App{cfg: cfg, ai: &llm.OpenAIProvider{Inner: client}}
@@ -164,7 +164,7 @@ func (a *App) Run(ctx context.Context) error {
     if a.cfg.FileSearchPath != "" {
         provider = &search.FileProvider{Path: a.cfg.FileSearchPath, Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
     } else if a.cfg.SearxURL != "" {
-        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
+        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(a.cfg.SSLVerify), UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
     }
 		var selected []search.Result
 		if provider != nil {
@@ -249,7 +249,7 @@ func (a *App) Run(ctx context.Context) error {
         if strings.TrimSpace(ua) == "" {
             ua = "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)"
         }
-        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(), UserAgent: ua, Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
+        provider = &search.SearxNG{BaseURL: a.cfg.SearxURL, APIKey: a.cfg.SearxKey, HTTPClient: newHighThroughputHTTPClient(a.cfg.SSLVerify), UserAgent: ua, Policy: search.DomainPolicy{Allowlist: a.cfg.DomainAllowlist, Denylist: a.cfg.DomainDenylist}}
     }
 	var selected []search.Result
 	if provider != nil {
@@ -278,7 +278,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 4) Fetch and extract content for each selected URL with polite settings
     stageStart = time.Now()
-	httpClient := newHighThroughputHTTPClient()
+	httpClient := newHighThroughputHTTPClient(a.cfg.SSLVerify)
     // Configure robots manager for crawl-delay and polite fetching
     rb := &robots.Manager{HTTPClient: httpClient, Cache: a.httpCache, UserAgent: "goresearch/1.0 (+https://github.com/hyperifyio/goresearch)", EntryExpiry: 30 * time.Minute, AllowPrivateHosts: a.cfg.AllowPrivateHosts, OverrideAllowlist: a.cfg.RobotsOverrideAllowlist, OverrideConfirm: a.cfg.RobotsOverrideConfirm}
     f := &fetchClient{client: &fetch.Client{
