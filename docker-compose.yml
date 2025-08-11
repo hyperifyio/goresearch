@@ -52,7 +52,7 @@ services:
       - ./:/app
       - http_cache:/app/.goresearch-cache/http
       - llm_cache:/app/.goresearch-cache/llm
-      - reports:/app/reports
+      - ./reports:/app/reports
     # Load environment from .env (Compose default) and avoid in-file secrets.
     environment:
       - LLM_BASE_URL=http://llm-openai:8080/v1
@@ -61,7 +61,6 @@ services:
       # and are intentionally not defaulted here to avoid baking secrets.
       - SEARX_URL=http://searxng:8080
     # Run as the invoking host user's UID:GID to avoid permission issues on bind mounts
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     command: ["sleep", "infinity"]
     networks:
       - goresearch_net
@@ -274,6 +273,30 @@ services:
       timeout: 3s
       retries: 10
     profiles: ["test"]
+
+  # Disposable integration test runner. Installs gotestsum and runs Go tests,
+  # writing JUnit XML and HTML coverage reports under ./reports/tests.
+  test-runner:
+    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - http_cache:/app/.goresearch-cache/http
+      - llm_cache:/app/.goresearch-cache/llm
+      - reports:/app/reports
+    environment:
+      - LLM_BASE_URL=http://stub-llm:8081/v1
+      - LLM_MODEL=test-model
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    entrypoint: ["bash","scripts/test-runner.sh"]
+    networks:
+      - goresearch_net
+    profiles: ["test"]
+    depends_on:
+      perms-init:
+        condition: service_completed_successfully
+      stub-llm:
+        condition: service_healthy
 
   # Optional Caddy reverse-proxy for local HTTPS termination
   # Provides self-signed TLS certificates for llm and searxng services
