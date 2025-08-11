@@ -207,11 +207,13 @@ services:
 
   # Stub LLM for deterministic tests (placeholder image; refined later)
   stub-llm:
-    image: quay.io/go-skynet/local-ai@sha256:293f9109bdcebc2f75a10215cdff6683ee669fbdec9f6b85d101b19fe6702adb
+    build:
+      context: .
+      dockerfile: Dockerfile.openai-stub
     networks:
       - goresearch_net
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/models"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/v1/models"]
       interval: 10s
       timeout: 3s
       retries: 10

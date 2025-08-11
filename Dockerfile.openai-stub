@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.7
+FROM golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -trimpath -o /out/openai-stub ./cmd/openai-stub
+
+FROM debian:bookworm-slim@sha256:5fda6c2db7a3ea3a6b3e6d5f5cd6f4b7c0f9f1e2b3a4c5d6e7f8a9b0c1d2e3f4
+RUN useradd -m -u 10001 appuser
+USER appuser
+COPY --from=build /out/openai-stub /usr/local/bin/openai-stub
+ENV ADDR=:8081 MODEL_ID=test-model
+EXPOSE 8081
+ENTRYPOINT ["/usr/local/bin/openai-stub"]
