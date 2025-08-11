@@ -1,4 +1,4 @@
-.PHONY: wait up down logs rebuild test clean image image-archives builder-create
+.PHONY: wait up down logs rebuild test clean image image-archives builder-create test-build-amd64 test-build-arm64 test-multiarch
 
 # Wait for local dependencies (LLM and SearxNG) to become healthy.
 # Uses environment variables LLM_BASE_URL and SEARX_URL when set.
@@ -82,4 +82,36 @@ image-archives:
 
 # Convenience target to create a named builder with QEMU emulation locally
 builder-create:
-	@docker buildx create --use --name goresearch-builder >/dev/null 2>&1 || docker buildx use goresearch-builder
+	@docker buildx create --use --name goresearch-builder --platform linux/amd64,linux/arm64 --driver docker-container >/dev/null 2>&1 || docker buildx use goresearch-builder
+	@docker buildx inspect --bootstrap >/dev/null 2>&1
+
+# Test build for linux/amd64 only (fast local testing)
+test-build-amd64: builder-create
+	@echo "Testing build for linux/amd64"
+	@docker buildx build \
+		--platform=linux/amd64 \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t goresearch:test-amd64 \
+		--load .
+
+# Test build for linux/arm64 only (with QEMU emulation)
+test-build-arm64: builder-create
+	@echo "Testing build for linux/arm64 (emulated)"
+	@docker buildx build \
+		--platform=linux/arm64 \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t goresearch:test-arm64 .
+
+# Test multi-arch build without pushing (validation)
+test-multiarch: builder-create
+	@echo "Testing multi-arch build for $(PLATFORMS)"
+	@docker buildx build \
+		--platform=$(PLATFORMS) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t goresearch:test-multiarch .
