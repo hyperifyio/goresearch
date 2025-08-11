@@ -1022,3 +1022,329 @@ achieve better performance outcomes and improved user satisfaction.
     }
 }
 
+// Tests for FEATURE_CHECKLIST item 297: Accessibility checks — heading order correctness
+// and "no color-only meaning" warnings; require alt text for any images.
+func TestValidateAccessibility_OK(t *testing.T) {
+    md := `# Test Report
+2025-01-01
+
+## Executive summary
+This is a proper executive summary with clear motivation explaining the problem we need to solve
+through our systematic methodology and research approach. The study demonstrates significant 
+findings and measurable results with improved performance metrics. We recommend implementing 
+these solutions for better outcomes.
+
+## Background and context
+Some background information.
+
+### Prior research
+Previous work in this area.
+
+### Current limitations
+What needs improvement.
+
+## Methodology and approach
+Our research methods.
+
+## Results and findings
+Key outcomes from the study.
+
+![System architecture diagram showing components and data flow](architecture.png)
+
+## Risks and limitations
+Important caveats.
+
+## Alternatives & conflicting evidence
+Counter-evidence summary.
+
+## References
+1. Example Research — https://example.com/research`
+    
+    if err := ValidateAccessibility(md); err != nil {
+        t.Fatalf("expected accessibility validation to pass, got: %v", err)
+    }
+}
+
+func TestValidateAccessibility_HeadingOrderJump_Fails(t *testing.T) {
+    md := `# Test Report
+2025-01-01
+
+## Section One
+Content here.
+
+#### Jumped from H2 to H4
+This skips H3 level.
+
+## References
+1. Example — https://example.com`
+    
+    if err := ValidateAccessibility(md); err == nil {
+        t.Fatalf("expected accessibility validation to fail for heading level jump")
+    } else if !strings.Contains(err.Error(), "heading order") {
+        t.Fatalf("expected heading order error, got: %v", err)
+    }
+}
+
+func TestValidateAccessibility_ColorOnlyMeaning_Fails(t *testing.T) {
+    md := `# Test Report
+2025-01-01
+
+## Executive summary
+This is a proper executive summary with clear motivation explaining the problem we need to solve
+through our systematic methodology and research approach. The study demonstrates significant 
+findings and measurable results with improved performance metrics. We recommend implementing 
+these solutions for better outcomes.
+
+## Instructions
+See the red text for important warnings.
+
+## Risks and limitations
+Important caveats.
+
+## Alternatives & conflicting evidence
+Counter-evidence summary.
+
+## References
+1. Example — https://example.com`
+    
+    if err := ValidateAccessibility(md); err == nil {
+        t.Fatalf("expected accessibility validation to fail for color-only meaning")
+    } else if !strings.Contains(err.Error(), "color-only") {
+        t.Fatalf("expected color-only meaning error, got: %v", err)
+    }
+}
+
+func TestValidateAccessibility_EmptyAltText_Fails(t *testing.T) {
+    md := `# Test Report
+2025-01-01
+
+## Executive summary
+This is a proper executive summary with clear motivation explaining the problem we need to solve
+through our systematic methodology and research approach. The study demonstrates significant 
+findings and measurable results with improved performance metrics. We recommend implementing 
+these solutions for better outcomes.
+
+## Results
+![](diagram.png)
+
+## Risks and limitations
+Important caveats.
+
+## Alternatives & conflicting evidence
+Counter-evidence summary.
+
+## References
+1. Example — https://example.com`
+    
+    if err := ValidateAccessibility(md); err == nil {
+        t.Fatalf("expected accessibility validation to fail for empty alt text")
+    } else if !strings.Contains(err.Error(), "empty alt text") {
+        t.Fatalf("expected empty alt text error, got: %v", err)
+    }
+}
+
+func TestValidateAccessibility_GenericAltText_Fails(t *testing.T) {
+    md := `# Test Report
+2025-01-01
+
+## Executive summary
+This is a proper executive summary with clear motivation explaining the problem we need to solve
+through our systematic methodology and research approach. The study demonstrates significant 
+findings and measurable results with improved performance metrics. We recommend implementing 
+these solutions for better outcomes.
+
+## Results
+![image](diagram.png)
+
+## Risks and limitations
+Important caveats.
+
+## Alternatives & conflicting evidence
+Counter-evidence summary.
+
+## References
+1. Example — https://example.com`
+    
+    if err := ValidateAccessibility(md); err == nil {
+        t.Fatalf("expected accessibility validation to fail for generic alt text")
+    } else if !strings.Contains(err.Error(), "generic/non-descriptive alt text") {
+        t.Fatalf("expected generic alt text error, got: %v", err)
+    }
+}
+
+func TestValidateHeadingOrder_OK(t *testing.T) {
+    lines := []string{
+        "# Document Title",
+        "",
+        "## Section One",
+        "Content",
+        "",
+        "### Subsection A",
+        "More content",
+        "",
+        "### Subsection B", 
+        "Content",
+        "",
+        "## Section Two",
+        "Final content",
+    }
+    
+    if err := validateHeadingOrder(lines); err != nil {
+        t.Fatalf("expected valid heading order to pass, got: %v", err)
+    }
+}
+
+func TestValidateHeadingOrder_JumpFails(t *testing.T) {
+    lines := []string{
+        "# Document Title",
+        "",
+        "## Section One",
+        "Content",
+        "",
+        "#### Jumped to H4",
+        "This skips H3",
+    }
+    
+    if err := validateHeadingOrder(lines); err == nil {
+        t.Fatalf("expected heading order validation to fail for level jump")
+    } else if !strings.Contains(err.Error(), "jumps from H2 to H4") {
+        t.Fatalf("expected level jump error, got: %v", err)
+    }
+}
+
+func TestValidateColorOnlyMeaning_DetectsPatterns(t *testing.T) {
+    testCases := []struct {
+        name     string
+        markdown string
+        shouldFail bool
+    }{
+        {
+            name: "Red text reference",
+            markdown: "See the red text for warnings.",
+            shouldFail: true,
+        },
+        {
+            name: "Click green button",
+            markdown: "Click the green button to continue.",
+            shouldFail: true,
+        },
+        {
+            name: "Select blue item",
+            markdown: "Select the blue item from the list.",
+            shouldFail: true,
+        },
+        {
+            name: "Safe color mention",
+            markdown: "The company uses blue as their brand color.",
+            shouldFail: false,
+        },
+        {
+            name: "Descriptive color use",
+            markdown: "The error messages appear in red text with warning icons.",
+            shouldFail: false,
+        },
+    }
+    
+    for _, tc := range testCases {
+        t.Run(tc.name, func(t *testing.T) {
+            err := validateColorOnlyMeaning(tc.markdown)
+            if tc.shouldFail && err == nil {
+                t.Fatalf("expected color-only meaning validation to fail for: %s", tc.markdown)
+            }
+            if !tc.shouldFail && err != nil {
+                t.Fatalf("expected color-only meaning validation to pass for: %s, got: %v", tc.markdown, err)
+            }
+        })
+    }
+}
+
+func TestValidateImageAltText_Various(t *testing.T) {
+    testCases := []struct {
+        name     string
+        markdown string
+        shouldFail bool
+        errorContains string
+    }{
+        {
+            name: "Good alt text",
+            markdown: "![System architecture diagram showing data flow](diagram.png)",
+            shouldFail: false,
+        },
+        {
+            name: "Empty alt text",
+            markdown: "![](image.png)",
+            shouldFail: true,
+            errorContains: "empty alt text",
+        },
+        {
+            name: "Generic alt text - image",
+            markdown: "![image](photo.jpg)",
+            shouldFail: true,
+            errorContains: "generic/non-descriptive",
+        },
+        {
+            name: "Generic alt text - picture", 
+            markdown: "![picture](screenshot.png)",
+            shouldFail: true,
+            errorContains: "generic/non-descriptive",
+        },
+        {
+            name: "Good descriptive alt text",
+            markdown: "![Performance comparison chart showing 40% improvement](metrics.png)",
+            shouldFail: false,
+        },
+    }
+    
+    for _, tc := range testCases {
+        t.Run(tc.name, func(t *testing.T) {
+            lines := []string{tc.markdown}
+            err := validateImageAltText(lines)
+            
+            if tc.shouldFail && err == nil {
+                t.Fatalf("expected image alt text validation to fail for: %s", tc.markdown)
+            }
+            if !tc.shouldFail && err != nil {
+                t.Fatalf("expected image alt text validation to pass for: %s, got: %v", tc.markdown, err)
+            }
+            if tc.shouldFail && tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
+                t.Fatalf("expected error to contain %q, got: %v", tc.errorContains, err)
+            }
+        })
+    }
+}
+
+func TestIsGenericAltText(t *testing.T) {
+    testCases := []struct {
+        altText  string
+        expected bool
+    }{
+        {"image", true},
+        {"picture", true}, 
+        {"photo", true},
+        {"figure", true},
+        {"diagram", true},
+        {"chart", true},
+        {"graph", true},
+        {"img", true},
+        {"pic", true},
+        {"screenshot", true},
+        {"placeholder", true},
+        {"icon", true},
+        {"untitled", true},
+        {"System architecture showing data flow", false},
+        {"Performance metrics over time", false},
+        {"User interface mockup", false},
+        {"Network topology diagram", false},
+        {"", false}, // empty is handled elsewhere
+    }
+    
+    for _, tc := range testCases {
+        t.Run(tc.altText, func(t *testing.T) {
+            result := isGenericAltText(tc.altText)
+            if result != tc.expected {
+                t.Fatalf("isGenericAltText(%q) = %v, expected %v", tc.altText, result, tc.expected)
+            }
+        })
+    }
+}
+

@@ -283,6 +283,11 @@ func ValidateReport(markdown string) error {
         return fmt.Errorf("executive summary validation failed: %v", err)
     }
     
+    // Accessibility validation
+    if err := ValidateAccessibility(markdown); err != nil {
+        return fmt.Errorf("accessibility validation failed: %v", err)
+    }
+    
     n, ok := EnsureReferencesSection(markdown)
     if !ok {
         return fmt.Errorf("references section missing or empty")
@@ -1354,5 +1359,143 @@ func containsRecommendations(text string) bool {
     return false
 }
 
+// ValidateAccessibility enforces accessibility requirements for generated reports:
+// - Heading order correctness: no level jumps >1 (e.g., H1->H3 is invalid)
+// - Color-only meaning warnings: flags text that might rely solely on color cues
+// - Alt text requirement: all images must have non-empty alt text
+// Returns an error describing the first accessibility violation found, or nil if all checks pass.
+func ValidateAccessibility(markdown string) error {
+    lines := splitLines(markdown)
+    
+    // Check heading order correctness
+    if err := validateHeadingOrder(lines); err != nil {
+        return fmt.Errorf("heading order: %v", err)
+    }
+    
+    // Check for color-only meaning issues
+    if err := validateColorOnlyMeaning(markdown); err != nil {
+        return fmt.Errorf("color-only meaning: %v", err)
+    }
+    
+    // Check alt text requirements for images
+    if err := validateImageAltText(lines); err != nil {
+        return fmt.Errorf("image alt text: %v", err)
+    }
+    
+    return nil
+}
+
+// validateHeadingOrder ensures headings follow proper hierarchical structure
+// without skipping levels (e.g., H1 -> H2 -> H3 is valid, H1 -> H3 is invalid)
+func validateHeadingOrder(lines []string) error {
+    prevLevel := 0
+    var headingInfos []struct{ level int; text string; line int }
+    
+    for i, line := range lines {
+        s := trimSpace(line)
+        if !isHeading(s) {
+            continue
+        }
+        
+        level := 0
+        for level < len(s) && s[level] == '#' {
+            level++
+        }
+        
+        text := stripHeading(s)
+        headingInfos = append(headingInfos, struct{ level int; text string; line int }{level, text, i + 1})
+        
+        // Skip first heading validation (document title)
+        if prevLevel == 0 {
+            prevLevel = level
+            continue
+        }
+        
+        // Check for level jumps > 1
+        if level > prevLevel+1 {
+            return fmt.Errorf("heading level jumps from H%d to H%d at line %d (%q)", prevLevel, level, i+1, text)
+        }
+        
+        prevLevel = level
+    }
+    
+    return nil
+}
+
+// validateColorOnlyMeaning detects text patterns that might rely solely on color for meaning
+func validateColorOnlyMeaning(markdown string) error {
+    lines := splitLines(markdown)
+    for i, line := range lines {
+        lower := strings.ToLower(line)
+        
+        // Check for "see the [color]" patterns
+        seeColorPattern := regexp.MustCompile(`(?i)\bsee\s+(the\s+)?(red|green|blue|yellow|orange|purple|pink|gray|grey)\b`)
+        if seeColorPattern.MatchString(line) {
+            return fmt.Errorf("color-only instruction detected at line %d: %q", i+1, trimSpace(line))
+        }
+        
+        // Check for "click/select/choose [color]" patterns
+        actionColorPattern := regexp.MustCompile(`(?i)\b(click|select|choose)\s+(the\s+)?(red|green|blue|yellow|orange|purple|pink|gray|grey)\b`)
+        if actionColorPattern.MatchString(line) {
+            return fmt.Errorf("color-only UI instruction detected at line %d: %q", i+1, trimSpace(line))
+        }
+        
+        // Check for "[color] text/highlight/etc" but exclude cases with additional context
+        colorTextPattern := regexp.MustCompile(`(?i)\b(red|green|blue|yellow|orange|purple|pink|gray|grey)\s+(text|highlight|background|box|section|item|line|row|column)\b`)
+        if colorTextPattern.MatchString(line) {
+            // Exclude cases where there's additional descriptive context
+            if !strings.Contains(lower, "with ") && !strings.Contains(lower, "and ") && !strings.Contains(lower, "using ") {
+                return fmt.Errorf("color-only reference detected at line %d: %q", i+1, trimSpace(line))
+            }
+        }
+    }
+    
+    return nil
+}
+
+// validateImageAltText ensures all images have non-empty alt text
+func validateImageAltText(lines []string) error {
+    // Image pattern: ![alt text](url) or ![](url)
+    imagePattern := regexp.MustCompile(`!\[([^\]]*)\]\([^)]+\)`)
+    
+    for i, line := range lines {
+        matches := imagePattern.FindAllStringSubmatch(line, -1)
+        for _, match := range matches {
+            if len(match) < 2 {
+                continue
+            }
+            
+            altText := strings.TrimSpace(match[1])
+            if altText == "" {
+                return fmt.Errorf("image at line %d has empty alt text", i+1)
+            }
+            
+            // Additional check for non-meaningful alt text
+            if isGenericAltText(altText) {
+                return fmt.Errorf("image at line %d has generic/non-descriptive alt text: %q", i+1, altText)
+            }
+        }
+    }
+    
+    return nil
+}
+
+// isGenericAltText checks if alt text is too generic to be meaningful
+func isGenericAltText(altText string) bool {
+    lower := strings.ToLower(strings.TrimSpace(altText))
+    genericTexts := []string{
+        "image", "picture", "photo", "figure", "diagram", "chart", "graph",
+        "img", "pic", "screenshot", "capture", "placeholder", "icon",
+        "untitled", "unnamed", "default", "example", "sample",
+    }
+    
+    for _, generic := range genericTexts {
+        if lower == generic {
+            return true
+        }
+    }
+    
+    return false
+}
 
 
