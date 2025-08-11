@@ -1,0 +1,24 @@
+{
+  "queries": [
+    "Test Report specification",
+    "Test Report documentation",
+    "Test Report reference",
+    "Test Report tutorial",
+    "Test Report best practices",
+    "Test Report faq",
+    "Test Report examples",
+    "Test Report comparison",
+    "Test Report limitations",
+    "Test Report contrary findings"
+  ],
+  "outline": [
+    "Executive summary",
+    "Background",
+    "Core concepts",
+    "Implementation guidance",
+    "Examples",
+    "Alternatives \u0026 conflicting evidence",
+    "Risks and limitations",
+    "References"
+  ]
+}
