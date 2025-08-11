@@ -19,7 +19,7 @@ echo "  SearxNG status:      ${_searx_status_url}"
 
 deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
 
-wait_until_ok() {
+wait_until_ok_http() {
   local url="$1"
   local name="$2"
   while true; do
@@ -36,7 +36,37 @@ wait_until_ok() {
   done
 }
 
-wait_until_ok "${_llm_models_url}" "llm-openai (/v1/models)"
-wait_until_ok "${_searx_status_url}" "searxng (/status)"
+wait_until_healthy_compose() {
+  local svc="$1"; shift
+  local name="$1"; shift
+  while true; do
+    cid=$(docker compose ps -q "$svc" 2>/dev/null || true)
+    if [ -n "$cid" ]; then
+      status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || true)
+      if [ "$status" = "healthy" ]; then
+        echo "$name healthy (compose)"
+        return 0
+      fi
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "ERROR: Timed out after ${TIMEOUT_SECONDS}s waiting for ${name} (compose health)" >&2
+      return 1
+    fi
+    echo "Waiting for ${name} (compose)... retrying in ${SLEEP_SECONDS}s"
+    sleep "${SLEEP_SECONDS}"
+  done
+}
+
+# If docker compose is available and services are part of a compose project,
+# prefer container health checks (works with internal networks).
+if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
+  wait_until_healthy_compose llm-openai "llm-openai (/v1/models)" || exit 1
+  # searxng has a healthcheck in compose, so rely on compose status
+  wait_until_healthy_compose searxng "searxng (/status)" || exit 1
+else
+  # Fallback to host HTTP polling
+  wait_until_ok_http "${_llm_models_url}" "llm-openai (/v1/models)" || exit 1
+  wait_until_ok_http "${_searx_status_url}" "searxng (/status)" || exit 1
+fi
 
 echo "All dependencies healthy."
