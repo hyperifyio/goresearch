@@ -28,6 +28,9 @@ searx:
   # Disable public instance banner features
   instance_name: "goresearch searxng (local)"
 
+# DOI resolver configuration
+default_doi_resolver: "https://doi.org/"
+
 # Disable any engines that require API keys by default
 engines:
   - name: wikipedia
