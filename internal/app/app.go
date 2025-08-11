@@ -157,8 +157,10 @@ func (a *App) Run(ctx context.Context) error {
         log.Info().Str("stage", "brief").Str("topic", b.Topic).Dur("elapsed", time.Since(stageStart)).Msg("brief parsed")
         // Plan queries and select URLs without calling the synthesizer
         stageStart = time.Now()
-        plan := a.planQueries(ctx, b)
-        log.Info().Str("stage", "planner").Int("queries", len(plan.Queries)).Strs("queries", plan.Queries).Dur("elapsed", time.Since(stageStart)).Msg("planner completed")
+    plan := a.planQueries(ctx, b)
+    log.Info().Str("stage", "planner").Int("queries", len(plan.Queries)).Strs("queries", plan.Queries).Dur("elapsed", time.Since(stageStart)).Msg("planner completed")
+    // Persist early artifacts so cancel at any point leaves breadcrumbs
+    if strings.TrimSpace(a.cfg.ReportsDir) != "" { _ = os.MkdirAll(a.cfg.ReportsDir, 0o755); _ = exportArtifactsBundle(a.cfg, b, plan, nil, nil, "") }
         // Fake search with zero provider if not configured
     var provider search.Provider
     if a.cfg.FileSearchPath != "" {
@@ -237,6 +239,13 @@ func (a *App) Run(ctx context.Context) error {
     stageStart = time.Now()
 	plan := a.planQueries(ctx, b)
     log.Info().Str("stage", "planner").Int("queries", len(plan.Queries)).Strs("queries", plan.Queries).Dur("elapsed", time.Since(stageStart)).Msg("planner completed")
+    // Graceful cancel: if interrupted after planning, persist artifacts and exit
+    if err := ctx.Err(); err != nil {
+        // Ensure reports dir exists for bundle export
+        if strings.TrimSpace(a.cfg.ReportsDir) != "" { _ = os.MkdirAll(a.cfg.ReportsDir, 0o755) }
+        _ = exportArtifactsBundle(a.cfg, b, plan, nil, nil, "")
+        return err
+    }
 
     // 3) Perform searches and aggregate
     stageStart = time.Now()
@@ -275,6 +284,14 @@ func (a *App) Run(ctx context.Context) error {
     } else {
         log.Info().Str("stage", "selection").Int("selected", 0).Dur("elapsed", time.Since(stageStart)).Msg("search+selection completed")
     }
+    // Persist selection snapshot
+    if strings.TrimSpace(a.cfg.ReportsDir) != "" { _ = os.MkdirAll(a.cfg.ReportsDir, 0o755); _ = exportArtifactsBundle(a.cfg, b, plan, selected, nil, "") }
+    // Graceful cancel: if interrupted after selection, persist artifacts and exit
+    if err := ctx.Err(); err != nil {
+        if strings.TrimSpace(a.cfg.ReportsDir) != "" { _ = os.MkdirAll(a.cfg.ReportsDir, 0o755) }
+        _ = exportArtifactsBundle(a.cfg, b, plan, selected, nil, "")
+        return err
+    }
 
 	// 4) Fetch and extract content for each selected URL with polite settings
     stageStart = time.Now()
@@ -301,6 +318,14 @@ func (a *App) Run(ctx context.Context) error {
 	// Proportionally truncate excerpts to fit global context budget while preserving all sources
 	excerpts = proportionallyTruncateExcerpts(b, plan.Outline, excerpts, a.cfg)
     log.Info().Str("stage", "extract").Int("excerpts", len(excerpts)).Dur("elapsed", time.Since(stageStart)).Msg("fetch+extract completed")
+    // Persist extracts snapshot
+    if strings.TrimSpace(a.cfg.ReportsDir) != "" { _ = os.MkdirAll(a.cfg.ReportsDir, 0o755); _ = exportArtifactsBundle(a.cfg, b, plan, selected, excerpts, "") }
+    // Graceful cancel: if interrupted after extraction, persist artifacts and exit
+    if err := ctx.Err(); err != nil {
+        if strings.TrimSpace(a.cfg.ReportsDir) != "" { _ = os.MkdirAll(a.cfg.ReportsDir, 0o755) }
+        _ = exportArtifactsBundle(a.cfg, b, plan, selected, excerpts, "")
+        return err
+    }
 
     // Exit nonzero per policy when we have no usable sources.
     if len(excerpts) == 0 {

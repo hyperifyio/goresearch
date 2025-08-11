@@ -16,6 +16,8 @@ import (
 
     "github.com/rs/zerolog"
     "github.com/rs/zerolog/log"
+    "os/signal"
+    "syscall"
 
     "github.com/hyperifyio/goresearch/internal/app"
     "github.com/hyperifyio/goresearch/internal/synth"
@@ -577,14 +579,16 @@ func isNoSubstantiveBody(err error) bool {
 }
 
 func run(cfg app.Config) error {
-	ctx := context.Background()
+    // Create a context that is canceled on SIGINT/SIGTERM for graceful shutdown.
+    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer stop()
 
     // Validate final config before starting
     if err := app.ValidateConfig(cfg); err != nil {
         return fmt.Errorf("invalid configuration: %w", err)
     }
 
-	a, err := app.New(ctx, cfg)
+    a, err := app.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("init app: %w", err)
 	}
