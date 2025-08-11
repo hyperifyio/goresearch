@@ -2,7 +2,7 @@
 
 # Build stage: compile goresearch as a static binary
 # Pinned base image for reproducibility (update digest deliberately when upgrading)
-FROM --platform=$BUILDPLATFORM golang:1.24-bookworm@sha256:6a0409c7c2dc6c9a31f41a13f5a3f6e1f2b0d8d44a4b8a3c7c5b4d2a8a7e1f0a AS build
+FROM --platform=$BUILDPLATFORM golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc AS build
 
 ARG VERSION=0.0.0
 ARG COMMIT=dev
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/goresearch ./cmd/goresearch
 
 # Runtime stage: non-root, minimal image with certs
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:f4a3d58ee4f1f0b1a6a3be5e6f2b7e6a5f0c9d4b3a2f1e0d9c8b7a6f5e4d3c2b
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:cdf4daaf154e3e27cfffc799c16f343a384228f38646928a1513d925f473cb46
 
 # OCI labels for provenance
 ARG VERSION=0.0.0
