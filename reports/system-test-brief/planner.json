@@ -1,0 +1,24 @@
+{
+  "queries": [
+    "System Test Brief specification",
+    "System Test Brief documentation",
+    "System Test Brief reference",
+    "System Test Brief tutorial",
+    "System Test Brief best practices",
+    "System Test Brief faq",
+    "System Test Brief examples",
+    "System Test Brief comparison",
+    "System Test Brief limitations",
+    "System Test Brief contrary findings"
+  ],
+  "outline": [
+    "Executive summary",
+    "Background",
+    "Core concepts",
+    "Implementation guidance",
+    "Examples",
+    "Alternatives \u0026 conflicting evidence",
+    "Risks and limitations",
+    "References"
+  ]
+}

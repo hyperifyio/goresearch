@@ -1,0 +1,23 @@
+{
+  "queries": [
+    "System Test specification",
+    "System Test documentation",
+    "System Test reference",
+    "System Test tutorial",
+    "System Test best practices",
+    "System Test faq",
+    "System Test examples",
+    "System Test limitations",
+    "System Test contrary findings",
+    "System Test alternatives"
+  ],
+  "outline": [
+    "Executive summary",
+    "Background",
+    "Core concepts",
+    "Implementation guidance",
+    "Alternatives \u0026 conflicting evidence",
+    "Examples",
+    "Risks and limitations"
+  ]
+}

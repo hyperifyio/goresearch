@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "model": "test-model",
+    "llm_base_url": "http://127.0.0.1:8081/v1",
+    "source_count": 2,
+    "http_cache": true,
+    "llm_cache": true,
+    "generated_at": "2025-08-11T10:31:47.215107167Z"
+  },
+  "sources": [
+    {
+      "index": 1,
+      "url": "https://example.com",
+      "title": "Example Domain",
+      "sha256": "f57158af406d7571c138f6457ebab344eeca145e3ad64c643dddca975d225b2a",
+      "chars": 189
+    },
+    {
+      "index": 2,
+      "url": "https://go.dev",
+      "title": "The Go Programming Language",
+      "sha256": "f1fc75bf15324099bcbd4b20d17f2100298d35c2b2e4875f831972b17240992e",
+      "chars": 5123
+    }
+  ]
+}
