@@ -54,8 +54,25 @@ else
 
 section "Start LocalAI (real LLM)"
 if have docker && have docker compose; then
-  # Bring up LocalAI and model bootstrap; expose port via override
-  if docker compose -f docker-compose.yml -f docker-compose.override.yml.example --profile dev up -d models-bootstrap llm-openai >/dev/null 2>&1; then
+  # Ensure models volume has at least one GGUF and a models.yaml mapping name 'tinyllama'
+  if docker run --rm -i -v goresearch_models:/models alpine:3.20 /bin/sh -lc '
+    set -eu; apk add --no-cache curl ca-certificates >/dev/null;
+    mkdir -p /models;
+    F="/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf";
+    URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf?download=true";
+    if [ ! -e "$F" ] && ! ls -1 /models/*.gguf >/dev/null 2>&1; then echo "Downloading $F"; curl -fL --retry 3 -o "$F" "$URL"; fi;
+    if ! ls -1 /models/*.gguf >/dev/null 2>&1; then echo "No .gguf models available"; exit 1; fi;
+    GGUF=$(ls -1 /models/*.gguf | head -n1);
+    printf "models:\n  - name: tinyllama\n    backend: llama\n    parameters:\n      model: %s\n" "$GGUF" > /models/models.yaml;
+    sha256sum /models/*.gguf > /models/checksums.sha256 || true;
+  ' >/dev/null 2>&1; then
+    ok "Prepared models volume with models.yaml"
+  else
+    ko "Failed to prepare models volume (models.yaml)"
+  fi
+
+  # Bring up LocalAI and expose port via override
+  if docker compose -f docker-compose.yml -f docker-compose.override.yml.example --profile dev up -d llm-openai >/dev/null 2>&1; then
     CLEANUP_CMDS+=("docker compose -f docker-compose.yml -f docker-compose.override.yml.example --profile dev down >/dev/null 2>&1 || true")
     # Wait for container health and host port readiness
     for i in {1..120}; do

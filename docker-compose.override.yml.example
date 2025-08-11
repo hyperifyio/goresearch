@@ -2,6 +2,10 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
 # Note: Not used by default; base compose keeps services on an internal network with no host ports.
 
+networks:
+  goresearch_net:
+    internal: false
+
 services:
   llm-openai:
     ports:
