@@ -12,6 +12,7 @@ import (
 	"github.com/hyperifyio/goresearch/internal/brief"
 	"github.com/hyperifyio/goresearch/internal/cache"
     "github.com/hyperifyio/goresearch/internal/llm"
+	"github.com/hyperifyio/goresearch/internal/template"
 	"github.com/rs/zerolog/log"
 )
 
@@ -37,7 +38,16 @@ type LLMPlanner struct {
     CacheOnly    bool
 }
 
-const systemMessage = "You are a planning assistant. Respond with strict JSON only, no narration. The JSON schema is {\"queries\": string[6..10], \"outline\": string[5..8]}. Queries must be diverse and concise, and MUST include at least two that explicitly seek counter-evidence or alternatives, e.g., 'limitations of <topic>', 'contrary findings about <topic>', or 'alternatives to <topic>'. The outline must contain a heading 'Alternatives & conflicting evidence'. Outline contains section headings only."
+func buildSystemMessage(b brief.Brief) string {
+	profile := template.GetProfile(b.ReportType)
+	base := "You are a planning assistant. Respond with strict JSON only, no narration. The JSON schema is {\"queries\": string[6..10], \"outline\": string[5..8]}. Queries must be diverse and concise, and MUST include at least two that explicitly seek counter-evidence or alternatives, e.g., 'limitations of <topic>', 'contrary findings about <topic>', or 'alternatives to <topic>'. The outline must contain a heading 'Alternatives & conflicting evidence'. Outline contains section headings only."
+	
+	if profile.Type != template.Default {
+		base += fmt.Sprintf(" For %s reports, prefer section headings that follow the %s structure.", profile.Name, strings.ToLower(string(profile.Type)))
+	}
+	
+	return base
+}
 
 // Plan implements Planner using the chat completions API. If the model returns
 // non-JSON or the payload cannot be parsed, an error is returned so callers can
@@ -48,9 +58,10 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 	}
 
 	user := buildUserPrompt(b, p.LanguageHint)
+	system := buildSystemMessage(b)
     // Cache lookup
     if p.Cache != nil {
-		key := cache.KeyFrom(p.Model, systemMessage+"\n\n"+user)
+		key := cache.KeyFrom(p.Model, system+"\n\n"+user)
 		if raw, ok, _ := p.Cache.Get(ctx, key); ok {
 			var plan Plan
 			if err := json.Unmarshal(raw, &plan); err == nil {
@@ -63,12 +74,12 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
     }
     if p.Verbose {
         // Log prompt skeleton only; avoid logging raw excerpts or sensitive data
-        log.Debug().Str("stage", "planner").Str("model", p.Model).Int("system_len", len(systemMessage)).Int("user_len", len(user)).Msg("planner prompt")
+        log.Debug().Str("stage", "planner").Str("model", p.Model).Int("system_len", len(system)).Int("user_len", len(user)).Msg("planner prompt")
     }
 	resp, err := p.Client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: p.Model,
 		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: systemMessage},
+			{Role: openai.ChatMessageRoleSystem, Content: system},
 			{Role: openai.ChatMessageRoleUser, Content: user},
 		},
 		Temperature: 0.1,
@@ -85,14 +96,14 @@ func (p *LLMPlanner) Plan(ctx context.Context, b brief.Brief) (Plan, error) {
 	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
 		return Plan{}, fmt.Errorf("parse planner json: %w", err)
 	}
-    plan.Queries = ensureCounterEvidenceQueries(b.Topic, sanitizeQueries(plan.Queries), p.LanguageHint)
-    plan.Outline = ensureAlternativesHeading(sanitizeOutline(plan.Outline))
+    	plan.Queries = ensureCounterEvidenceQueries(b.Topic, sanitizeQueries(plan.Queries), p.LanguageHint)
+    plan.Outline = mergeTemplateOutline(b.ReportType, sanitizeOutline(plan.Outline))
 	if len(plan.Queries) < 3 || len(plan.Outline) < 3 {
 		return Plan{}, errors.New("insufficient planner output")
 	}
 	if p.Cache != nil {
 		if b, err := json.Marshal(plan); err == nil {
-			_ = p.Cache.Save(ctx, cache.KeyFrom(p.Model, systemMessage+"\n\n"+user), b)
+			_ = p.Cache.Save(ctx, cache.KeyFrom(p.Model, system+"\n\n"+user), b)
 		}
 	}
 	return plan, nil
@@ -122,7 +133,9 @@ func (p *FallbackPlanner) Plan(_ context.Context, b brief.Brief) (Plan, error) {
             break
         }
 	}
-    outline := []string{"Executive summary", "Background", "Core concepts", "Implementation guidance", "Examples", "Alternatives & conflicting evidence", "Risks and limitations", "References"}
+    // Use template system for outline
+    profile := template.GetProfile(b.ReportType)
+    outline := profile.Outline
     return Plan{Queries: queries, Outline: outline}, nil
 }
 
@@ -221,39 +234,94 @@ func ensureCounterEvidenceQueries(topic string, in []string, lang string) []stri
     return out
 }
 
-// ensureAlternativesHeading guarantees the outline contains the required
-// heading 'Alternatives & conflicting evidence'.
-func ensureAlternativesHeading(in []string) []string {
-    wanted := "Alternatives & conflicting evidence"
-    for _, h := range in {
-        if strings.EqualFold(strings.TrimSpace(h), wanted) {
-            return in
-        }
+// mergeTemplateOutline merges LLM-generated outline with template requirements.
+// Uses the template's outline as base and incorporates unique sections from LLM output.
+func mergeTemplateOutline(reportType string, llmOutline []string) []string {
+    profile := template.GetProfile(reportType)
+    templateOutline := profile.Outline
+    
+    // If no LLM outline or template outline is empty, return template outline
+    if len(llmOutline) == 0 {
+        return templateOutline
     }
-    // Insert before Risks and limitations if present; else append before References if present; else append at end.
-    out := make([]string, 0, len(in)+1)
-    inserted := false
-    for i := 0; i < len(in); i++ {
-        if !inserted && strings.EqualFold(strings.TrimSpace(in[i]), "Risks and limitations") {
-            out = append(out, wanted)
-            inserted = true
-        }
-        out = append(out, in[i])
+    if len(templateOutline) == 0 {
+        return ensureRequiredSections(llmOutline)
     }
-    if !inserted {
-        // Try before References
-        out2 := make([]string, 0, len(out)+1)
-        for i := 0; i < len(out); i++ {
-            if !inserted && strings.EqualFold(strings.TrimSpace(out[i]), "References") {
-                out2 = append(out2, wanted)
-                inserted = true
+    
+    // Create a map of normalized template sections
+    templateSections := make(map[string]string)
+    for _, section := range templateOutline {
+        normalized := strings.ToLower(strings.TrimSpace(section))
+        templateSections[normalized] = section
+    }
+    
+    // Start with template outline as base
+    result := make([]string, 0, len(templateOutline))
+    result = append(result, templateOutline...)
+    
+    // Add unique sections from LLM outline that don't conflict with template
+    for _, llmSection := range llmOutline {
+        normalized := strings.ToLower(strings.TrimSpace(llmSection))
+        if _, exists := templateSections[normalized]; !exists {
+            // Insert unique LLM section before "Alternatives & conflicting evidence" if possible
+            inserted := false
+            for i, section := range result {
+                if strings.EqualFold(strings.TrimSpace(section), "Alternatives & conflicting evidence") {
+                    // Insert before this section
+                    result = append(result[:i], append([]string{llmSection}, result[i:]...)...)
+                    inserted = true
+                    break
+                }
             }
-            out2 = append(out2, out[i])
+            if !inserted {
+                // Insert before "Risks and limitations" as fallback
+                for i, section := range result {
+                    if strings.EqualFold(strings.TrimSpace(section), "Risks and limitations") {
+                        result = append(result[:i], append([]string{llmSection}, result[i:]...)...)
+                        inserted = true
+                        break
+                    }
+                }
+            }
+            if !inserted {
+                // Insert before "References" as last resort
+                for i, section := range result {
+                    if strings.EqualFold(strings.TrimSpace(section), "References") {
+                        result = append(result[:i], append([]string{llmSection}, result[i:]...)...)
+                        inserted = true
+                        break
+                    }
+                }
+            }
         }
-        out = out2
     }
-    if !inserted {
-        out = append(out, wanted)
+    
+    return result
+}
+
+// ensureRequiredSections ensures the outline contains required sections
+func ensureRequiredSections(outline []string) []string {
+    required := []string{
+        "Alternatives & conflicting evidence",
+        "Risks and limitations", 
+        "References",
     }
-    return out
+    
+    result := make([]string, len(outline))
+    copy(result, outline)
+    
+    for _, req := range required {
+        found := false
+        for _, section := range result {
+            if strings.EqualFold(strings.TrimSpace(section), req) {
+                found = true
+                break
+            }
+        }
+        if !found {
+            result = append(result, req)
+        }
+    }
+    
+    return result
 }

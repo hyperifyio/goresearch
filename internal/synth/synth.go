@@ -14,6 +14,7 @@ import (
     "github.com/hyperifyio/goresearch/internal/cache"
     "github.com/hyperifyio/goresearch/internal/llm"
     "github.com/hyperifyio/goresearch/internal/llmtools"
+    "github.com/hyperifyio/goresearch/internal/template"
 )
 
 // Uses llm.Client provider interface for backend independence.
@@ -59,7 +60,7 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
     if s.Client == nil || strings.TrimSpace(in.Model) == "" {
         return "", errors.New("synthesizer not configured")
     }
-    system := buildSystemMessage()
+    system := buildSystemMessage(in.Brief)
     if strings.TrimSpace(s.SystemPrompt) != "" {
         system = s.SystemPrompt
     }
@@ -127,8 +128,13 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
     return out, nil
 }
 
-func buildSystemMessage() string {
-    // Keep concise but explicit. We rely on validation after generation.
+func buildSystemMessage(b brief.Brief) string {
+    // Use template-specific system prompt if available
+    profile := template.GetProfile(b.ReportType)
+    if profile.SystemPrompt != "" {
+        return profile.SystemPrompt
+    }
+    // Fallback to default
     return "You are a careful technical writer. Use ONLY the provided sources for facts. Cite precisely with bracketed numeric indices like [1] that map to the numbered references list. Do not invent sources or content. Keep style concise and factual."
 }
 
@@ -150,6 +156,14 @@ func buildUserMessage(in Input) string {
     sb.WriteString("\n- A 'Risks and limitations' section")
     sb.WriteString("\n- A 'References' section listing all sources as a numbered list with titles and full URLs")
     sb.WriteString("\n- An 'Evidence check' appendix summarizing key claims with supporting source indices and confidence")
+    
+    // Add template-specific user prompt hint
+    profile := template.GetProfile(in.Brief.ReportType)
+    if profile.UserPromptHint != "" {
+        sb.WriteString("\n\nStructure guidance: ")
+        sb.WriteString(profile.UserPromptHint)
+    }
+    
     if in.LanguageHint != "" {
         sb.WriteString("\nWrite in language: ")
         sb.WriteString(in.LanguageHint)
