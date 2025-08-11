@@ -71,12 +71,16 @@ type memEntry struct {
 }
 
 func (m *Manager) Get(ctx context.Context, robotsURL string) (Rules, Source, error) {
-	if m.now == nil {
-		m.now = time.Now
-	}
-	if m.mem == nil {
-		m.mem = make(map[string]memEntry)
-	}
+    // Initialize lazy fields under lock to avoid data races when Get is
+    // invoked concurrently for the first time.
+    m.mu.Lock()
+    if m.now == nil {
+        m.now = time.Now
+    }
+    if m.mem == nil {
+        m.mem = make(map[string]memEntry)
+    }
+    m.mu.Unlock()
 	u, err := url.Parse(robotsURL)
 	if err != nil {
 		return Rules{}, SourceNetwork, fmt.Errorf("parse url: %w", err)
