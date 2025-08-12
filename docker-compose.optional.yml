@@ -1,9 +1,4 @@
-name: goresearch-optional
-
-networks:
-  goresearch_net:
-    external: false
-    name: goresearch_goresearch_net
+version: "3.3"
 
 volumes:
   models:

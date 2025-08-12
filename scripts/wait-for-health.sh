@@ -60,7 +60,12 @@ wait_until_healthy_compose() {
 # If docker compose is available and services are part of a compose project,
 # prefer container health checks (works with internal networks).
 if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
-  wait_until_healthy_compose llm-openai "llm-openai (/v1/models)" || exit 1
+  # Prefer stub-llm when present (fast and deterministic); otherwise use llm-openai
+  if docker compose ps -q stub-llm >/dev/null 2>&1 && [ -n "$(docker compose ps -q stub-llm)" ]; then
+    wait_until_healthy_compose stub-llm "stub-llm (/v1/models)" || exit 1
+  else
+    wait_until_healthy_compose llm-openai "llm-openai (/v1/models)" || exit 1
+  fi
   # searxng has a healthcheck in compose, so rely on compose status
   wait_until_healthy_compose searxng "searxng (/status)" || exit 1
 else

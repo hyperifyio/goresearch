@@ -9,4 +9,14 @@ networks:
 services:
   searxng:
     ports:
-      - "8888:8080"   # expose SearxNG web UI/API on localhost:8888
+      - "8080:8080"   # expose SearxNG web UI/API on localhost:8080
+
+  # Optionally publish LocalAI on localhost:1235 (avoids clashing with stub)
+  llm-openai:
+    ports:
+      - "1235:8080"   # expose LocalAI on localhost:1235 (/v1)
+
+  # Publish the stub LLM on localhost:1234 for fast smoke tests
+  stub-llm:
+    ports:
+      - "1234:8081"   # expose stub on localhost:1234 (/v1)
