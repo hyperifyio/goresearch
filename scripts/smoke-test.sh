@@ -2,7 +2,7 @@
 # Smoke test for goresearch (Nginx HSTS use case)
 # - Validates external dependencies required by the tool:
 #   - SearxNG at http://localhost:8888
-#   - (LLM removed) No local OpenAI-compatible API is bootstrapped
+#   - OpenAI-compatible LLM API at http://localhost:1234/v1 (or $LLM_BASE_URL)
 # - Does NOT build or run goresearch; build moved to Makefile
 # - Prints a clean PASS/FAIL summary
 
@@ -32,8 +32,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT_DIR" || exit 1
 
 SEARX_URL="${SEARX_URL:-http://localhost:8888}"
-LLM_BASE="${LLM_BASE_URL:-}"
-LLM_MODEL="${LLM_MODEL:-}"
+LLM_BASE="${LLM_BASE_URL:-http://localhost:1234/v1}"
 
 maybe_bootstrap_services() {
   # Best-effort local bootstrap using Docker Compose if endpoints are not reachable.
@@ -92,8 +91,38 @@ else
   fi
 fi
 
-section "LLM check skipped"
-wn "Local LLM bootstrap and checks removed. Configure external LLM via env when running non-dry runs."
+section "Check LLM (OpenAI-compatible)"
+# Basic reachability and model listing against OpenAI-compatible API
+trimmed_base=${LLM_BASE%/}
+models_url="$trimmed_base/models"
+
+# Build curl args, include Authorization only if OPENAI_API_KEY is provided
+curl_args=( -sS -m 12 -H "Content-Type: application/json" )
+if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+  curl_args+=( -H "Authorization: Bearer $OPENAI_API_KEY" )
+fi
+
+llm_resp=$(curl "${curl_args[@]}" "$models_url" 2>/dev/null || true)
+if [[ -n "$llm_resp" ]]; then
+  if have jq; then
+    # Expect { object: "list", data: [ ... ] }
+    object=$(printf '%s' "$llm_resp" | jq -r '.object // empty' 2>/dev/null || true)
+    data_count=$(printf '%s' "$llm_resp" | jq '(.data | length) // 0' 2>/dev/null || echo 0)
+    if [[ "$object" == "list" || "$data_count" -ge 0 ]]; then
+      ok "LLM reachable at $trimmed_base (models listed: $data_count)"
+    else
+      ko "LLM responded but not in expected format at $trimmed_base"
+    fi
+  else
+    if printf '%s' "$llm_resp" | grep -q '"data"'; then
+      ok "LLM reachable at $trimmed_base (models endpoint responded)"
+    else
+      ko "LLM responded but missing data field at $trimmed_base"
+    fi
+  fi
+else
+  ko "LLM not reachable at $trimmed_base"
+fi
 
 section "Summary"
 echo "${BOLD}Passes:${RESET} ${#passes[@]}"
