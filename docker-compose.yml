@@ -4,3 +4,18 @@ networks:
   goresearch_net:
     driver: bridge
     internal: true
+
+services:
+  # SearxNG meta-search engine (dependency for web search)
+  searxng:
+    image: searxng/searxng@sha256:fe702750a9ffbf923533c67c456951a3be77f298915cf632077f3650ed4b5e4b
+    networks:
+      - goresearch_net
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    volumes:
+      - ./devops/searxng-settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/status').read()"]
+    restart: unless-stopped
