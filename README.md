@@ -2,26 +2,6 @@
 
 Generate validated, citation-rich research reports from a single Markdown brief. goresearch plans queries, searches the web (optionally via SearxNG), fetches and extracts readable text, and asks an OpenAI-compatible LLM to synthesize a clean Markdown report with numbered citations, references, and an evidence-check appendix. It runs entirely on standard chat-completions APIs—no proprietary search features.
 
-### Table of contents
-- [Features](#features)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Caching and reproducibility](#caching-and-reproducibility)
-- [Verification & manifest guide](#verification--manifest-guide)
-- [Robots, opt-out, and politeness policy](#robots-opt-out-and-politeness-policy)
-- [Tests](#tests)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [Support](#support)
-- [License](#license)
-- [Project status](#project-status)
- - [Full CLI reference](#full-cli-reference)
- - [Run locally with Docker](#run-locally-with-docker)
- - [Local stack helpers (optional)](#local-stack-helpers-optional)
- - [Troubleshooting & FAQ](#troubleshooting--faq)
-
 ## Features
 - **End-to-end pipeline**: brief parsing → planning → search → fetch/extract → selection/dedup → budgeting → synthesis → validation → verification → rendering.
 - **Grounded synthesis**: strictly uses supplied extracts; numbered inline citations map to a final References section.
@@ -57,99 +37,40 @@ go build -o bin/goresearch ./cmd/goresearch
 
 ## Quick start
 
-### One‑liner (deterministic dry run)
+### End-to-end example: Nginx HSTS decision brief (real LLM required)
 
-Copy and paste this command. It writes a small “hello research” brief, runs a dry run (no LLM required), and prints the beginning of the resulting Markdown report.
+This example mirrors the documented use case and requires a real OpenAI‑compatible API at `http://localhost:1234/v1` and a SearxNG at `http://localhost:8080`.
 
-```bash
-printf "%s\n" "# Hello Research — Brief introduction to goresearch" "" \
-  "Audience: Developers and researchers" \
-  "Tone: Practical, welcoming" \
-  "Target length: 800 words" "" \
-  "Key questions: What is goresearch? How does it work? What makes it useful for researchers and developers?" \
-  > hello-research.md && \
-goresearch -dry-run -input hello-research.md -output hello-research-report.md && \
-sed -n '1,24p' hello-research-report.md
-```
-
-Expected output (first lines):
+1) Write `request.md`:
 
 ```markdown
-# goresearch (dry run)
-
-Topic: Hello Research — Brief introduction to goresearch
-Audience: Developers and researchers
-Tone: Practical, welcoming
-Target Length (words): 800
-
-Planned queries:
-1. Hello Research — Brief introduction to goresearch specification
-2. Hello Research — Brief introduction to goresearch documentation
-3. Hello Research — Brief introduction to goresearch reference
-4. Hello Research — Brief introduction to goresearch tutorial
-5. Hello Research — Brief introduction to goresearch best practices
-6. Hello Research — Brief introduction to goresearch faq
-7. Hello Research — Brief introduction to goresearch examples
-8. Hello Research — Brief introduction to goresearch comparison
-9. Hello Research — Brief introduction to goresearch limitations
-10. Hello Research — Brief introduction to goresearch contrary findings
-
-Selected URLs:
-1. Hello Research — Brief introduction to goresearch specification — https://github.com/hyperifyio/goresearch
-2. Hello Research — Brief introduction to goresearch reference — https://goresearch.dev/reference
-3. Hello Research — Brief introduction to goresearch documentation — https://goresearch.dev/documentation
-4. Hello Research — Brief introduction to goresearch tutorial — https://goresearch.dev/tutorial
-```
-
-Tip: remove `-dry-run` and set `LLM_BASE_URL` (e.g., `http://localhost:1234/v1`), `LLM_MODEL` (e.g., `openai/gpt-oss-20b`), and `LLM_API_KEY` (if your server requires it). `SEARX_URL` is optional. For the nginx HSTS use case, you do not need to run any local LLM containers; point to an external OpenAI‑compatible API such as `http://localhost:1234/v1`.
-
-### “Hello research” brief and result
-
-Brief used above:
-
-```markdown
-# Hello Research — Brief introduction to goresearch
-
-Audience: Developers and researchers
-Tone: Practical, welcoming  
-Target length: 800 words
-
-Key questions: What is goresearch? How does it work? What makes it useful for researchers and developers?
-```
-
-Result (dry run) is written to `hello-research-report.md`. See also the committed sample at `hello-research-report.md` and `reports/hello-research-brief-introduction-to-goresearch/report.md`.
-1) Create a minimal `request.md` with topic and optional hints:
-
-```markdown
-# Cursor MDC format — concise overview for plugin authors
-Audience: Senior engineers
-Tone: Practical, matter-of-fact
+# Enable HSTS correctly on Nginx (with preload) — decision brief
+Audience: Engineering leadership
+Tone: Practical, risk-aware
 Target length: 1200 words
 
-Key questions: spec, examples, best practices.
+Key questions: correct header, validation steps, preload caveats, rollback.
 ```
 
-2) Run goresearch with your LLM endpoint configured (external OpenAI-compatible API):
+2) Export your LLM settings:
 
 ```bash
 export LLM_BASE_URL="http://localhost:1234/v1"
 export LLM_MODEL="openai/gpt-oss-20b"
+```
 
+3) Run goresearch against live web search via SearxNG:
+
+```bash
 goresearch \
   -input request.md \
   -output report.md \
   -llm.base "$LLM_BASE_URL" \
   -llm.model "$LLM_MODEL" \
-  -llm.key "$LLM_API_KEY"
+  -searx.url "http://localhost:8080"
 ```
 
-3) Open `report.md`. You should see a title and date, an executive summary, body sections with bracketed citations like `[3]`, a References list with URLs, an Evidence check appendix, and a reproducibility footer.
-
-Tip: explore without calling the LLM first:
-
-```bash
-goresearch -input request.md -output report.md -dry-run -searx.url "$SEARX_URL"
-```
+Open `report.md`. You should see an executive summary, analysis with bracketed citations like `[3]`, a References list with URLs, an Evidence appendix, and a reproducibility footer.
 
 ## Configuration
 
@@ -227,14 +148,15 @@ docker compose up -d searxng
 Optional services live in `docker-compose.optional.yml` and can be brought up as needed, e.g. a local OpenAI‑compatible LLM or TLS proxy:
 
 ```bash
-# LocalAI (OpenAI-compatible LLM) — optional, not required for nginx use case
+# Optional LocalAI (OpenAI-compatible) if you don't already have an LLM
 docker compose -f docker-compose.optional.yml up -d llm-openai
 
 # TLS reverse proxy via Caddy — optional (needs base + optional files)
 docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile tls up -d caddy-tls
 
-# Stub LLM for deterministic tests — optional
-docker compose -f docker-compose.optional.yml --profile test up -d stub-llm test-runner
+# Stub LLM for deterministic tests — not used in quick start
+# (kept for unit/integration tests only)
+# docker compose -f docker-compose.optional.yml --profile test up -d stub-llm test-runner
 ```
 
 ### Environment variables
@@ -250,7 +172,7 @@ Compose will read a local `.env` file when present and also respects exported sh
 You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container.
 
 ### Health checks and readiness
-- Services declare health checks: `searxng` probes `/status`. Optional LLM (`llm-openai`) probes `/v1/models` when used.
+- Services declare health checks: `searxng` probes the root (`/`) or `/status` depending on version. Optional LLM (`llm-openai`) probes `/v1/models` when used.
 - Check health via:
 
 ```bash
@@ -340,11 +262,7 @@ goresearch -v -log.level debug -lang en -max.perDomain 2 -input request.md -outp
   -searx.url "$SEARX_URL" -searx.key "$SEARX_KEY"
 ```
 
-Dry run to preview queries and selected URLs without LLM calls:
-
-```bash
-goresearch -dry-run -input request.md -output report.md -searx.url "$SEARX_URL"
-```
+We no longer document use cases without a real LLM in the quick start. Use `-dry-run` only for debugging.
 
 ## Caching and reproducibility
 ## Running SearxNG without Docker (optional)
@@ -374,21 +292,8 @@ Then point goresearch to it:
 goresearch -searx.url http://localhost:8888
 ```
 
-## Offline, no external search
-For environments with no network or no search service, use the file-based provider. Create a JSON file with minimal results and supply `-search.file <path>`:
-
-```json
-[
-  {"title": "Example Domain", "url": "https://example.com", "snippet": "Example"},
-  {"title": "Go", "url": "https://go.dev", "snippet": "The Go Programming Language"}
-]
-```
-
-Run:
-
-```bash
-goresearch -search.file ./fixtures/search.json -llm.base "$LLM_BASE_URL" -llm.model "$LLM_MODEL" -llm.key "$LLM_API_KEY"
-```
+## Offline and stubbed modes
+Offline and stubbed modes are for tests only and are not supported in user workflows.
 - **HTTP cache**: stores bodies and headers keyed by URL; uses ETag/Last-Modified for conditional revalidation.
 - **LLM cache**: caches request/response pairs by a normalized prompt digest and model name.
 - **Invalidation**:

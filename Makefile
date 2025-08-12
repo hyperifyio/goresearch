@@ -1,4 +1,4 @@
-.PHONY: wait up down logs rebuild test clean image image-archives builder-create test-build-amd64 test-build-arm64 test-multiarch
+.PHONY: wait up down logs rebuild test clean image image-archives builder-create test-build-amd64 test-build-arm64 test-multiarch build
 
 # Wait for local dependencies (LLM and SearxNG) to become healthy.
 # Uses environment variables LLM_BASE_URL and SEARX_URL when set.
@@ -27,10 +27,14 @@ rebuild:
 # Run Go tests; optionally bring up the test profile with stub-llm
 # Note: In environments without Docker, this still runs local tests.
 test:
-	@echo "Running Go tests (local). If Docker is available, starting test profile with stub-llm..."
-	@docker compose --profile test up -d stub-llm >/dev/null 2>&1 || true
+	@echo "Running Go tests (local)"
 	@go test ./...
-	@docker compose --profile test down >/dev/null 2>&1 || true
+
+# Build goresearch CLI locally (no docker). Output: bin/goresearch
+build:
+	@mkdir -p bin
+	@echo "Building goresearch CLI -> bin/goresearch"
+	@go build -o bin/goresearch ./cmd/goresearch
 
 # Prune only cache-related volumes created by this project
 # Safe to run even if Docker is unavailable

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test for goresearch (Nginx HSTS use case)
-# - Only validates external dependencies required by the tool:
+# - Validates external dependencies required by the tool:
 #   - SearxNG at http://localhost:8080
 #   - OpenAI-compatible API at http://localhost:1234/v1
 # - Does NOT build or run goresearch; build moved to Makefile
@@ -35,32 +35,7 @@ SEARX_URL="${SEARX_URL:-http://localhost:8080}"
 LLM_BASE="${LLM_BASE_URL:-http://localhost:1234/v1}"
 LLM_MODEL="${LLM_MODEL:-}"
 
-# Compose files to consider when checking container health or starting services
-COMPOSE_ARGS=(
-  -f docker-compose.yml
-  -f docker-compose.optional.yml
-  -f docker-compose.override.yml.example
-)
-
-# If endpoints are down and Docker is available, try to bootstrap services via compose
-maybe_bootstrap_services() {
-  # Quick probe
-  local searx_ok=0 llm_ok=0
-  curl -fsS -m 3 "${SEARX_URL%/}/status" >/dev/null 2>&1 && searx_ok=1 || true
-  curl -fsS -m 3 "${LLM_BASE%/}/models" >/dev/null 2>&1 && llm_ok=1 || true
-  if [[ $searx_ok -eq 1 && $llm_ok -eq 1 ]]; then
-    return 0
-  fi
-
-  if have docker && docker compose version >/dev/null 2>&1; then
-    echo "Attempting to start dependencies with Docker Compose (searxng + stub-llm with host ports)..."
-    docker compose "${COMPOSE_ARGS[@]}" \
-      --profile test up -d stub-llm >/dev/null 2>&1 || true
-    docker compose "${COMPOSE_ARGS[@]}" \
-      up -d searxng >/dev/null 2>&1 || true
-    # Do not block; rely on compose health checks in fallback logic
-  fi
-}
+maybe_bootstrap_services() { :; }
 
 section "Prerequisites"
 if have curl; then ok "curl found: $(curl --version | head -n1)"; else ko "curl not found. Install curl and re-run."; fi
@@ -68,25 +43,10 @@ if have jq; then ok "jq found: $(jq --version)"; else wn "jq not found. Model au
 
 section "Check SearxNG"
 maybe_bootstrap_services
-if curl -fsS -m 8 "${SEARX_URL%/}/status" >/dev/null 2>&1; then
-  ok "SearxNG /status reachable at ${SEARX_URL}"
+if curl -fsS -m 8 "${SEARX_URL%/}/" >/dev/null 2>&1; then
+  ok "SearxNG reachable at ${SEARX_URL}"
 else
-  # Fallback: if docker compose has a healthy container, accept as OK
-  if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
-    cid=$(docker compose "${COMPOSE_ARGS[@]}" ps -q searxng 2>/dev/null || true)
-    if [ -n "$cid" ]; then
-      status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || true)
-      if [ "$status" = "healthy" ] || [ "$status" = "starting" ]; then
-        wn "SearxNG not reachable at ${SEARX_URL}; container status=${status}. Using compose health as proxy."
-      else
-        ko "SearxNG not reachable at ${SEARX_URL} (expected /status)"
-      fi
-    else
-      ko "SearxNG not reachable at ${SEARX_URL} (expected /status)"
-    fi
-  else
-    ko "SearxNG not reachable at ${SEARX_URL} (expected /status)"
-  fi
+  ko "SearxNG not reachable at ${SEARX_URL}"
 fi
 
 # Simple JSON query to ensure search works
@@ -117,28 +77,27 @@ else
 fi
 
 section "Check OpenAI-compatible API"
-if curl -fsS -m 8 "${LLM_BASE%/}/models" >/dev/null 2>&1; then
+# Try common base path variants to find a working models endpoint
+chosen_llm_base=""
+llm_candidates=()
+if [[ "${LLM_BASE}" == */v1 ]]; then
+  llm_candidates+=("${LLM_BASE}")
+  llm_candidates+=("${LLM_BASE%/v1}")
+else
+  llm_candidates+=("${LLM_BASE}")
+  llm_candidates+=("${LLM_BASE%/}/v1")
+fi
+for base in "${llm_candidates[@]}"; do
+  if curl -fsS -m 8 "${base%/}/models" >/dev/null 2>&1; then
+    chosen_llm_base="$base"
+    break
+  fi
+done
+if [[ -n "$chosen_llm_base" ]]; then
+  LLM_BASE="$chosen_llm_base"
   ok "LLM models endpoint reachable at ${LLM_BASE}"
 else
-  # Accept compose health as proxy
-  if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
-    for svc in stub-llm llm-openai; do
-      cid=$(docker compose "${COMPOSE_ARGS[@]}" ps -q "$svc" 2>/dev/null || true)
-      if [ -n "$cid" ]; then
-        status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || true)
-        if [ "$status" = "healthy" ] || [ "$status" = "starting" ]; then
-          wn "LLM not reachable at ${LLM_BASE}; ${svc} status=${status}. Using compose health as proxy."
-          llm_compose_ok=1
-          break
-        fi
-      fi
-    done
-    if [ "${llm_compose_ok:-0}" -ne 1 ]; then
-      ko "LLM not reachable at ${LLM_BASE} (expected /models)"
-    fi
-  else
-    ko "LLM not reachable at ${LLM_BASE} (expected /models)"
-  fi
+  ko "LLM not reachable at any of: ${llm_candidates[*]} (expected /models)"
 fi
 
 # Optional lightweight chat completion to confirm basic inference path

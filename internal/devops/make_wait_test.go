@@ -39,12 +39,14 @@ func TestMake_WaitTargetAndScript(t *testing.T) {
 	if !strings.Contains(content, "set -euo pipefail") {
 		t.Fatalf("wait-for-health.sh should enable strict mode")
 	}
-	if !strings.Contains(content, "/v1/models") && !strings.Contains(content, "/models") {
+    if !strings.Contains(content, "/v1/models") && !strings.Contains(content, "/models") {
 		t.Fatalf("script should probe LLM /v1/models endpoint")
 	}
-	if !strings.Contains(content, "/status") {
-		t.Fatalf("script should probe SearxNG /status endpoint")
-	}
+    // Accept either /status probe or root (/) probe for SearxNG since some builds
+    // disable /status endpoint in recent versions.
+    if !(strings.Contains(content, "/status") || strings.Contains(content, "SearxNG root")) {
+        t.Fatalf("script should probe SearxNG health (root or /status) endpoint")
+    }
 	if !strings.Contains(content, "curl -fsS") {
 		t.Fatalf("script should use curl -fsS for health checks")
 	}

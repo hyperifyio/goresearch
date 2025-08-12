@@ -55,7 +55,7 @@ func TestCompose_SearxNGServiceConfiguration(t *testing.T) {
         t.Fatalf("searxng image must be pinned by digest, got %q", image)
     }
 
-    // healthcheck exists and probes /status
+    // healthcheck exists and probes a reachable endpoint (root or /status)
     hc, ok := searx["healthcheck"].(map[string]any)
     if !ok {
         t.Fatalf("searxng healthcheck missing")
@@ -66,13 +66,13 @@ func TestCompose_SearxNGServiceConfiguration(t *testing.T) {
     }
     okURL := false
     for _, v := range testCmd {
-        if s, ok := v.(string); ok && strings.Contains(s, "/status") {
+        if s, ok := v.(string); ok && (strings.Contains(s, "/status") || strings.Contains(s, "http://localhost:8080/") || strings.Contains(s, "http://127.0.0.1:8080/")) {
             okURL = true
             break
         }
     }
     if !okURL {
-        t.Fatalf("searxng healthcheck must probe /status; test=%v", testCmd)
+        t.Fatalf("searxng healthcheck must probe a reachable endpoint (root or /status); test=%v", testCmd)
     }
 
     // volumes include mounted settings.yml

@@ -4,14 +4,14 @@ set -euo pipefail
 # Traceability: Implements FEATURE_CHECKLIST.md item
 # "Health-gated startup — ... Provide a make wait target that polls health for local troubleshooting."
 
-LLM_BASE_URL="${LLM_BASE_URL:-http://llm-openai:8080/v1}"
-SEARX_URL="${SEARX_URL:-http://searxng:8080}"
+LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:1234/v1}"
+SEARX_URL="${SEARX_URL:-http://localhost:8080}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-120}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-3}"
 
 # Normalize URLs and compute endpoints
 _llm_models_url="${LLM_BASE_URL%/}/models"
-_searx_status_url="${SEARX_URL%/}/status"
+_searx_status_url="${SEARX_URL%/}/"
 
 echo "Waiting for dependencies to become healthy..."
 echo "  LLM models endpoint: ${_llm_models_url}"
@@ -57,21 +57,8 @@ wait_until_healthy_compose() {
   done
 }
 
-# If docker compose is available and services are part of a compose project,
-# prefer container health checks (works with internal networks).
-if command -v docker >/dev/null 2>&1 && docker compose ps >/dev/null 2>&1; then
-  # Prefer stub-llm when present (fast and deterministic); otherwise use llm-openai
-  if docker compose ps -q stub-llm >/dev/null 2>&1 && [ -n "$(docker compose ps -q stub-llm)" ]; then
-    wait_until_healthy_compose stub-llm "stub-llm (/v1/models)" || exit 1
-  else
-    wait_until_healthy_compose llm-openai "llm-openai (/v1/models)" || exit 1
-  fi
-  # searxng has a healthcheck in compose, so rely on compose status
-  wait_until_healthy_compose searxng "searxng (/status)" || exit 1
-else
-  # Fallback to host HTTP polling
-  wait_until_ok_http "${_llm_models_url}" "llm-openai (/v1/models)" || exit 1
-  wait_until_ok_http "${_searx_status_url}" "searxng (/status)" || exit 1
-fi
+# Poll host endpoints directly
+wait_until_ok_http "${_llm_models_url}" "LLM models" || exit 1
+wait_until_ok_http "${_searx_status_url}" "SearxNG root" || exit 1
 
 echo "All dependencies healthy."
