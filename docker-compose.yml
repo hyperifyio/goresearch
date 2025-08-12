@@ -8,13 +8,7 @@ networks:
 volumes:
   http_cache:
   llm_cache:
-  models:
   reports:
-  # Dedicated volume for secure-at-rest cache profile
-  secure_cache:
-  # Caddy volumes for TLS certificates and configuration
-  caddy_data:
-  caddy_config:
 
 services:
   # One-shot init to align ownership of named volumes with APP_UID:APP_GID
@@ -31,18 +25,7 @@ services:
     restart: "no"
     profiles: ["dev", "test", "offline", "tls"]
 
-  # One-shot init for secure cache volume; aligns ownership for /app/.goresearch-cache
-  perms-init-secure:
-    image: alpine:3.20@sha256:b3119ef930faabb6b7b976780c0c7a9c1aa24d0c75e9179ac10e6bc9ac080d0d
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    command: ["sh", "-lc", "chown -R ${APP_UID:-1000}:${APP_GID:-1000} /app/.goresearch-cache /app/reports || true"]
-    volumes:
-      - secure_cache:/app/.goresearch-cache
-      - reports:/app/reports
-    networks:
-      - goresearch_net
-    restart: "no"
-    profiles: ["secure-cache"]
+  
   research-tool:
     # Runs the CLI from source using the official Go image.
     # A dedicated Dockerfile will be added in a later checklist item.
@@ -55,11 +38,12 @@ services:
       - ./reports:/app/reports
     # Load environment from .env (Compose default) and avoid in-file secrets.
     environment:
-      - LLM_BASE_URL=http://llm-openai:8080/v1
-      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
-      # Note: LLM_API_KEY and SEARX_KEY must be provided via environment/.env
-      # and are intentionally not defaulted here to avoid baking secrets.
-      - SEARX_URL=http://searxng:8080
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LLM_MODEL=${LLM_MODEL:-openai/gpt-oss-20b}
+      # Note: LLM_API_KEY must be provided via environment/.env and is
+      # intentionally not defaulted here to avoid baking secrets.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # Run as the invoking host user's UID:GID to avoid permission issues on bind mounts
     command: ["sleep", "infinity"]
     networks:
@@ -68,256 +52,7 @@ services:
     depends_on:
       perms-init:
         condition: service_completed_successfully
-      models-init:
-        condition: service_completed_successfully
-      llm-openai:
-        condition: service_healthy
-      searxng:
-        condition: service_healthy
 
-  # Test profile variant: no dependency on searxng; used for deterministic tests
-  research-tool-test:
-    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
-    working_dir: /app
-    volumes:
-      - ./:/app
-      - http_cache:/app/.goresearch-cache/http
-      - llm_cache:/app/.goresearch-cache/llm
-      - reports:/app/reports
-    environment:
-      - LLM_BASE_URL=http://llm-openai:8080/v1
-      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
-      # SEARX_URL intentionally omitted in test variant
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    command: ["sleep", "infinity"]
-    networks:
-      - goresearch_net
-    profiles: ["test"]
-    depends_on:
-      perms-init:
-        condition: service_completed_successfully
-      models-init:
-        condition: service_completed_successfully
-      llm-openai:
-        condition: service_healthy
-
-  # Secure-at-rest variant: mounts a dedicated cache volume and enables strict perms
-  research-tool-secure:
-    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
-    working_dir: /app
-    volumes:
-      - ./:/app
-      - secure_cache:/app/.goresearch-cache
-      - reports:/app/reports
-    environment:
-      - LLM_BASE_URL=http://llm-openai:8080/v1
-      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
-      - SEARX_URL=http://searxng:8080
-      - CACHE_STRICT_PERMS=1
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    command: ["sleep", "infinity"]
-    networks:
-      - goresearch_net
-    profiles: ["secure-cache"]
-    depends_on:
-      perms-init-secure:
-        condition: service_completed_successfully
-      models-init:
-        condition: service_completed_successfully
-      llm-openai:
-        condition: service_healthy
-      searxng:
-        condition: service_healthy
-
-  # Offline variant: runs in cache-only mode and does not depend on SearxNG.
-  research-tool-offline:
-    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
-    working_dir: /app
-    volumes:
-      - ./:/app
-      - http_cache:/app/.goresearch-cache/http
-      - llm_cache:/app/.goresearch-cache/llm
-      - reports:/app/reports
-    environment:
-      - LLM_BASE_URL=http://llm-openai:8080/v1
-      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
-      - HTTP_CACHE_ONLY=1
-      - LLM_CACHE_ONLY=1
-      # Intentionally omit SEARX_URL to disable SearxNG usage in app config
-    # Run as the invoking host user's UID:GID to avoid permission issues on bind mounts
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    command: ["sleep", "infinity"]
-    networks:
-      - goresearch_net
-    profiles: ["offline"]
-    depends_on:
-      perms-init:
-        condition: service_completed_successfully
-      models-init:
-        condition: service_completed_successfully
-      llm-openai:
-        condition: service_healthy
-
-  # TLS variant: uses HTTPS endpoints provided by caddy-tls reverse proxy
-  research-tool-tls:
-    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
-    working_dir: /app
-    volumes:
-      - ./:/app
-      - http_cache:/app/.goresearch-cache/http
-      - llm_cache:/app/.goresearch-cache/llm
-      - reports:/app/reports
-      # Mount Caddy's CA certificate for SSL verification
-      - caddy_data:/caddy_data:ro
-    environment:
-      - LLM_BASE_URL=https://caddy-tls:8443/v1
-      - LLM_MODEL=${LLM_MODEL:-gpt-neo}
-      - SEARX_URL=https://caddy-tls:8444
-      # Skip SSL verification for self-signed certs in local development
-      - SSL_VERIFY=false
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    command: ["sleep", "infinity"]
-    networks:
-      - goresearch_net
-    profiles: ["tls"]
-    depends_on:
-      perms-init:
-        condition: service_completed_successfully
-      models-init:
-        condition: service_completed_successfully
-      caddy-tls:
-        condition: service_healthy
-
-  # OpenAI-compatible LLM server
-  # This uses LocalAI as a convenient default for development.
-  llm-openai:
-    image: quay.io/go-skynet/local-ai@sha256:293f9109bdcebc2f75a10215cdff6683ee669fbdec9f6b85d101b19fe6702adb
-    environment:
-      - MODELS_PATH=/models
-      - GIN_MODE=release
-    networks:
-      - goresearch_net
-    volumes:
-      - models:/models
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/models"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-    profiles: ["dev", "test", "offline", "secure-cache", "tls"]
-    depends_on:
-      models-bootstrap:
-        condition: service_completed_successfully
-      models-init:
-        condition: service_completed_successfully
-
-  # One-shot init to prepare models volume with checksum verification
-  models-init:
-    image: alpine:3.20@sha256:b3119ef930faabb6b7b976780c0c7a9c1aa24d0c75e9179ac10e6bc9ac080d0d
-    command: ["sh", "-lc", "if [ -f /models/checksums.sha256 ]; then sha256sum -c /models/checksums.sha256; else echo 'no checksums provided'; fi"]
-    volumes:
-      - models:/models
-    networks:
-      - goresearch_net
-    restart: "no"
-    profiles: ["dev", "test", "secure-cache", "tls"]
-
-  # One-shot bootstrap to fetch a small GGUF model and write models.yaml for LocalAI
-  models-bootstrap:
-    image: alpine:3.20@sha256:b3119ef930faabb6b7b976780c0c7a9c1aa24d0c75e9179ac10e6bc9ac080d0d
-    entrypoint: ["/bin/sh","-lc"]
-    command: >
-      set -eu;
-      apk add --no-cache curl ca-certificates >/dev/null;
-      mkdir -p /models;
-      F="/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf";
-      URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf?download=true";
-      if [ ! -f "$$F" ]; then echo "Downloading $$F"; curl -fL --retry 3 -o "$$F" "$$URL"; fi;
-      printf "models:\n  - name: tinyllama\n    backend: llama\n    parameters:\n      model: %s\n" "$$F" > /models/models.yaml;
-      sha256sum /models/*.gguf > /models/checksums.sha256 || true;
-      echo "Bootstrap done.";
-    volumes:
-      - models:/models
-    networks:
-      - goresearch_net
-    restart: "no"
-    profiles: ["dev", "test", "offline", "secure-cache", "tls"]
-
-  # SearxNG meta-search engine (default search provider)
-  searxng:
-    image: searxng/searxng@sha256:fe702750a9ffbf923533c67c456951a3be77f298915cf632077f3650ed4b5e4b
-    networks:
-      - goresearch_net
-    environment:
-      - SEARXNG_BASE_URL=http://searxng:8080/
-      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
-    volumes:
-      - ./devops/searxng-settings.yml:/etc/searxng/settings.yml:ro
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/status').read()"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-    profiles: ["dev", "secure-cache", "tls"]
-
-  # Stub LLM for deterministic tests (placeholder image; refined later)
-  stub-llm:
-    build:
-      context: .
-      dockerfile: Dockerfile.openai-stub
-    networks:
-      - goresearch_net
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8081/v1/models"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-    profiles: ["test"]
-
-  # Disposable integration test runner. Installs gotestsum and runs Go tests,
-  # writing JUnit XML and HTML coverage reports under ./reports/tests.
-  test-runner:
-    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
-    working_dir: /app
-    volumes:
-      - ./:/app
-      - http_cache:/app/.goresearch-cache/http
-      - llm_cache:/app/.goresearch-cache/llm
-      - reports:/app/reports
-    environment:
-      - LLM_BASE_URL=http://stub-llm:8081/v1
-      - LLM_MODEL=test-model
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    entrypoint: ["bash","scripts/test-runner.sh"]
-    networks:
-      - goresearch_net
-    profiles: ["test"]
-    depends_on:
-      perms-init:
-        condition: service_completed_successfully
-      stub-llm:
-        condition: service_healthy
-
-  # Optional Caddy reverse-proxy for local HTTPS termination
-  # Provides self-signed TLS certificates for llm and searxng services
-  # Disabled by default and isolated to the Compose network
-  caddy-tls:
-    image: caddy:2.8-alpine@sha256:af32e97399febea808609119bb21544d0265c58a02836576e32a2d082c262c17
-    networks:
-      - goresearch_net
-    volumes:
-      - ./devops/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    healthcheck:
-      test: ["CMD", "sh", "-c", "caddy validate --config /etc/caddy/Caddyfile"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-    profiles: ["tls"]
-    depends_on:
-      llm-openai:
-        condition: service_healthy
-      searxng:
-        condition: service_healthy
+  # Optional services (LLM, search, TLS, test helpers) are moved to
+  # docker-compose.optional.yml to keep the base stack minimal for the nginx
+  # use case. See that file for additional profiles and services.

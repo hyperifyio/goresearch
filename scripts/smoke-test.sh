@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Simple, real smoke test for goresearch (requires a real local LLM)
-# - Starts LocalAI via Docker Compose (exposed on localhost:8080)
-# - Runs the end-to-end pipeline against the real LLM
+# Simple smoke test for goresearch using an external OpenAI-compatible LLM
+# - Assumes an API at http://localhost:1234/v1 with model openai/gpt-oss-20b
+# - Runs the end-to-end pipeline without starting any local LLM containers
 # - Prints a clean PASS/FAIL summary for key capabilities
 
 set -u
@@ -42,8 +42,6 @@ trap cleanup EXIT
 
 section "Prerequisites"
 if have go; then ok "Go found: $(go version)"; else ko "Go toolchain not found. Install Go 1.23+ and re-run."; fi
-if have docker; then ok "Docker found: $(docker --version | cut -d',' -f1)"; else ko "Docker not found; required for LocalAI"; fi
-if have docker && have docker compose; then ok "Docker Compose found: $(docker compose version | head -1)"; else ko "Docker Compose not found; required for LocalAI"; fi
 
 section "Build goresearch CLI"
 TMPDIR=$(mktemp -d)
@@ -52,51 +50,15 @@ if go build -o "$TMPDIR/goresearch" ./cmd/goresearch; then
 else
   ko "Failed to build goresearch CLI"; echo "Try: go build -o bin/goresearch ./cmd/goresearch"; fi
 
-section "Start LocalAI (real LLM)"
-if have docker && have docker compose; then
-  # Ensure models volume has at least one GGUF and a models.yaml mapping name 'tinyllama'
-  if docker run --rm -i -v goresearch_models:/models alpine:3.20 /bin/sh -lc '
-    set -eu; apk add --no-cache curl ca-certificates >/dev/null;
-    mkdir -p /models;
-    F="/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf";
-    URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf?download=true";
-    if [ ! -e "$F" ] && ! ls -1 /models/*.gguf >/dev/null 2>&1; then echo "Downloading $F"; curl -fL --retry 3 -o "$F" "$URL"; fi;
-    if ! ls -1 /models/*.gguf >/dev/null 2>&1; then echo "No .gguf models available"; exit 1; fi;
-    GGUF=$(ls -1 /models/*.gguf | head -n1);
-    printf "models:\n  - name: tinyllama\n    backend: llama\n    parameters:\n      model: %s\n" "$GGUF" > /models/models.yaml;
-    sha256sum /models/*.gguf > /models/checksums.sha256 || true;
-  ' >/dev/null 2>&1; then
-    ok "Prepared models volume with models.yaml"
-  else
-    ko "Failed to prepare models volume (models.yaml)"
-  fi
-
-  # Bring up LocalAI and expose port via override
-  if docker compose -f docker-compose.yml -f docker-compose.override.yml.example --profile dev up -d llm-openai >/dev/null 2>&1; then
-    CLEANUP_CMDS+=("docker compose -f docker-compose.yml -f docker-compose.override.yml.example --profile dev down >/dev/null 2>&1 || true")
-    # Wait for container health and host port readiness
-    for i in {1..120}; do
-      cid=$(docker compose -f docker-compose.yml -f docker-compose.override.yml.example ps -q llm-openai 2>/dev/null || true)
-      if [[ -n "$cid" ]]; then
-        s=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || true)
-        if [[ "$s" == "healthy" ]] && curl -fsS http://127.0.0.1:8080/v1/models >/dev/null 2>&1; then
-          ok "LocalAI healthy on localhost:8080"
-          break
-        fi
-      fi
-      sleep 2
-    done
-    if ! curl -fsS http://127.0.0.1:8080/v1/models >/dev/null 2>&1; then
-      ko "LocalAI did not become healthy on localhost:8080"
-    fi
-  else
-    ko "Could not start llm-openai; to run manually: docker compose -f docker-compose.yml -f docker-compose.override.yml.example --profile dev up -d llm-openai"
-  fi
+section "Check external LLM"
+LLM_BASE="${LLM_BASE_URL:-http://127.0.0.1:1234/v1}"
+if curl -fsS "$LLM_BASE/models" >/dev/null 2>&1; then
+  ok "External LLM reachable at $LLM_BASE"
 else
-  ko "Docker/Compose unavailable; cannot start LocalAI"
+  ko "External LLM not reachable at $LLM_BASE. Expected an OpenAI-compatible server exposing /v1/models"
 fi
 
-section "Run end-to-end pipeline with LocalAI"
+section "Run end-to-end pipeline"
 BRIEF="$TMPDIR/brief.md"
 RESULTS="$TMPDIR/results.json"
 OUT="$TMPDIR/report.md"
@@ -113,10 +75,7 @@ cat >"$RESULTS" <<'EOF'
   {"Title":"The Go Programming Language","URL":"https://go.dev","Snippet":"System Test documentation"}
 ]
 EOF
-LLM_BASE="http://127.0.0.1:8080/v1"
-# Prefer using an explicit installed model ID when LocalAI exposes filenames
-MODEL_ID=$(curl -sS "$LLM_BASE/models" | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
-if [[ -z "$MODEL_ID" || "$MODEL_ID" == "model" ]]; then MODEL_ID=tinyllama; fi
+MODEL_ID=${LLM_MODEL:-openai/gpt-oss-20b}
 "$GO_BIN" -input "$BRIEF" -output "$OUT" -search.file "$RESULTS" -llm.base "$LLM_BASE" -llm.model "$MODEL_ID" -no-verify -cache.dir "$TMPDIR/cache" -reports.dir "$REPORTS_DIR" -reports.tar >/dev/null 2>&1
 status=$?
 if [[ $status -eq 0 && -s "$OUT" ]]; then

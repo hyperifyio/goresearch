@@ -1,6 +1,6 @@
 # goresearch
 
-Generate validated, citation-rich research reports from a single Markdown brief. goresearch plans queries, searches the web (via SearxNG), fetches and extracts readable text, and asks a local OpenAI-compatible LLM to synthesize a clean Markdown report with numbered citations, references, and an evidence-check appendix. It runs entirely on standard chat-completions APIs—no proprietary search features.
+Generate validated, citation-rich research reports from a single Markdown brief. goresearch plans queries, searches the web (optionally via SearxNG), fetches and extracts readable text, and asks an OpenAI-compatible LLM to synthesize a clean Markdown report with numbered citations, references, and an evidence-check appendix. It runs entirely on standard chat-completions APIs—no proprietary search features.
 
 ### Table of contents
 - [Features](#features)
@@ -101,7 +101,7 @@ Selected URLs:
 4. Hello Research — Brief introduction to goresearch tutorial — https://goresearch.dev/tutorial
 ```
 
-Tip: remove `-dry-run` and set `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, and `SEARX_URL` (optionally `SEARX_KEY`) to produce a full report.
+Tip: remove `-dry-run` and set `LLM_BASE_URL` (e.g., `http://localhost:1234/v1`), `LLM_MODEL` (e.g., `openai/gpt-oss-20b`), and `LLM_API_KEY` (if your server requires it). `SEARX_URL` is optional.
 
 ### “Hello research” brief and result
 
@@ -129,17 +129,18 @@ Target length: 1200 words
 Key questions: spec, examples, best practices.
 ```
 
-2) Run goresearch with your local LLM and search configured:
+2) Run goresearch with your LLM endpoint configured (external OpenAI-compatible API):
 
 ```bash
+export LLM_BASE_URL="http://localhost:1234/v1"
+export LLM_MODEL="openai/gpt-oss-20b"
+
 goresearch \
   -input request.md \
   -output report.md \
   -llm.base "$LLM_BASE_URL" \
   -llm.model "$LLM_MODEL" \
-  -llm.key "$LLM_API_KEY" \
-  -searx.url "$SEARX_URL" \
-  -searx.key "$SEARX_KEY"
+  -llm.key "$LLM_API_KEY"
 ```
 
 3) Open `report.md`. You should see a title and date, an executive summary, body sections with bracketed citations like `[3]`, a References list with URLs, an Evidence check appendix, and a reproducibility footer.
@@ -155,7 +156,7 @@ goresearch -input request.md -output report.md -dry-run -searx.url "$SEARX_URL"
 You can configure via flags or environment variables.
 
 Environment variables:
-- `LLM_BASE_URL`: base URL for the OpenAI-compatible server
+- `LLM_BASE_URL`: base URL for the OpenAI-compatible server (e.g., `http://localhost:1234/v1`)
 - `LLM_MODEL`: model name
 - `LLM_API_KEY`: API key for the server
 - `SEARX_URL`: SearxNG base URL (e.g., `https://searx.example.com`)
@@ -214,55 +215,48 @@ Important: On Apple M2 virtual machines (including this development environment)
 
 ### One-line dev start
 
-Bring up the development profile (research tool + SearxNG + OpenAI-compatible LLM):
+Bring up the development profile for the CLI container only (bind-mounts the repo and keeps caches):
 
 ```bash
 docker compose --profile dev up -d
 ```
 
-Alternatively, use the convenience target:
-
-```bash
-make up
-```
+This expects an external OpenAI-compatible LLM at `http://localhost:1234/v1` (or set `LLM_BASE_URL`). Optional local services (LLM, SearxNG, TLS) live in `docker-compose.optional.yml`.
 
 ### Profiles
-- dev: `research-tool`, `searxng`, `llm-openai` (default local stack)
-- test: `research-tool`, `stub-llm` (deterministic testing)
-- offline: `research-tool-offline`, `llm-openai` (cache-only; no SearxNG)
-- secure-cache: `research-tool-secure`, `searxng`, `llm-openai` (dedicated cache volume with restricted at-rest permissions via `CACHE_STRICT_PERMS=1`)
+- dev (base file): `research-tool` only
+- Optional profiles (in `docker-compose.optional.yml`): `llm-openai`, `searxng`, `stub-llm`, `test-runner`, `caddy-tls`
 
 Examples:
 
 ```bash
-# Dev stack
+## Base CLI container only
 docker compose --profile dev up -d
 
-# Test stack with stub model
-docker compose --profile test up -d stub-llm
+## Add optional services by composing the optional file
+# LocalAI (OpenAI-compatible LLM)
+docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile dev up -d llm-openai
 
-# Offline stack (HTTP/LLM cache only)
-docker compose --profile offline up -d
+# SearxNG (optional search)
+docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile dev up -d searxng
 
-# Secure-at-rest cache profile (dedicated cache volume + strict perms)
-docker compose --profile secure-cache up -d research-tool-secure
-
-# TLS profile (HTTPS termination with self-signed certs for local development)
-docker compose --profile tls up -d research-tool-tls
+# Stub LLM for deterministic tests
+docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile test up -d stub-llm test-runner
 ```
 
-The TLS profile provides optional HTTPS termination via Caddy reverse proxy with self-signed certificates. This is useful for testing TLS connectivity locally. The research tool will connect to the LLM and SearxNG services through HTTPS endpoints (ports 8443 and 8444) with SSL verification disabled for the self-signed certificates.
+The TLS profile in the optional file provides HTTPS termination (self-signed) via Caddy. Use it only if you need local TLS.
 
 ### Environment variables
 Compose will read a local `.env` file when present and also respects exported shell variables. Useful settings:
 
-- `LLM_MODEL`: model identifier known to your LLM server (default `gpt-neo`)
+- `LLM_BASE_URL`: `http://localhost:1234/v1` (or wherever your LLM is served)
+- `LLM_MODEL`: model identifier known to your LLM server (e.g., `openai/gpt-oss-20b`)
 - `LLM_API_KEY`: API key if your server requires one (not baked into images)
 - `SEARX_URL`: internal URL for SearxNG (default `http://searxng:8080`)
 - `SSL_VERIFY`: enable SSL certificate verification; set to `false` for self-signed certificates (default `true`)
 - `APP_UID` / `APP_GID`: host user/group IDs to avoid permission issues on bind mounts (e.g., `APP_UID=$(id -u) APP_GID=$(id -g)` before `make up`)
 
-You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container, but the defaults in `docker-compose.yml` are sufficient for most dev flows.
+You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container.
 
 ### Health checks and readiness
 - Services declare health checks: `llm-openai` probes `/v1/models`, `searxng` probes `/status`.
@@ -330,12 +324,12 @@ make test
 make clean
 ```
 
-### Network isolation and optional port exposure
+### Network isolation and optional port exposure (optional stack)
 
-By default, the Compose stack runs on a private internal network and does not publish any ports to the host. The `research-tool` reaches `llm-openai` and `searxng` by service name on the internal network only. To temporarily expose ports for local troubleshooting, use the provided override file:
+By default, the Compose stack runs on a private internal network and does not publish any ports to the host. When using optional services (`llm-openai`, `searxng`), to temporarily expose ports for local troubleshooting, use the provided override file with both compose files:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
+docker compose -f docker-compose.yml -f docker-compose.optional.yml -f docker-compose.override.yml.example up -d
 ```
 
 This maps `llm-openai` to `localhost:8080` and `searxng` to `localhost:8888`. Remove the override file from the command to restore the default private-only behavior.
