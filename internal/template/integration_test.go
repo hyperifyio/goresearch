@@ -1,11 +1,12 @@
-package template
+package template_test
 
 import (
-	"context"
-	"testing"
+    "context"
+    "testing"
 
-	"github.com/hyperifyio/goresearch/internal/brief"
-	"github.com/hyperifyio/goresearch/internal/planner"
+    "github.com/hyperifyio/goresearch/internal/brief"
+    "github.com/hyperifyio/goresearch/internal/planner"
+    tpl "github.com/hyperifyio/goresearch/internal/template"
 )
 
 // TestTemplateIntegrationWithPlanner verifies that the template system
@@ -108,11 +109,11 @@ func TestTemplateIntegrationWithPlanner(t *testing.T) {
 // TestTemplateSystemPromptsAreDistinct verifies that each template
 // provides meaningfully different system prompts for the synthesizer
 func TestTemplateSystemPromptsAreDistinct(t *testing.T) {
-	profiles := []Profile{
-		GetProfile("imrad"),
-		GetProfile("decision"),
-		GetProfile("literature"),
-		GetProfile(""), // default
+    profiles := []tpl.Profile{
+        tpl.GetProfile("imrad"),
+        tpl.GetProfile("decision"),
+        tpl.GetProfile("literature"),
+        tpl.GetProfile(""), // default
 	}
 
 	// Each profile should have a unique system prompt
@@ -125,17 +126,17 @@ func TestTemplateSystemPromptsAreDistinct(t *testing.T) {
 	}
 
 	// Verify specific keywords appear in appropriate prompts
-	imradProfile := GetProfile("imrad")
+    imradProfile := tpl.GetProfile("imrad")
 	if !containsAll(imradProfile.SystemPrompt, []string{"IMRaD", "Introduction", "Methods", "Results", "Discussion"}) {
 		t.Error("IMRaD profile system prompt should mention IMRaD structure components")
 	}
 
-	decisionProfile := GetProfile("decision")
+    decisionProfile := tpl.GetProfile("decision")
 	if !containsAll(decisionProfile.SystemPrompt, []string{"decision", "problem", "recommendation"}) {
 		t.Error("Decision profile system prompt should mention decision-making components")
 	}
 
-	literatureProfile := GetProfile("literature")
+    literatureProfile := tpl.GetProfile("literature")
 	if !containsAll(literatureProfile.SystemPrompt, []string{"literature", "review", "synthesis"}) {
 		t.Error("Literature profile system prompt should mention literature review components")
 	}
@@ -144,27 +145,27 @@ func TestTemplateSystemPromptsAreDistinct(t *testing.T) {
 // TestReportTypeNormalizationConsistency verifies that the brief package
 // and template package normalize report types consistently
 func TestReportTypeNormalizationConsistency(t *testing.T) {
-	testCases := []struct {
+    testCases := []struct {
 		input    string
-		expected Type
+        expected tpl.Type
 	}{
-		{"IMRaD", IMRaD},
-		{"imrad", IMRaD},
-		{"I.M.R.A.D", IMRaD},
-		{"Introduction, Methods, Results, Discussion", IMRaD},
-		{"decision", Decision},
-		{"technical", Decision},
-		{"decision report", Decision},
-		{"literature", Literature},
-		{"literature review", Literature},
-		{"systematic review", Literature},
-		{"", Default},
-		{"unknown", Default},
+        {"IMRaD", tpl.IMRaD},
+        {"imrad", tpl.IMRaD},
+        {"I.M.R.A.D", tpl.IMRaD},
+        {"Introduction, Methods, Results, Discussion", tpl.IMRaD},
+        {"decision", tpl.Decision},
+        {"technical", tpl.Decision},
+        {"decision report", tpl.Decision},
+        {"literature", tpl.Literature},
+        {"literature review", tpl.Literature},
+        {"systematic review", tpl.Literature},
+        {"", tpl.Default},
+        {"unknown", tpl.Default},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
-			profile := GetProfile(tc.input)
+            profile := tpl.GetProfile(tc.input)
 			if profile.Type != tc.expected {
 				t.Errorf("GetProfile(%q).Type = %v, want %v", tc.input, profile.Type, tc.expected)
 			}
@@ -172,7 +173,7 @@ func TestReportTypeNormalizationConsistency(t *testing.T) {
 			// Also test brief parsing for consistency
 			briefText := "# Test Topic\nType: " + tc.input
 			parsedBrief := brief.ParseBrief(briefText)
-			briefProfile := GetProfile(parsedBrief.ReportType)
+            briefProfile := tpl.GetProfile(parsedBrief.ReportType)
 			if briefProfile.Type != tc.expected {
 				t.Errorf("Brief parsing inconsistency for %q: got %v, want %v", 
 					tc.input, briefProfile.Type, tc.expected)

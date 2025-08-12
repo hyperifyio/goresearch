@@ -9,17 +9,16 @@ import (
     yaml "gopkg.in/yaml.v3"
 )
 
-// TestCompose_LLMServiceConfiguration verifies that the docker-compose file defines
+// TestCompose_LLMServiceConfiguration verifies that the optional compose file defines
 // an OpenAI-compatible LLM server with:
 // - image pinned by digest
 // - readiness healthcheck on /v1/models
 // - a mounted models volume
-// - research-tool depends on llm-openai becoming healthy
 // This is a static config test and does not require Docker.
 func TestCompose_LLMServiceConfiguration(t *testing.T) {
     // Locate compose at repo root
     root := findRepoRoot(t)
-    composePath := filepath.Join(root, "docker-compose.yml")
+    composePath := filepath.Join(root, "docker-compose.optional.yml")
     b, err := os.ReadFile(composePath)
     if err != nil {
         t.Fatalf("read compose: %v", err)
@@ -78,54 +77,22 @@ func TestCompose_LLMServiceConfiguration(t *testing.T) {
         t.Fatalf("llm-openai should mount a models volume to /models; volumes=%v", vols)
     }
 
-    // research-tool depends_on llm-openai healthy
-    tool, ok := services["research-tool"].(map[string]any)
-    if !ok {
-        t.Fatalf("research-tool service missing")
-    }
-    dep, ok := tool["depends_on"].(map[string]any)
-    if !ok {
-        t.Fatalf("research-tool.depends_on missing or wrong type")
-    }
-    llmDep, ok := dep["llm-openai"].(map[string]any)
-    if !ok {
-        t.Fatalf("research-tool.depends_on.llm-openai missing")
-    }
-    cond, _ := llmDep["condition"].(string)
-    if cond != "service_healthy" {
-        t.Fatalf("research-tool should depend on llm-openai service_healthy, got %q", cond)
+    // CLI runs on host now; no research-tool in compose
+    if _, ok := services["research-tool"]; ok {
+        t.Fatalf("research-tool should not be defined in minimal/optional compose setup")
     }
 }
 
-// TestCompose_OfflineProfile asserts that the offline profile uses the
-// research-tool-offline service, does not include searxng in its dependencies,
-// and that the LLM service participates in offline (so cached LLM can be used).
+// TestCompose_OfflineProfile asserts that the LLM service participates in the
+// offline profile in the optional compose file.
 func TestCompose_OfflineProfile(t *testing.T) {
     root := findRepoRoot(t)
-    composePath := filepath.Join(root, "docker-compose.yml")
+    composePath := filepath.Join(root, "docker-compose.optional.yml")
     b, err := os.ReadFile(composePath)
     if err != nil { t.Fatalf("read compose: %v", err) }
     var doc map[string]any
     if err := yaml.Unmarshal(b, &doc); err != nil { t.Fatalf("yaml: %v", err) }
     services, _ := doc["services"].(map[string]any)
-    off, ok := services["research-tool-offline"].(map[string]any)
-    if !ok { t.Fatalf("research-tool-offline missing") }
-    // Profiles should include offline
-    if profs, _ := off["profiles"].([]any); profs == nil {
-        t.Fatalf("offline service missing profiles")
-    }
-    // Environment should set HTTP_CACHE_ONLY and LLM_CACHE_ONLY
-    env, _ := off["environment"].([]any)
-    envStr := make([]string, 0, len(env))
-    for _, v := range env { if s, ok := v.(string); ok { envStr = append(envStr, s) } }
-    hasHTTP := false; hasLLM := false
-    for _, e := range envStr {
-        if strings.HasPrefix(e, "HTTP_CACHE_ONLY=") { hasHTTP = true }
-        if strings.HasPrefix(e, "LLM_CACHE_ONLY=") { hasLLM = true }
-    }
-    if !hasHTTP || !hasLLM { t.Fatalf("offline env must set HTTP_CACHE_ONLY and LLM_CACHE_ONLY; got %v", envStr) }
-
-    // llm-openai should include offline profile
     llm, ok := services["llm-openai"].(map[string]any)
     if !ok { t.Fatalf("llm-openai missing") }
     profs, _ := llm["profiles"].([]any)

@@ -13,51 +13,22 @@ import (
 // secure-cache profile services, and env toggle for at-rest protection.
 func TestCompose_SecureCacheProfile(t *testing.T) {
     root := findRepoRoot(t)
-    composePath := filepath.Join(root, "docker-compose.yml")
+    composePath := filepath.Join(root, "docker-compose.optional.yml")
     b, err := os.ReadFile(composePath)
     if err != nil { t.Fatalf("read compose: %v", err) }
     var doc map[string]any
     if err := yaml.Unmarshal(b, &doc); err != nil { t.Fatalf("yaml: %v", err) }
 
-    // volumes.secure_cache exists
-    vols, _ := doc["volumes"].(map[string]any)
-    if _, ok := vols["secure_cache"]; !ok {
-        t.Fatalf("volumes.secure_cache missing")
-    }
+    // secure-cache applies to optional services; do not assert base volumes here
 
     services, _ := doc["services"].(map[string]any)
 
-    // research-tool-secure service
-    rts, ok := services["research-tool-secure"].(map[string]any)
-    if !ok { t.Fatalf("research-tool-secure service missing") }
-    // profiles include secure-cache
-    if profs, _ := rts["profiles"].([]any); !containsString(profs, "secure-cache") {
-        t.Fatalf("research-tool-secure should include 'secure-cache' profile; got %v", profs)
-    }
-    // environment includes CACHE_STRICT_PERMS=1
-    env, _ := rts["environment"].([]any)
-    if !hasEnv(env, "CACHE_STRICT_PERMS") {
-        t.Fatalf("research-tool-secure must set CACHE_STRICT_PERMS=1; env=%v", env)
-    }
-    // volumes include secure_cache mount
-    rtsVols, _ := rts["volumes"].([]any)
-    if !anyStringContains(rtsVols, "secure_cache:/app/.goresearch-cache") {
-        t.Fatalf("research-tool-secure should mount secure_cache to /app/.goresearch-cache; vols=%v", rtsVols)
-    }
+    // research-tool-secure no longer present; CLI runs on host
 
-    // perms-init-secure service
-    pis, ok := services["perms-init-secure"].(map[string]any)
-    if !ok { t.Fatalf("perms-init-secure service missing") }
-    if profs, _ := pis["profiles"].([]any); !containsString(profs, "secure-cache") {
-        t.Fatalf("perms-init-secure should include 'secure-cache' profile; got %v", profs)
-    }
-    pisVols, _ := pis["volumes"].([]any)
-    if !anyStringContains(pisVols, "secure_cache:/app/.goresearch-cache") {
-        t.Fatalf("perms-init-secure should mount secure_cache to /app/.goresearch-cache; vols=%v", pisVols)
-    }
+    // perms-init-secure not required in optional compose minimal setup
 
-    // llm-openai, models-init, and searxng should participate in secure-cache
-    for _, svc := range []string{"llm-openai", "models-init", "searxng"} {
+    // llm-openai and models-init should participate in secure-cache
+    for _, svc := range []string{"llm-openai", "models-init"} {
         s, ok := services[svc].(map[string]any)
         if !ok { t.Fatalf("%s missing", svc) }
         if profs, _ := s["profiles"].([]any); !containsString(profs, "secure-cache") {

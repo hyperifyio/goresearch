@@ -17,7 +17,7 @@ import (
 // https://github.com/hyperifyio/goresearch/blob/main/FEATURE_CHECKLIST.md
 func TestCompose_ModelsVolumeAndInit(t *testing.T) {
     root := findRepoRoot(t)
-    composePath := filepath.Join(root, "docker-compose.yml")
+    composePath := filepath.Join(root, "docker-compose.optional.yml")
     b, err := os.ReadFile(composePath)
     if err != nil { t.Fatalf("read compose: %v", err) }
 
@@ -104,16 +104,8 @@ func TestCompose_ModelsVolumeAndInit(t *testing.T) {
         t.Fatalf("llm-openai should depend on models-init service_completed_successfully, got %q", cond)
     }
 
-    // research-tool should also wait for models-init
-    tool, ok := services["research-tool"].(map[string]any)
-    if !ok { t.Fatalf("research-tool service missing") }
-    depTool, _ := tool["depends_on"].(map[string]any)
-    if depTool == nil { t.Fatalf("research-tool.depends_on missing") }
-    initDepTool, _ := depTool["models-init"].(map[string]any)
-    if initDepTool == nil { t.Fatalf("research-tool.depends_on.models-init missing") }
-    if cond, _ := initDepTool["condition"].(string); cond != "service_completed_successfully" {
-        t.Fatalf("research-tool should depend on models-init service_completed_successfully, got %q", cond)
-    }
+    // research-tool no longer in compose
+    if _, ok := services["research-tool"]; ok { t.Fatalf("research-tool should not be defined in compose") }
 }
 
 // TestModelsBootstrapScript asserts the bootstrap script exists and performs

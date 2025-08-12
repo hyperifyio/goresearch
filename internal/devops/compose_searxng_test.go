@@ -93,30 +93,8 @@ func TestCompose_SearxNGServiceConfiguration(t *testing.T) {
         t.Fatalf("searxng should not publish ports to host")
     }
 
-    // research-tool depends_on searxng healthy (online variant)
-    tool, ok := services["research-tool"].(map[string]any)
-    if !ok {
-        t.Fatalf("research-tool service missing")
-    }
-    dep, ok := tool["depends_on"].(map[string]any)
-    if !ok {
-        t.Fatalf("research-tool.depends_on missing or wrong type")
-    }
-    searxDep, ok := dep["searxng"].(map[string]any)
-    if !ok {
-        t.Fatalf("research-tool.depends_on.searxng missing")
-    }
-    cond, _ := searxDep["condition"].(string)
-    if cond != "service_healthy" {
-        t.Fatalf("research-tool should depend on searxng service_healthy, got %q", cond)
-    }
-
-    // offline variant should not depend on searxng
-    off, ok := services["research-tool-offline"].(map[string]any)
-    if !ok { t.Fatalf("research-tool-offline service missing") }
-    depOff, _ := off["depends_on"].(map[string]any)
-    if depOff == nil { t.Fatalf("research-tool-offline.depends_on missing") }
-    if _, has := depOff["searxng"]; has {
-        t.Fatalf("offline service must not depend on searxng")
+    // No research-tool in base compose now; CLI runs on host
+    if _, ok := services["research-tool"]; ok {
+        t.Fatalf("research-tool should not be defined in base compose")
     }
 }

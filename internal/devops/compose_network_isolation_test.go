@@ -74,13 +74,6 @@ func TestCompose_OverrideExampleExists(t *testing.T) {
     services, _ := doc["services"].(map[string]any)
     if services == nil { t.Fatalf("services missing in override example") }
 
-    // llm-openai has ports
-    if llm, _ := services["llm-openai"].(map[string]any); llm == nil {
-        t.Fatalf("llm-openai missing in override example")
-    } else if _, ok := llm["ports"]; !ok {
-        t.Fatalf("llm-openai should publish ports in override example")
-    }
-
     // searxng has ports
     if searx, _ := services["searxng"].(map[string]any); searx == nil {
         t.Fatalf("searxng missing in override example")
