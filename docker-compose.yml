@@ -1,4 +1,4 @@
-name: goresearch
+version: "3.3"
 
 networks:
   goresearch_net:
@@ -17,5 +17,5 @@ services:
     volumes:
       - ./devops/searxng-settings.yml:/etc/searxng/settings.yml:ro
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/status').read()"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/').read()"]
     restart: unless-stopped
