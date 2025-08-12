@@ -101,7 +101,7 @@ Selected URLs:
 4. Hello Research — Brief introduction to goresearch tutorial — https://goresearch.dev/tutorial
 ```
 
-Tip: remove `-dry-run` and set `LLM_BASE_URL` (e.g., `http://localhost:1234/v1`), `LLM_MODEL` (e.g., `openai/gpt-oss-20b`), and `LLM_API_KEY` (if your server requires it). `SEARX_URL` is optional.
+Tip: remove `-dry-run` and set `LLM_BASE_URL` (e.g., `http://localhost:1234/v1`), `LLM_MODEL` (e.g., `openai/gpt-oss-20b`), and `LLM_API_KEY` (if your server requires it). `SEARX_URL` is optional. For the nginx HSTS use case, you do not need to run any local LLM containers; point to an external OpenAI‑compatible API such as `http://localhost:1234/v1`.
 
 ### “Hello research” brief and result
 
@@ -204,7 +204,7 @@ Primary flags (with defaults):
 
 For a comprehensive, auto-generated list of all flags and environment variables, see: [docs/cli-reference.md](docs/cli-reference.md).
 
-## Run locally with Docker
+## Run locally with Docker (optional)
 
 Important: On Apple M2 virtual machines (including this development environment), Docker is not available due to nested virtualization limits. Use the non-Docker alternatives documented below (for example, Homebrew/venv SearxNG and a local LLM). On machines with Docker installed, you can run the full local stack.
 
@@ -213,38 +213,29 @@ Important: On Apple M2 virtual machines (including this development environment)
 - Recommended: ≥4 CPUs and ≥8 GB RAM for the LLM service
 - Network access to pull images on first run
 
-### One-line dev start
+goresearch is a CLI that you run on the host. Docker Compose is only used to provide optional dependencies. For the nginx HSTS use case:
 
-Bring up the development profile for the CLI container only (bind-mounts the repo and keeps caches):
+- Configure your external LLM endpoint: set `LLM_BASE_URL` to something like `http://localhost:1234/v1` and `LLM_MODEL` to `openai/gpt-oss-20b` (or another model your server hosts).
+- Start SearxNG locally if you want web search; otherwise use `-search.file` for offline/file‑based search.
 
-```bash
-docker compose --profile dev up -d
-```
-
-This expects an external OpenAI-compatible LLM at `http://localhost:1234/v1` (or set `LLM_BASE_URL`). Optional local services (LLM, SearxNG, TLS) live in `docker-compose.optional.yml`.
-
-### Profiles
-- dev (base file): `research-tool` only
-- Optional profiles (in `docker-compose.optional.yml`): `llm-openai`, `searxng`, `stub-llm`, `test-runner`, `caddy-tls`
-
-Examples:
+Start only SearxNG (dependency) from the base compose file:
 
 ```bash
-## Base CLI container only
-docker compose --profile dev up -d
-
-## Add optional services by composing the optional file
-# LocalAI (OpenAI-compatible LLM)
-docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile dev up -d llm-openai
-
-# SearxNG (optional search)
-docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile dev up -d searxng
-
-# Stub LLM for deterministic tests
-docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile test up -d stub-llm test-runner
+docker compose up -d searxng
 ```
 
-The TLS profile in the optional file provides HTTPS termination (self-signed) via Caddy. Use it only if you need local TLS.
+Optional services live in `docker-compose.optional.yml` and can be brought up as needed, e.g. a local OpenAI‑compatible LLM or TLS proxy:
+
+```bash
+# LocalAI (OpenAI-compatible LLM) — optional, not required for nginx use case
+docker compose -f docker-compose.optional.yml up -d llm-openai
+
+# TLS reverse proxy via Caddy — optional (needs base + optional files)
+docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile tls up -d caddy-tls
+
+# Stub LLM for deterministic tests — optional
+docker compose -f docker-compose.optional.yml --profile test up -d stub-llm test-runner
+```
 
 ### Environment variables
 Compose will read a local `.env` file when present and also respects exported shell variables. Useful settings:
@@ -259,8 +250,7 @@ Compose will read a local `.env` file when present and also respects exported sh
 You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container.
 
 ### Health checks and readiness
-- Services declare health checks: `llm-openai` probes `/v1/models`, `searxng` probes `/status`.
-- The app services use `depends_on: condition: service_healthy` so they start only after dependencies are ready.
+- Services declare health checks: `searxng` probes `/status`. Optional LLM (`llm-openai`) probes `/v1/models` when used.
 - Check health via:
 
 ```bash
@@ -324,15 +314,15 @@ make test
 make clean
 ```
 
-### Network isolation and optional port exposure (optional stack)
+### Network isolation and optional port exposure
 
 By default, the Compose stack runs on a private internal network and does not publish any ports to the host. When using optional services (`llm-openai`, `searxng`), to temporarily expose ports for local troubleshooting, use the provided override file with both compose files:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.optional.yml -f docker-compose.override.yml.example up -d
+docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
 ```
 
-This maps `llm-openai` to `localhost:8080` and `searxng` to `localhost:8888`. Remove the override file from the command to restore the default private-only behavior.
+This maps `searxng` to `localhost:8888`. Remove the override file from the command to restore the default private-only behavior.
 
 ## Usage
 
