@@ -35,7 +35,36 @@ SEARX_URL="${SEARX_URL:-http://localhost:8080}"
 LLM_BASE="${LLM_BASE_URL:-http://localhost:1234/v1}"
 LLM_MODEL="${LLM_MODEL:-}"
 
-maybe_bootstrap_services() { :; }
+maybe_bootstrap_services() {
+  # Best-effort local bootstrap using Docker Compose if endpoints are not reachable.
+  # Starts SearxNG (host port 8080) and LocalAI (host port 1234) via provided compose files.
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    # Bootstrap SearxNG if not reachable
+    if ! curl -fsS -m 2 "${SEARX_URL%/}/" >/dev/null 2>&1; then
+      docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d searxng >/dev/null 2>&1 || true
+    fi
+    # Bootstrap LLM if not reachable
+    # Include base + optional + override so network and ports are present
+    _llm_ok=false
+    for base in "${LLM_BASE}" "${LLM_BASE%/v1}" "${LLM_BASE%/}/v1"; do
+      if curl -fsS -m 2 "${base%/}/models" >/dev/null 2>&1; then _llm_ok=true; break; fi
+    done
+    if [ "${_llm_ok}" != true ]; then
+      docker compose -f docker-compose.yml -f docker-compose.optional.yml -f docker-compose.override.yml.example up -d models-bootstrap llm-openai >/dev/null 2>&1 || true
+    fi
+    # Small wait loop for readiness
+    for i in {1..20}; do
+      searx_ready=false
+      llm_ready=false
+      curl -fsS -m 2 "${SEARX_URL%/}/" >/dev/null 2>&1 && searx_ready=true
+      for base in "${LLM_BASE}" "${LLM_BASE%/v1}" "${LLM_BASE%/}/v1"; do
+        if curl -fsS -m 2 "${base%/}/models" >/dev/null 2>&1; then llm_ready=true; LLM_BASE="$base"; break; fi
+      done
+      if [ "$searx_ready" = true ] && [ "$llm_ready" = true ]; then break; fi
+      sleep 2
+    done
+  fi
+}
 
 section "Prerequisites"
 if have curl; then ok "curl found: $(curl --version | head -n1)"; else ko "curl not found. Install curl and re-run."; fi
