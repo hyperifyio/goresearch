@@ -202,11 +202,9 @@
 
 * [x] Model weights volume & bootstrap — Define a models named volume and an optional one-shot init container to fetch or copy local weights into the volume, with checksum verification and clear failure on mismatch. (added models volume, models-init service with sha256 verification, and tests)
 
-* [ ] Environment & secrets handling — Support a .env file and a committed .env.example documenting required variables (LLM\_BASE\_URL, LLM\_MODEL, SEARXNG\_URL, CACHE\_DIR, LANGUAGE, SOURCE\_CAPS). Ensure secrets are not baked into images; pass keys only via env or mounted files.
 
 * [x] Health-gated startup — Use depends\_on with condition: service\_healthy so the tool starts only after llm-openai and searxng are ready. Provide a make wait target that polls health for local troubleshooting.
 
-* [ ] Resource limits — Set conservative cpu/memory limits and reservations per service; document how to override (e.g., COMPOSE\_PROFILES=dev LLM\_MEMORY\_GB=8). Ensure the tool fails gracefully when limits are hit.
 
 * [x] Non-root volumes & permissions — Create volumes with matching UID\:GID for the app user in containers; provide a helper script/compose override to chown existing host directories to avoid permission errors.
 
@@ -216,17 +214,13 @@
 
 * [x] Make targets for DX — Add make up, make down, make logs, make rebuild, make test (uses test profile + stub-llm), and make clean (prunes volumes for caches). Document one-liners in README.
 
-* [ ] CI compose smoke test — GitHub Actions workflow that builds the tool image, brings up the test profile (tool+stub-llm), runs a canned brief, asserts a report file exists, and uploads it as an artifact.
 
 * [x] Offline/airgapped profile — Provide an offline Compose profile that disables searxng and runs the tool in cache-only mode (both HTTP and LLM caches), failing fast if a cache miss occurs. (2025-08-10)
 
-* [ ] Local TLS (optional) — Optional caddy/nginx reverse-proxy service for local HTTPS termination to llm and searxng with self-signed certs; disabled by default and isolated to the Compose network.
 
 * [x] Network isolation — Use a private Compose network; do not publish ports by default. The tool reaches only llm-openai and searxng by service name. Document an override file to expose ports when needed.
 
-* [ ] Integration test runner container — Add a disposable test-runner service that executes deterministic integration tests against stub-llm and recorded HTTP fixtures, producing JUnit/HTML results under ./reports/tests.
 
-* [ ] Multi-arch builds — Configure buildx targets for linux/amd64 and linux/arm64, with QEMU emulation in CI, and publish local artifacts for both arches for developers on Intel/Apple Silicon.
 
 * [x] Cache at-rest option — If cache encryption is enabled in the app, wire it to a dedicated cache volume and expose a COMPOSE profile/env toggle to activate encryption or restricted permissions at runtime.
 
@@ -234,7 +228,6 @@
 
 * [x] Single-file config support — Add support for goresearch.yaml|json with env-var overrides, schema validation, and `goresearch init` to scaffold a config and `.env.example`.&#x20;
 
-* [ ] Quick Start in README — One copy-paste command with expected output, plus a “hello research” example brief and result.&#x20;
 
 * [x] Full flag & config reference — Auto-generate a comprehensive CLI/options page and link it from README.&#x20;
 
@@ -250,21 +243,16 @@
 
 * [x] Artifacts bundle export — Persist planner JSON, selected URLs, extracts, final report, manifest, and evidence appendix under `./reports/<topic>/` and optional tarball with digests for offline audit.&#x20;
 
-* [ ] Graceful cancel & resume — On SIGINT/SIGTERM, write partial artifacts and allow fast resume from cache on next run to keep UX “dead simple.”&#x20;
 
-* [ ] CONTRIBUTING.md + templates — Add contribution guide (coding style, running tests, Cursor rules, commit semantics) and PR/issue templates.&#x20;
 
-* [ ] Release packaging — Use GoReleaser to ship macOS/Linux/Windows binaries with version/commit info, checksums, and SBOM; publish via CI.&#x20;
 
 * [x] Benchmarks — Add Go benchmarks for fetch, extract, selection, and token budgeting to quantify the impact of concurrency/politeness settings.&#x20;
 
-* [ ] Static analysis & pre-commit — Enforce `go fmt`, `go vet`, `staticcheck`, and pre-commit hooks; wire into CI next to existing tests.&#x20;
 
 * [x] Troubleshooting & FAQ — Document common failures (cache, robots/opt-out denials, LLM endpoint issues) and how to raise verbosity to debug.&#x20;
 
 * [x] LLM backend interface — Extract a provider interface so different OpenAI-compatible or local backends can be swapped without touching core logic.&#x20;
 
-* [ ] Report-type templates & section profiles — selectable IMRaD, decision/tech report, and literature-review profiles that enforce the right sections per type.&#x20;
 
 * [x] Executive Summary guardrails — length target (\~150–250 words) and content checks (motivation, methods, key results, recommendations).&#x20;
 
@@ -272,7 +260,6 @@
 
 * [x] Heading audit — require descriptive “mini-title” headings, consistent hierarchy/parallel phrasing; optional auto-numbering for long reports.&#x20;
 
-* [ ] Plain-language & readability lint — active-voice preference, acronym defined on first use, average sentence length \~15–20 words, target reading level with metrics.&#x20;
 
 * [x] Audience fit check — per-brief audience/tone settings and a pass that flags jargon or sections mismatched to the intended reader.&#x20;
 
@@ -282,20 +269,15 @@
 
 * [x] Table of Contents for long reports — auto-generate ToC when document exceeds a size threshold.&#x20;
 
-* [ ] References enrichment — resolve/insert DOIs where available, add stable URLs and “Accessed on” dates for web sources; completeness validator.&#x20;
 
 * [x] Reference quality/mix validator — configurable policy to prefer peer-reviewed/standards, ensure recency where appropriate, and prevent over-reliance on a few sources.&#x20;
 
 * [x] Counter-evidence search step — inject queries like “limitations of X / contrary findings”, and require a short “Alternatives & conflicting evidence” subsection.&#x20;
 
-* [ ] Reporting-guideline profiles — optional PRISMA/CONSORT/EQUATOR compliance checks tied to report type; for reviews, emit a simple PRISMA-style inclusion/exclusion table/diagram.&#x20;
 
-* [ ] Proofreading pass — grammar/spell/consistency check (units, terminology, capitalization) before final render.&#x20;
 
 * [x] “Ready for distribution” checks — validate metadata (author/date/version), link targets, and optionally produce a PDF with working hyperlinks.&#x20;
 
-* [ ] Accessibility checks — heading order correctness and “no color-only meaning” warnings; require alt text for any images.&#x20;
 
-* [ ] Recommendations section (optional) — generate when the brief expects decisions/actions, separate from Conclusions.&#x20;
 
 * [x] Appendix management — auto-label Appendices A/B/C…, ensure each is referenced from the body.&#x20;

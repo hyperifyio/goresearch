@@ -56,6 +56,68 @@ go build -o bin/goresearch ./cmd/goresearch
 ```
 
 ## Quick start
+
+### One‑liner (deterministic dry run)
+
+Copy and paste this command. It writes a small “hello research” brief, runs a dry run (no LLM required), and prints the beginning of the resulting Markdown report.
+
+```bash
+printf "%s\n" "# Hello Research — Brief introduction to goresearch" "" \
+  "Audience: Developers and researchers" \
+  "Tone: Practical, welcoming" \
+  "Target length: 800 words" "" \
+  "Key questions: What is goresearch? How does it work? What makes it useful for researchers and developers?" \
+  > hello-research.md && \
+goresearch -dry-run -input hello-research.md -output hello-research-report.md && \
+sed -n '1,24p' hello-research-report.md
+```
+
+Expected output (first lines):
+
+```markdown
+# goresearch (dry run)
+
+Topic: Hello Research — Brief introduction to goresearch
+Audience: Developers and researchers
+Tone: Practical, welcoming
+Target Length (words): 800
+
+Planned queries:
+1. Hello Research — Brief introduction to goresearch specification
+2. Hello Research — Brief introduction to goresearch documentation
+3. Hello Research — Brief introduction to goresearch reference
+4. Hello Research — Brief introduction to goresearch tutorial
+5. Hello Research — Brief introduction to goresearch best practices
+6. Hello Research — Brief introduction to goresearch faq
+7. Hello Research — Brief introduction to goresearch examples
+8. Hello Research — Brief introduction to goresearch comparison
+9. Hello Research — Brief introduction to goresearch limitations
+10. Hello Research — Brief introduction to goresearch contrary findings
+
+Selected URLs:
+1. Hello Research — Brief introduction to goresearch specification — https://github.com/hyperifyio/goresearch
+2. Hello Research — Brief introduction to goresearch reference — https://goresearch.dev/reference
+3. Hello Research — Brief introduction to goresearch documentation — https://goresearch.dev/documentation
+4. Hello Research — Brief introduction to goresearch tutorial — https://goresearch.dev/tutorial
+```
+
+Tip: remove `-dry-run` and set `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, and `SEARX_URL` (optionally `SEARX_KEY`) to produce a full report.
+
+### “Hello research” brief and result
+
+Brief used above:
+
+```markdown
+# Hello Research — Brief introduction to goresearch
+
+Audience: Developers and researchers
+Tone: Practical, welcoming  
+Target length: 800 words
+
+Key questions: What is goresearch? How does it work? What makes it useful for researchers and developers?
+```
+
+Result (dry run) is written to `hello-research-report.md`. See also the committed sample at `hello-research-report.md` and `reports/hello-research-brief-introduction-to-goresearch/report.md`.
 1) Create a minimal `request.md` with topic and optional hints:
 
 ```markdown
