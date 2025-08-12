@@ -5,7 +5,7 @@ set -euo pipefail
 # "Health-gated startup — ... Provide a make wait target that polls health for local troubleshooting."
 
 LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:1234/v1}"
-SEARX_URL="${SEARX_URL:-http://localhost:8080}"
+SEARX_URL="${SEARX_URL:-http://localhost:8888}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-120}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-3}"
 

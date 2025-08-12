@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Smoke test for goresearch (Nginx HSTS use case)
 # - Validates external dependencies required by the tool:
-#   - SearxNG at http://localhost:8080
+#   - SearxNG at http://localhost:8888
 #   - OpenAI-compatible API at http://localhost:1234/v1
 # - Does NOT build or run goresearch; build moved to Makefile
 # - Prints a clean PASS/FAIL summary
@@ -31,13 +31,13 @@ have() { command -v "$1" >/dev/null 2>&1; }
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT_DIR" || exit 1
 
-SEARX_URL="${SEARX_URL:-http://localhost:8080}"
+SEARX_URL="${SEARX_URL:-http://localhost:8888}"
 LLM_BASE="${LLM_BASE_URL:-http://localhost:1234/v1}"
 LLM_MODEL="${LLM_MODEL:-}"
 
 maybe_bootstrap_services() {
   # Best-effort local bootstrap using Docker Compose if endpoints are not reachable.
-  # Starts SearxNG (host port 8080) and LocalAI (host port 1234) via provided compose files.
+  # Starts SearxNG (host port 8888) and LocalAI (host port 1234) via provided compose files.
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     # Bootstrap SearxNG if not reachable
     if ! curl -fsS -m 2 "${SEARX_URL%/}/" >/dev/null 2>&1; then

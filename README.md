@@ -39,7 +39,7 @@ go build -o bin/goresearch ./cmd/goresearch
 
 ### End-to-end example: Nginx HSTS decision brief (real LLM required)
 
-This example mirrors the documented use case and requires a real OpenAI‑compatible API at `http://localhost:1234/v1` and a SearxNG at `http://localhost:8080`.
+This example mirrors the documented use case and requires a real OpenAI‑compatible API at `http://localhost:1234/v1` and a SearxNG at `http://localhost:8888`.
 
 1) Write `request.md`:
 
@@ -67,7 +67,7 @@ goresearch \
   -output report.md \
   -llm.base "$LLM_BASE_URL" \
   -llm.model "$LLM_MODEL" \
-  -searx.url "http://localhost:8080"
+  -searx.url "http://localhost:8888"
 ```
 
 Open `report.md`. You should see an executive summary, analysis with bracketed citations like `[3]`, a References list with URLs, an Evidence appendix, and a reproducibility footer.
