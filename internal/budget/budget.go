@@ -130,9 +130,9 @@ var knownModelMax = map[string]int{
     "llama-3.1":         128_000,
 
     // Common OSS OpenAI-compatible backends seen in the wild
-    // Default these conservatively to 4096 unless known otherwise.
-    "openai/gpt-oss-20b": 4_096,
-    "gpt-oss-20b":        4_096,
+    // Some builds expose ~2k context; keep conservative to avoid 400s.
+    "openai/gpt-oss-20b": 2_048,
+    "gpt-oss-20b":        2_048,
 }
 
 var suffixRe = regexp.MustCompile(`(?i)(\d+)(k|m)$`)

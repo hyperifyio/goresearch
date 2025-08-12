@@ -130,7 +130,63 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
         }
         resp, err = s.Client.CreateChatCompletion(ctx, req)
         if err != nil {
-            return "", fmt.Errorf("synthesis call (after retry): %w", err)
+            // As a last resort for strict servers returning 400 on oversized or
+            // unsupported prompts, retry once more with header-only sources.
+            // This keeps citations by number but omits excerpt bodies.
+            if strings.Contains(err.Error(), "status code: 400") {
+                compactUser := buildUserMessageWithoutBodies(in)
+                // Recompute max tokens conservatively for compact prompt
+                promptTokens = budget.EstimateTokens(system) + budget.EstimateTokens(compactUser)
+                allowedOut = maxCtx - headroom - promptTokens
+                if allowedOut < 64 {
+                    allowedOut = 64
+                }
+                if desiredOut > allowedOut {
+                    desiredOut = allowedOut
+                }
+                req2 := openai.ChatCompletionRequest{
+                    Model: in.Model,
+                    Messages: []openai.ChatCompletionMessage{
+                        {Role: openai.ChatMessageRoleSystem, Content: system},
+                        {Role: openai.ChatMessageRoleUser, Content: compactUser},
+                    },
+                    Temperature: 0.1,
+                    N:           1,
+                    MaxTokens:   desiredOut,
+                }
+                resp, err = s.Client.CreateChatCompletion(ctx, req2)
+                if err != nil {
+                    // Final fallback: merge system into user and send without a system role
+                    if strings.Contains(err.Error(), "status code: 400") {
+                        merged := "System instruction:\n" + system + "\n\n" + compactUser
+                        promptTokens = budget.EstimateTokens(merged)
+                        allowedOut = maxCtx - headroom - promptTokens
+                        if allowedOut < 64 { allowedOut = 64 }
+                        if desiredOut > allowedOut { desiredOut = allowedOut }
+                        req3 := openai.ChatCompletionRequest{
+                            Model: in.Model,
+                            Messages: []openai.ChatCompletionMessage{
+                                {Role: openai.ChatMessageRoleUser, Content: merged},
+                            },
+                            Temperature: 0.1,
+                            N:           1,
+                            MaxTokens:   desiredOut,
+                        }
+                        resp, err = s.Client.CreateChatCompletion(ctx, req3)
+                        if err != nil {
+                            return "", fmt.Errorf("synthesis call (after retry, merged): %w", err)
+                        }
+                        user = merged
+                    } else {
+                        return "", fmt.Errorf("synthesis call (after retry, compact): %w", err)
+                    }
+                } else {
+                    // Swap user to compact for downstream logging/cache key symmetry
+                    user = compactUser
+                }
+            } else {
+                return "", fmt.Errorf("synthesis call (after retry): %w", err)
+            }
         }
     }
     if len(resp.Choices) == 0 {
@@ -215,6 +271,61 @@ func buildUserMessage(in Input) string {
             sb.WriteString(src.Excerpt)
             sb.WriteString("\n\n")
         }
+    }
+    sb.WriteString("\nOutput only the Markdown. Do not include any prose outside the document.")
+    return sb.String()
+}
+
+// buildUserMessageWithoutBodies builds the same message structure but omits
+// excerpt bodies for each source, keeping only numbered headers and the
+// literal "Excerpt:" labels. This significantly reduces prompt size while
+// preserving citation indices and URLs.
+func buildUserMessageWithoutBodies(in Input) string {
+    var sb strings.Builder
+    sb.WriteString("Write a single cohesive Markdown document with:")
+    sb.WriteString("\n- A title on the first line")
+    sb.WriteString("\n- A date below the title in ISO format (YYYY-MM-DD)")
+    sb.WriteString("\n- An executive summary")
+    if len(in.Outline) > 0 {
+        sb.WriteString("\n- Body sections matching this outline, in order:")
+        for _, h := range in.Outline {
+            sb.WriteString("\n  - ")
+            sb.WriteString(h)
+        }
+    }
+    sb.WriteString("\n- An 'Alternatives & conflicting evidence' section that briefly summarizes viable alternatives, known limitations, and any contrary findings from the provided sources")
+    sb.WriteString("\n- A 'Risks and limitations' section")
+    sb.WriteString("\n- A 'References' section listing all sources as a numbered list with titles and full URLs")
+    sb.WriteString("\n- An 'Evidence check' appendix summarizing key claims with supporting source indices and confidence")
+
+    profile := template.GetProfile(in.Brief.ReportType)
+    if profile.UserPromptHint != "" {
+        sb.WriteString("\n\nStructure guidance: ")
+        sb.WriteString(profile.UserPromptHint)
+    }
+    if in.LanguageHint != "" {
+        sb.WriteString("\nWrite in language: ")
+        sb.WriteString(in.LanguageHint)
+    }
+    sb.WriteString("\n\nBrief topic: ")
+    sb.WriteString(in.Brief.Topic)
+    if in.Brief.AudienceHint != "" {
+        sb.WriteString("\nAudience: ")
+        sb.WriteString(in.Brief.AudienceHint)
+    }
+    if in.Brief.ToneHint != "" {
+        sb.WriteString("\nTone: ")
+        sb.WriteString(in.Brief.ToneHint)
+    }
+    if in.Brief.TargetLengthWords > 0 {
+        sb.WriteString("\nTarget length: ")
+        sb.WriteString(fmt.Sprintf("%d words", in.Brief.TargetLengthWords))
+    }
+    sb.WriteString("\n\nSources (use only these; cite with [n]):\n")
+    for _, src := range in.Sources {
+        sb.WriteString(fmt.Sprintf("%d. %s — %s\n", src.Index, src.Title, src.URL))
+        // Keep label but omit body
+        sb.WriteString("Excerpt:\n\n\n")
     }
     sb.WriteString("\nOutput only the Markdown. Do not include any prose outside the document.")
     return sb.String()
