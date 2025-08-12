@@ -62,9 +62,7 @@ VOLUME ["/app/reports", "/app/.goresearch-cache"]
 
 # Default non-secret environment can be overridden at runtime. Do not bake
 # secrets like API keys into the image.
-ENV LLM_BASE_URL="http://llm-openai:8080/v1" \
-    LLM_MODEL="gpt-neo" \
-    SEARX_URL="http://searxng:8080"
+ENV SEARX_URL="http://searxng:8080"
 
 # Healthcheck: quick dry-run that must exit 0 on success
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/usr/local/bin/goresearch", "-dry-run", "-input", "/app/healthcheck.md", "-output", "/tmp/health-report.md", "-searx.url", "${SEARX_URL}"]

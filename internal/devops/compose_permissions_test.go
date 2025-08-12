@@ -115,8 +115,8 @@ func TestCompose_VolumesPermsInit(t *testing.T) {
         if strings.HasPrefix(s, "llm_cache:") { hasLLM = true }
         if strings.HasPrefix(s, "reports:") { hasReports = true }
     }
-    if !hasHTTP || !hasLLM || !hasReports {
-        t.Fatalf("perms-init should mount http_cache, llm_cache, and reports volumes; got %v", joined)
+    if !hasHTTP || !hasReports {
+        t.Fatalf("perms-init should mount http_cache and reports volumes; got %v", joined)
     }
 
     // Command should perform chown with APP_UID/APP_GID

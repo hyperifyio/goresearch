@@ -191,11 +191,11 @@
 
 * [x] Manifest extensions — Record the ordered tool-call transcript (names, args hash, result digests) in the embedded manifest for third-party audit.
 
-* [x] Docker Compose local stack — Provide docker-compose.yml with services: research-tool, searxng (default search), llm-openai (local OpenAI-compatible LLM server), and stub-llm (for tests). Use a dedicated bridge network, named volumes for http\_cache, llm\_cache, and reports, and Compose profiles: dev (tool+searxng+llm), test (tool+stub-llm), and offline (tool only, cache-only mode).
+* [x] Docker Compose local stack — Provide docker-compose.yml with services: searxng (default search). Use a dedicated bridge network and example overrides. Local LLM containers and stub-LLM are intentionally not provided.
 
 * [x] Research tool container — Add a minimal Dockerfile for the CLI with a non-root user, pinned base image, labels (org.opencontainers), build args for version/commit, and an entrypoint that reads config from env/flags. Mount ./reports and ./cache as writable volumes. Include healthcheck that runs a quick “--dry-run” and exits 0 on success. (added `Dockerfile` with distroless non-root runtime, healthcheck, volumes; added `internal/app/buildinfo.go` for ldflags)
 
-* [x] OpenAI-compatible LLM server container — Include a generic llm service (image pinned by digest) exposing an OpenAI-compatible /v1 API. Allow model path/ID and quantization via env, mount a models volume, and add a readiness healthcheck on /v1/models. Make the tool depend\_on this service becoming healthy. (pinned image digest, healthcheck, models volume, and healthy dependency added; static config test `internal/devops/compose_test.go` verifies requirements)
+* [ ] OpenAI-compatible LLM server container — Not applicable; use an external LLM endpoint instead. The repository does not ship a local LLM container.
 
 * [x] SearxNG container — Add a searxng service (image pinned by digest) with mounted settings.yml, custom User-Agent, reduced concurrency, and safe rate limits. Expose internal URL to the tool only via the Compose network (no public port by default). Healthcheck /status page. (2025-08-10)
     - Also provide non-Docker options: Homebrew and Python venv setup; add file-based provider for offline/no third-party dependency operation.
@@ -215,7 +215,7 @@
 * [x] Make targets for DX — Add make up, make down, make logs, make rebuild, make test (uses test profile + stub-llm), and make clean (prunes volumes for caches). Document one-liners in README.
 
 
-* [x] Offline/airgapped profile — Provide an offline Compose profile that disables searxng and runs the tool in cache-only mode (both HTTP and LLM caches), failing fast if a cache miss occurs. (2025-08-10)
+* [ ] Offline/airgapped profile — Not applicable without bundled LLM; dry-run and file-based search remain available for testing.
 
 
 * [x] Network isolation — Use a private Compose network; do not publish ports by default. The tool reaches only llm-openai and searxng by service name. Document an override file to expose ports when needed.

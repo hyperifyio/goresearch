@@ -4,17 +4,19 @@ set -euo pipefail
 # Traceability: Implements FEATURE_CHECKLIST.md item
 # "Health-gated startup — ... Provide a make wait target that polls health for local troubleshooting."
 
-LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:1234/v1}"
+LLM_BASE_URL="${LLM_BASE_URL:-}"
 SEARX_URL="${SEARX_URL:-http://localhost:8888}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-120}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-3}"
 
 # Normalize URLs and compute endpoints
-_llm_models_url="${LLM_BASE_URL%/}/models"
+_llm_models_url="${LLM_BASE_URL:+${LLM_BASE_URL%/}/models}"
 _searx_status_url="${SEARX_URL%/}/"
 
 echo "Waiting for dependencies to become healthy..."
-echo "  LLM models endpoint: ${_llm_models_url}"
+if [ -n "${_llm_models_url}" ]; then
+  echo "  LLM models endpoint: ${_llm_models_url}"
+fi
 echo "  SearxNG status:      ${_searx_status_url}"
 
 deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
@@ -58,7 +60,9 @@ wait_until_healthy_compose() {
 }
 
 # Poll host endpoints directly
-wait_until_ok_http "${_llm_models_url}" "LLM models" || exit 1
+if [ -n "${_llm_models_url}" ]; then
+  wait_until_ok_http "${_llm_models_url}" "LLM models" || exit 1
+fi
 wait_until_ok_http "${_searx_status_url}" "SearxNG root" || exit 1
 
 echo "All dependencies healthy."

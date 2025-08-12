@@ -1,97 +1,11 @@
 version: "3.3"
 
 volumes:
-  models:
   caddy_data:
   caddy_config:
 
 services:
-
-  # OpenAI-compatible LLM server (LocalAI)
-  llm-openai:
-    image: quay.io/go-skynet/local-ai@sha256:293f9109bdcebc2f75a10215cdff6683ee669fbdec9f6b85d101b19fe6702adb
-    environment:
-      - MODELS_PATH=/models
-      - GIN_MODE=release
-    networks:
-      - goresearch_net
-    volumes:
-      - models:/models
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/models"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-    profiles: ["dev", "test", "offline", "secure-cache", "tls"]
-    depends_on:
-      models-init:
-        condition: service_completed_successfully
-
-  # One-shot init to prepare models volume with checksum verification
-  models-init:
-    image: alpine:3.20@sha256:b3119ef930faabb6b7b976780c0c7a9c1aa24d0c75e9179ac10e6bc9ac080d0d
-    command: ["sh", "-lc", "if [ -f /models/checksums.sha256 ]; then sha256sum -c /models/checksums.sha256; else echo 'no checksums provided'; fi"]
-    volumes:
-      - models:/models
-    networks:
-      - goresearch_net
-    restart: "no"
-    profiles: ["dev", "test", "secure-cache", "tls"]
-
-  # One-shot bootstrap to fetch a small GGUF model and write models.yaml for LocalAI
-  models-bootstrap:
-    image: alpine:3.20@sha256:b3119ef930faabb6b7b976780c0c7a9c1aa24d0c75e9179ac10e6bc9ac080d0d
-    entrypoint: ["/bin/sh","-lc"]
-    command: >
-      set -eu;
-      apk add --no-cache curl ca-certificates >/dev/null;
-      mkdir -p /models;
-      F="/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf";
-      URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf?download=true";
-      if [ ! -f "$F" ]; then echo "Downloading $F"; curl -fL --retry 3 -o "$F" "$URL"; fi;
-      printf "models:\n  - name: tinyllama\n    backend: llama\n    parameters:\n      model: %s\n" "$F" > /models/models.yaml;
-      sha256sum /models/*.gguf > /models/checksums.sha256 || true;
-      echo "Bootstrap done.";
-    volumes:
-      - models:/models
-    networks:
-      - goresearch_net
-    restart: "no"
-    profiles: ["dev", "test", "offline", "secure-cache", "tls"]
-
-  # Stub LLM for deterministic tests
-  stub-llm:
-    build:
-      context: .
-      dockerfile: Dockerfile.openai-stub
-    networks:
-      - goresearch_net
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8081/v1/models"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-    profiles: ["test"]
-
-  # Disposable integration test runner
-  test-runner:
-    image: golang:1.24-bookworm@sha256:2679c15c940573aded505b2f2fbbd4e718b5172327aae3ab9f43a10a5c700dfc
-    working_dir: /app
-    volumes:
-      - ./:/app
-    environment:
-      - LLM_BASE_URL=http://stub-llm:8081/v1
-      - LLM_MODEL=test-model
-    user: "${APP_UID:-1000}:${APP_GID:-1000}"
-    entrypoint: ["bash","scripts/test-runner.sh"]
-    networks:
-      - goresearch_net
-    profiles: ["test"]
-    depends_on:
-      stub-llm:
-        condition: service_healthy
-
-  # Optional Caddy reverse-proxy for local HTTPS termination
+  # Optional Caddy reverse-proxy for local HTTPS termination (SearxNG only)
   caddy-tls:
     image: caddy:2.8-alpine@sha256:af32e97399febea808609119bb21544d0265c58a02836576e32a2d082c262c17
     networks:
@@ -105,7 +19,5 @@ services:
     restart: unless-stopped
     profiles: ["tls"]
     depends_on:
-      llm-openai:
-        condition: service_healthy
       searxng:
         condition: service_healthy

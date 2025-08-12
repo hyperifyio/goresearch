@@ -27,14 +27,7 @@ func TestCompose_SecureCacheProfile(t *testing.T) {
 
     // perms-init-secure not required in optional compose minimal setup
 
-    // llm-openai and models-init should participate in secure-cache
-    for _, svc := range []string{"llm-openai", "models-init"} {
-        s, ok := services[svc].(map[string]any)
-        if !ok { t.Fatalf("%s missing", svc) }
-        if profs, _ := s["profiles"].([]any); !containsString(profs, "secure-cache") {
-            t.Fatalf("%s should include 'secure-cache' profile; got %v", svc, profs)
-        }
-    }
+    // No LLM or model-init services remain; nothing to assert here.
 }
 
 func containsString(items []any, needle string) bool {

@@ -13,7 +13,7 @@ import (
 //
 // Traceability: Implements FEATURE_CHECKLIST.md item 225:
 // "Network isolation — Use a private Compose network; do not publish ports by default.
-//  The tool reaches only llm-openai and searxng by service name. Document an override
+//  The tool reaches only searxng by service name. Document an override
 //  file to expose ports when needed."
 func TestCompose_NetworkIsolation(t *testing.T) {
     root := findRepoRoot(t)

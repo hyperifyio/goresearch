@@ -2,38 +2,6 @@
 # This provides optional TLS termination with self-signed certificates for local development
 # The TLS profile must be explicitly enabled to use this service.
 
-# LLM service proxy with self-signed cert
-:8443 {
-	# Enable self-signed TLS for local development
-	tls internal
-
-	# Reverse proxy to the LLM service
-	reverse_proxy llm-openai:8080 {
-		# Add health check to upstream
-		health_uri /v1/models
-		health_interval 10s
-		health_timeout 3s
-	}
-
-	# Security headers for local dev
-	header {
-		# Prevent HTTPS downgrade attacks (even for local certs)
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		# Prevent clickjacking
-		X-Frame-Options "DENY"
-		# Prevent MIME sniffing
-		X-Content-Type-Options "nosniff"
-		# Remove server identification
-		-Server
-	}
-
-	# Logging for debugging
-	log {
-		output stdout
-		format console
-	}
-}
-
 # SearxNG service proxy with self-signed cert
 :8444 {
 	# Enable self-signed TLS for local development

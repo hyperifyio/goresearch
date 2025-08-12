@@ -43,9 +43,9 @@ func TestMake_DXTargets(t *testing.T) {
         t.Fatalf("logs target should follow docker compose logs -f")
     }
 
-    // test brings up stub-llm under test profile and runs go test
-    if !strings.Contains(mk, "--profile test up -d stub-llm") || !strings.Contains(mk, "go test ./...") {
-        t.Fatalf("test target should start stub-llm (test profile) and run go test")
+    // test runs go test locally (no stub-llm compose)
+    if !strings.Contains(mk, "go test ./...") {
+        t.Fatalf("test target should run go test")
     }
 
     // clean prunes cache volumes and local cache dir

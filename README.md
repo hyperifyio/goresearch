@@ -1,6 +1,6 @@
 # goresearch
 
-Generate validated, citation-rich research reports from a single Markdown brief. goresearch plans queries, searches the web (optionally via SearxNG), fetches and extracts readable text, and asks an OpenAI-compatible LLM to synthesize a clean Markdown report with numbered citations, references, and an evidence-check appendix. It runs entirely on standard chat-completions APIs—no proprietary search features.
+Generate validated, citation-rich research reports from a single Markdown brief. goresearch plans queries, searches the web (optionally via SearxNG), fetches and extracts readable text, and can call an external OpenAI-compatible LLM to synthesize a clean Markdown report with numbered citations, references, and an evidence-check appendix. It runs entirely on standard chat-completions APIs—no proprietary search features. Local LLM containers are not provided.
 
 ## Features
 - **End-to-end pipeline**: brief parsing → planning → search → fetch/extract → selection/dedup → budgeting → synthesis → validation → verification → rendering.
@@ -18,7 +18,7 @@ Generate validated, citation-rich research reports from a single Markdown brief.
 
 Prerequisites:
 - Go 1.23+ (module toolchain `go1.24.6`)
-- An OpenAI-compatible server (local OSS runtime recommended), with model name and API key
+- An external OpenAI-compatible server endpoint you control (model name and API key)
 - Optional: a SearxNG instance URL (and API key if required)
 
 Install the CLI directly:
@@ -37,9 +37,9 @@ go build -o bin/goresearch ./cmd/goresearch
 
 ## Quick start
 
-### End-to-end example: Nginx HSTS decision brief (real LLM required)
+### End-to-end example: Nginx HSTS decision brief (requires external LLM)
 
-This example mirrors the documented use case and requires a real OpenAI‑compatible API at `http://localhost:1234/v1` and a SearxNG at `http://localhost:8888`.
+This example mirrors the documented use case and requires a real OpenAI‑compatible API you host or have access to (set via env).
 
 1) Write `request.md`:
 
@@ -55,8 +55,9 @@ Key questions: correct header, validation steps, preload caveats, rollback.
 2) Export your LLM settings:
 
 ```bash
-export LLM_BASE_URL="http://localhost:1234/v1"
-export LLM_MODEL="openai/gpt-oss-20b"
+# Example (replace with your endpoint and model)
+export LLM_BASE_URL="https://your-llm.example.com/v1"
+export LLM_MODEL="your/model-id"
 ```
 
 3) Run goresearch against live web search via SearxNG:
@@ -77,7 +78,7 @@ Open `report.md`. You should see an executive summary, analysis with bracketed c
 You can configure via flags or environment variables.
 
 Environment variables:
-- `LLM_BASE_URL`: base URL for the OpenAI-compatible server (e.g., `http://localhost:1234/v1`)
+- `LLM_BASE_URL`: base URL for the OpenAI-compatible server you use
 - `LLM_MODEL`: model name
 - `LLM_API_KEY`: API key for the server
 - `SEARX_URL`: SearxNG base URL (e.g., `https://searx.example.com`)
@@ -91,7 +92,7 @@ Primary flags (with defaults):
 - `-searx.key`: SearxNG API key (optional)
 - `-searx.ua`: Custom User-Agent for SearxNG requests (default identifies goresearch)
 - `-search.file`: Path to a JSON file providing offline search results for a file-based provider
-- `-llm.base`: OpenAI-compatible base URL
+- `-llm.base`: OpenAI-compatible base URL (external)
 - `-llm.model`: model name
 - `-llm.key`: API key
 - `-max.sources` (default: 12): total sources cap
@@ -127,16 +128,16 @@ For a comprehensive, auto-generated list of all flags and environment variables,
 
 ## Run locally with Docker (optional)
 
-Important: On Apple M2 virtual machines (including this development environment), Docker is not available due to nested virtualization limits. Use the non-Docker alternatives documented below (for example, Homebrew/venv SearxNG and a local LLM). On machines with Docker installed, you can run the full local stack.
+Important: On Apple M2 virtual machines (including this development environment), Docker is not available due to nested virtualization limits. Use the non-Docker alternatives documented below for SearxNG. This repository no longer provides local LLM containers.
 
 ### Prerequisites
 - Docker Desktop with Compose v2 (or Docker Engine + `docker compose` CLI)
-- Recommended: ≥4 CPUs and ≥8 GB RAM for the LLM service
+- Recommended: ≥4 CPUs and ≥8 GB RAM for your external LLM service
 - Network access to pull images on first run
 
 goresearch is a CLI that you run on the host. Docker Compose is only used to provide optional dependencies. For the nginx HSTS use case:
 
-- Configure your external LLM endpoint: set `LLM_BASE_URL` to something like `http://localhost:1234/v1` and `LLM_MODEL` to `openai/gpt-oss-20b` (or another model your server hosts).
+- Configure your external LLM endpoint via `LLM_BASE_URL` and `LLM_MODEL`.
 - Start SearxNG locally if you want web search; otherwise use `-search.file` for offline/file‑based search.
 
 Start only SearxNG (dependency) from the base compose file:
@@ -145,25 +146,18 @@ Start only SearxNG (dependency) from the base compose file:
 docker compose up -d searxng
 ```
 
-Optional services live in `docker-compose.optional.yml` and can be brought up as needed, e.g. a local OpenAI‑compatible LLM or TLS proxy:
+Optional services live in `docker-compose.optional.yml` and can be brought up as needed (TLS proxy only):
 
 ```bash
-# Optional LocalAI (OpenAI-compatible) if you don't already have an LLM
-docker compose -f docker-compose.optional.yml up -d llm-openai
-
 # TLS reverse proxy via Caddy — optional (needs base + optional files)
 docker compose -f docker-compose.yml -f docker-compose.optional.yml --profile tls up -d caddy-tls
-
-# Stub LLM for deterministic tests — not used in quick start
-# (kept for unit/integration tests only)
-# docker compose -f docker-compose.optional.yml --profile test up -d stub-llm test-runner
 ```
 
 ### Environment variables
 Compose will read a local `.env` file when present and also respects exported shell variables. Useful settings:
 
-- `LLM_BASE_URL`: `http://localhost:1234/v1` (or wherever your LLM is served)
-- `LLM_MODEL`: model identifier known to your LLM server (e.g., `openai/gpt-oss-20b`)
+- `LLM_BASE_URL`: base URL for your LLM server
+- `LLM_MODEL`: model identifier known to your LLM server
 - `LLM_API_KEY`: API key if your server requires one (not baked into images)
 - `SEARX_URL`: internal URL for SearxNG (default `http://searxng:8080`)
 - `SSL_VERIFY`: enable SSL certificate verification; set to `false` for self-signed certificates (default `true`)
@@ -172,7 +166,7 @@ Compose will read a local `.env` file when present and also respects exported sh
 You can also set CLI flags at run time when invoking `goresearch` directly inside the `research-tool` container.
 
 ### Health checks and readiness
-- Services declare health checks: `searxng` probes the root (`/`) or `/status` depending on version. Optional LLM (`llm-openai`) probes `/v1/models` when used.
+- Services declare health checks: `searxng` probes the root (`/`) or `/status` depending on version.
 - Check health via:
 
 ```bash
@@ -217,7 +211,7 @@ These convenience targets manage the optional local stack defined in `docker-com
 Important: On Apple M2 virtual machines (including this development environment), Docker is not available due to nested virtualization limits. Skip these and use the non-Docker alternatives documented below (e.g., Homebrew/venv SearxNG, local LLM). On machines with Docker, you can use:
 
 ```bash
-# Start dev profile (tool + searxng + llm)
+# Start dev profile (tool + searxng)
 make up
 
 # Tail logs
@@ -238,7 +232,7 @@ make clean
 
 ### Network isolation and optional port exposure
 
-By default, the Compose stack runs on a private internal network and does not publish any ports to the host. When using optional services (`llm-openai`, `searxng`), to temporarily expose ports for local troubleshooting, use the provided override file with both compose files:
+By default, the Compose stack runs on a private internal network and does not publish any ports to the host. To temporarily expose SearxNG for local troubleshooting, use the provided override file:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.override.yml.example up -d
@@ -345,7 +339,7 @@ What’s covered today:
 - Normalization, extraction, selection, budgeting, and citation validation
 - Verification pass including deterministic fallback
 
-Deterministic integration tests use stubbed LLM clients to avoid network variance. To preview queries and selection without calling an LLM, use dry run:
+Deterministic integration tests use in-process stubbed LLM clients (no containers) to avoid network variance. To preview queries and selection without calling an LLM, use dry run:
 
 ```bash
 goresearch -input request.md -output report.md -dry-run -searx.url "$SEARX_URL"
