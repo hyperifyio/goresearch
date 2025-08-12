@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "errors"
     "os"
+    "regexp"
     "strings"
 )
 
@@ -35,7 +36,7 @@ func (f *FileProvider) Search(_ context.Context, query string, limit int) ([]Res
         if r.URL == "" || r.Title == "" {
             continue
         }
-        if q == "" || strings.Contains(strings.ToLower(r.Title), q) || strings.Contains(strings.ToLower(r.Snippet), q) {
+        if q == "" || strings.Contains(strings.ToLower(r.Title), q) || strings.Contains(strings.ToLower(r.Snippet), q) || matchesByTokens(q, r.Title+"\n"+r.Snippet) {
             // Apply optional domain policy
             if f.Policy.Denylist != nil || f.Policy.Allowlist != nil {
                 if blocked, _ := isDomainBlocked(r.URL, f.Policy.Allowlist, f.Policy.Denylist); blocked {
@@ -50,6 +51,34 @@ func (f *FileProvider) Search(_ context.Context, query string, limit int) ([]Res
         }
     }
     return out, nil
+}
+
+// matchesByTokens performs a loose token-based match between the query and the
+// candidate text. It returns true when at least two meaningful tokens (length
+// >= 3) from the query appear in the text, making the file provider usable for
+// longer, natural-language queries in tests and offline runs.
+func matchesByTokens(query, text string) bool {
+    query = strings.ToLower(query)
+    text = strings.ToLower(text)
+    // Split on non-letter/digit characters
+    splitter := regexp.MustCompile(`[^a-z0-9]+`)
+    qTokens := splitter.Split(query, -1)
+    if len(qTokens) == 0 {
+        return false
+    }
+    meaningful := 0
+    for _, tok := range qTokens {
+        if len(tok) < 3 { // skip very short/common tokens
+            continue
+        }
+        if strings.Contains(text, tok) {
+            meaningful++
+            if meaningful >= 2 {
+                return true
+            }
+        }
+    }
+    return false
 }
 
 

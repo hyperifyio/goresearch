@@ -44,9 +44,25 @@ doi_resolvers:
   doi.org: "https://doi.org/"
 default_doi_resolver: "doi.org"
 
-# Disable any engines that require API keys by default
+# Enable a small set of engines that do not require API keys
+# and work reliably via HTML scraping.
 engines:
+  # General web search engines (no API keys required)
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+    categories: general
+
+  - name: mojeek
+    engine: mojeek
+    shortcut: mjk
+    disabled: false
+    categories: general
+
+  # Topical/content engines
   - name: wikipedia
     engine: wikipedia
     shortcut: wp
     disabled: false
+    categories: general

@@ -1,12 +1,12 @@
 {
   "queries": [
-    "System Test specification",
-    "System Test documentation",
-    "System Test reference",
-    "System Test tutorial",
-    "System Test best practices",
-    "System Test faq",
-    "System Test examples",
+    "What are the primary objectives of system testing",
+    "Which test types should be included in a comprehensive system test plan",
+    "How can engineers design effective integration test cases",
+    "What metrics best reflect system test quality",
+    "Limitations of automated system testing tools",
+    "Alternatives to manual system testing",
+    "Contrary findings about continuous system testing effectiveness",
     "System Test limitations",
     "System Test contrary findings",
     "System Test alternatives"
@@ -17,6 +17,11 @@
     "Core concepts",
     "Implementation guidance",
     "Examples",
+    "Introduction to System Testing",
+    "Objectives and Scope",
+    "Test Planning and Design",
+    "Execution Strategies",
+    "Reporting and Metrics",
     "Alternatives \u0026 conflicting evidence",
     "Risks and limitations",
     "References"

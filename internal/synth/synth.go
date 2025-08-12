@@ -12,6 +12,7 @@ import (
 
     "github.com/hyperifyio/goresearch/internal/brief"
     "github.com/hyperifyio/goresearch/internal/cache"
+    "github.com/hyperifyio/goresearch/internal/budget"
     "github.com/hyperifyio/goresearch/internal/llm"
     "github.com/hyperifyio/goresearch/internal/llmtools"
     "github.com/hyperifyio/goresearch/internal/template"
@@ -80,6 +81,26 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
         return "", ErrNoSubstantiveBody
     }
 
+    // Compute a conservative max_tokens that fits within the model context.
+    // We estimate prompt tokens from the system and user messages only since
+    // they already include the excerpts. Then cap max_tokens so that
+    // prompt+max_tokens+headroom <= model context.
+    desiredOut := in.ReservedOutputTokens
+    if desiredOut <= 0 {
+        desiredOut = 800
+    }
+    maxCtx := budget.ModelContextTokens(in.Model)
+    headroom := budget.HeadroomTokens(in.Model)
+    promptTokens := budget.EstimateTokens(system) + budget.EstimateTokens(user)
+    allowedOut := maxCtx - headroom - promptTokens
+    if allowedOut < 64 {
+        // Always leave at least a small budget so servers don't reject zero/negative.
+        allowedOut = 64
+    }
+    if desiredOut > allowedOut {
+        desiredOut = allowedOut
+    }
+
     req := openai.ChatCompletionRequest{
         Model: in.Model,
         Messages: []openai.ChatCompletionMessage{
@@ -88,6 +109,9 @@ func (s *Synthesizer) Synthesize(ctx context.Context, in Input) (string, error) 
         },
         Temperature: 0.1,
         N:           1,
+        // Many OpenAI-compatible servers require an explicit max_tokens.
+        // Use a value that fits within the model's context.
+        MaxTokens: desiredOut,
     }
     // Transient-error retry: one short backoff attempt before failing.
     resp, err := s.Client.CreateChatCompletion(ctx, req)
