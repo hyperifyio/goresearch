@@ -2,3 +2,6 @@
 bin/
 goresearch
 logs
+.gocache/
+.tmp/
+.env.run

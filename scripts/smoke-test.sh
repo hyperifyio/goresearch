@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Simple smoke test for goresearch using an external OpenAI-compatible LLM
+# Smoke test for goresearch using an external OpenAI-compatible LLM
 # - Assumes an API at http://localhost:1234/v1 with model openai/gpt-oss-20b
-# - Runs the end-to-end pipeline without starting any local LLM containers
-# - Prints a clean PASS/FAIL summary for key capabilities
+# - Does NOT start any local LLM containers
+# - Uses file-based search to avoid requiring SearxNG for the nginx use case
+# - Prints a clean PASS/FAIL summary for essentials only
 
 set -u
 
@@ -58,7 +59,7 @@ else
   ko "External LLM not reachable at $LLM_BASE. Expected an OpenAI-compatible server exposing /v1/models"
 fi
 
-section "Run end-to-end pipeline"
+section "Run end-to-end pipeline (file search, no verify)"
 BRIEF="$TMPDIR/brief.md"
 RESULTS="$TMPDIR/results.json"
 OUT="$TMPDIR/report.md"
@@ -82,7 +83,8 @@ if [[ $status -eq 0 && -s "$OUT" ]]; then
   ok "Generated report with evidence and manifest"
   grep -q "References" "$OUT" && ok "Report contains References section" || ko "References section missing"
   # Evidence appendix and inline citations may vary across real models; treat as informational
-  grep -q "Evidence check" "$OUT" && ok "Report contains Evidence check appendix" || wn "Evidence appendix missing"
+  # Verification disabled in this smoke to minimize external calls
+  grep -q "Evidence check" "$OUT" && wn "Evidence appendix present (verify wasn't required)" || ok "Verification appendix omitted as expected"
   grep -q "\[[0-9]\]" "$OUT" && ok "Inline citations present" || wn "Inline citations missing"
   if compgen -G "$REPORTS_DIR"/*/planner.json >/dev/null; then ok "Artifacts bundle created"; else ko "Artifacts bundle missing"; fi
   if compgen -G "$REPORTS_DIR"/*.tar.gz >/dev/null; then ok "Artifacts tarball created"; else ko "Artifacts tarball missing"; fi
@@ -90,7 +92,7 @@ else
   ko "Pipeline failed (exit $status)"
 fi
 
-# This use case does not require SearxNG; omitted for clarity
+# This use case does not require SearxNG; omitted
 
 section "Summary"
 echo "${BOLD}Passes:${RESET} ${#passes[@]}"
