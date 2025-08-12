@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Smoke test for goresearch using an external OpenAI-compatible LLM
-# - Assumes an API at http://localhost:1234/v1 with model openai/gpt-oss-20b
+# Smoke test for goresearch for the nginx HSTS use case
+# - Uses an external OpenAI-compatible API (e.g., http://localhost:1234/v1)
 # - Does NOT start any local LLM containers
-# - Uses file-based search to avoid requiring SearxNG for the nginx use case
+# - Uses file-based search; SearxNG is not required for this smoke
 # - Prints a clean PASS/FAIL summary for essentials only
 
 set -u
@@ -43,6 +43,7 @@ trap cleanup EXIT
 
 section "Prerequisites"
 if have go; then ok "Go found: $(go version)"; else ko "Go toolchain not found. Install Go 1.23+ and re-run."; fi
+if have curl; then ok "curl found: $(curl --version | head -n1)"; else ko "curl not found. Install curl and re-run."; fi
 
 section "Build goresearch CLI"
 TMPDIR=$(mktemp -d)
@@ -53,7 +54,7 @@ else
 
 section "Check external LLM"
 LLM_BASE="${LLM_BASE_URL:-http://127.0.0.1:1234/v1}"
-if curl -fsS "$LLM_BASE/models" >/dev/null 2>&1; then
+if curl -fsS "${LLM_BASE%/}/models" >/dev/null 2>&1; then
   ok "External LLM reachable at $LLM_BASE"
 else
   ko "External LLM not reachable at $LLM_BASE. Expected an OpenAI-compatible server exposing /v1/models"
