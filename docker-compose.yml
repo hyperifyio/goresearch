@@ -1,16 +1,11 @@
 version: "3.3"
 
-networks:
-  goresearch_net:
-    driver: bridge
-    internal: true
-
 services:
   # SearxNG meta-search engine (dependency for web search)
   searxng:
     image: searxng/searxng@sha256:fe702750a9ffbf923533c67c456951a3be77f298915cf632077f3650ed4b5e4b
-    networks:
-      - goresearch_net
+    ports:
+      - "8888:8080"   # expose SearxNG web UI/API on localhost:8888
     environment:
       - SEARXNG_BASE_URL=http://searxng:8080/
       - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
