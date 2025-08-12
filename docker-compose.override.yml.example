@@ -7,10 +7,6 @@ networks:
     internal: false
 
 services:
-  llm-openai:
-    ports:
-      - "8080:8080"   # expose OpenAI-compatible API on localhost:8080
-
   searxng:
     ports:
       - "8888:8080"   # expose SearxNG web UI/API on localhost:8888

@@ -11,6 +11,20 @@ volumes:
   caddy_config:
 
 services:
+  # SearxNG meta-search engine (optional dependency for web search)
+  searxng:
+    image: searxng/searxng@sha256:fe702750a9ffbf923533c67c456951a3be77f298915cf632077f3650ed4b5e4b
+    networks:
+      - goresearch_net
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    volumes:
+      - ./devops/searxng-settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/status').read()"]
+    restart: unless-stopped
+
   # OpenAI-compatible LLM server (LocalAI)
   llm-openai:
     image: quay.io/go-skynet/local-ai@sha256:293f9109bdcebc2f75a10215cdff6683ee669fbdec9f6b85d101b19fe6702adb
@@ -27,6 +41,9 @@ services:
       timeout: 3s
       retries: 10
     profiles: ["dev", "test", "offline", "secure-cache", "tls"]
+    depends_on:
+      models-init:
+        condition: service_completed_successfully
 
   # One-shot init to prepare models volume with checksum verification
   models-init:
@@ -59,20 +76,6 @@ services:
       - goresearch_net
     restart: "no"
     profiles: ["dev", "test", "offline", "secure-cache", "tls"]
-
-  # SearxNG meta-search engine (optional search provider)
-  searxng:
-    image: searxng/searxng@sha256:fe702750a9ffbf923533c67c456951a3be77f298915cf632077f3650ed4b5e4b
-    networks:
-      - goresearch_net
-    environment:
-      - SEARXNG_BASE_URL=http://searxng:8080/
-      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
-    volumes:
-      - ./devops/searxng-settings.yml:/etc/searxng/settings.yml:ro
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/status').read()"]
-    profiles: ["dev", "secure-cache", "tls"]
 
   # Stub LLM for deterministic tests
   stub-llm:
