@@ -281,3 +281,4 @@
 
 
 * [x] Appendix management — auto-label Appendices A/B/C…, ensure each is referenced from the body.&#x20;
+* [ ] Add support for PDF file type - fix unsupported content type: application/pdf
