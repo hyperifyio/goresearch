@@ -28,7 +28,8 @@ search:
     - json
 
 outgoing:
-  request_timeout: 5.0
+  # Increase timeout to reduce engine read/connect timeouts (ddg_html/wikipedia)
+  request_timeout: 10.0
   pool_maxsize: 10
   # Lower concurrency to be polite
   max_connections: 10
@@ -53,12 +54,22 @@ engines:
     shortcut: ddg
     disabled: false
     categories: general
+    timeout: 10.0
+
+  # HTML-scraping variant tends to avoid CAPTCHA better
+  - name: duckduckgo_html
+    engine: duckduckgo_html
+    shortcut: ddgh
+    disabled: false
+    categories: general
+    timeout: 10.0
 
   - name: mojeek
     engine: mojeek
     shortcut: mjk
     disabled: false
     categories: general
+    timeout: 10.0
 
   # Topical/content engines
   - name: wikipedia
@@ -66,3 +77,4 @@ engines:
     shortcut: wp
     disabled: false
     categories: general
+    timeout: 10.0
