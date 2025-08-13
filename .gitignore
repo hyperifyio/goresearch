@@ -5,3 +5,10 @@ logs
 .gocache/
 .tmp/
 .env.run
+reports/*.md
+reports/*/SHA256SUMS
+reports/*/extracts.json
+reports/*/manifest.json
+reports/*/planner.json
+reports/*/selected.json
+report.md
